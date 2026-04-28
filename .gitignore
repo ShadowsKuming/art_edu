@@ -1,0 +1,34 @@
+# Environment / secrets
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Conda
+.conda/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Editor
+.DS_Store
+.idea/
+*.swp
+*.swo
+.vscode/settings.json
+
+# Logs
+*.log
+npm-debug.log*
+.claude/
