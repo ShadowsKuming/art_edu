@@ -42,7 +42,7 @@ function selectPart(part: Part) {
 }
 
 function addSlide() {
-  slideStore.addSlide(activePart.value)
+  slideStore.addSlide(slideStore.activePart)
 }
 
 function selectSlide(id: string) {
