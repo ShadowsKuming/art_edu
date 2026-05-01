@@ -1,16 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { usePart6Store } from '@/stores/part6'
 import { useSlideStore } from '@/stores/slides'
+import { useI18n } from 'vue-i18n'
 
 const store      = usePart6Store()
 const slideStore = useSlideStore()
+const { t }      = useI18n()
 
-const expandedResults = ref<Set<number>>(new Set())
+const canConvert = computed(() =>
+  store.selectedStyleIdx !== null &&
+  !store.usedStyleIndices.includes(store.selectedStyleIdx!)
+)
 
-function toggleResult(i: number) {
-  if (expandedResults.value.has(i)) expandedResults.value.delete(i)
-  else expandedResults.value.add(i)
+const allUsed = computed(() =>
+  store.styles.length > 0 &&
+  store.usedStyleIndices.length >= store.styles.length
+)
+
+function selectPig(i: number) {
+  if (!store.usedStyleIndices.includes(i)) {
+    store.selectedStyleIdx = i
+  }
 }
 
 function openFilePicker() {
@@ -37,13 +48,34 @@ function saveAndNext() {
 
 <template>
   <section class="p6-content">
-    <div class="p6-canvas-area">
 
-      <!-- Step 1 -->
+    <!-- ── Result view ─────────────────────────────────────── -->
+    <div v-if="store.view === 'result' && store.latestResult" class="p6-result-view">
+      <div class="p6-compare">
+        <div class="p6-compare-panel">
+          <img :src="store.latestResult.originalUrl" class="p6-compare-img" />
+          <p class="p6-compare-caption">{{ store.latestResult.prompt }}</p>
+        </div>
+        <div class="p6-arrow">
+          <svg viewBox="0 0 48 24" fill="none">
+            <path d="M2 12h40M34 4l8 8-8 8" stroke="#7FEC8F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="p6-compare-panel">
+          <img :src="store.latestResult.resultUrl" class="p6-compare-img" />
+        </div>
+      </div>
+      <button class="p6-convert-again-btn" @click="store.convertAgain()">{{ t('part6.convertAgain') }}</button>
+    </div>
+
+    <!-- ── Steps view ──────────────────────────────────────── -->
+    <div v-else class="p6-canvas-area">
+
+      <!-- Step 1: Upload -->
       <div class="p6-step">
         <p class="p6-step-label">
           <span class="p6-dot" />
-          <strong>Step 1:</strong> Upload a sketch or unfinished work
+          <strong v-html="t('part6.step1Label')" />
         </p>
 
         <div
@@ -58,12 +90,12 @@ function saveAndNext() {
                 <path d="M20 27V13M20 13l-5 5M20 13l5 5" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
-            <p class="p6-upload-label">Upload Student Work</p>
-            <button class="p6-select-btn" @click.stop="openFilePicker">Select Files</button>
+            <p class="p6-upload-label">{{ t('part6.uploadLabel') }}</p>
+            <button class="p6-select-btn" @click.stop="openFilePicker">{{ t('part6.selectFiles') }}</button>
           </template>
           <template v-else>
             <img :src="store.sketchDataUrl" class="p6-sketch-img" />
-            <button class="p6-reupload-btn" title="Replace" @click.stop="openFilePicker">
+            <button class="p6-reupload-btn" :title="t('part6.replace')" @click.stop="openFilePicker">
               <svg viewBox="0 0 16 16" fill="none">
                 <path d="M13 8A5 5 0 112 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 <path d="M13 4v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -73,81 +105,86 @@ function saveAndNext() {
         </div>
       </div>
 
-      <!-- Step 2 (shown once sketch uploaded) -->
-      <div v-if="store.sketchDataUrl" class="p6-step p6-step--pink">
+      <!-- Step 2: Pig style selectors (shown once sketch uploaded) -->
+      <div v-if="store.sketchDataUrl" class="p6-step">
         <p class="p6-step-label">
           <span class="p6-dot" />
-          <strong>Step 2:</strong> Choose a style and unlock your artwork's potential!
+          <strong v-html="t('part6.step2Label')" />
         </p>
 
         <!-- Loading -->
         <div v-if="store.generatingStyles" class="p6-styles-loading">
           <div class="p6-spinner" />
-          <span>Generating style options…</span>
+          <span>{{ t('part6.generatingStyles') }}</span>
         </div>
 
-        <!-- Empty hint -->
+        <!-- No styles yet -->
         <div v-else-if="!store.styles.length" class="p6-styles-hint">
-          <p>Tell ArtBloom about your lesson in the chat panel →<br>style options will appear here.</p>
+          <p>{{ t('part6.stylesHint') }}</p>
         </div>
 
-        <!-- Style cards -->
-        <div v-else class="p6-style-cards">
+        <!-- Pig cards -->
+        <div v-else class="p6-pig-row">
           <div
             v-for="(style, i) in store.styles"
             :key="i"
-            class="p6-style-card"
-            :class="{ 'p6-style-card--selected': store.selectedStyleIdx === i }"
-            @click="store.selectedStyleIdx = i"
+            class="p6-pig-card"
+            :class="{
+              'p6-pig-card--selected': store.selectedStyleIdx === i,
+              'p6-pig-card--used':     store.usedStyleIndices.includes(i),
+            }"
+            @click="selectPig(i)"
           >
-            <img :src="store.sketchDataUrl!" class="p6-style-card-img" />
-            <div class="p6-style-card-overlay" />
-            <p class="p6-style-card-label">{{ style.label }}</p>
+            <img
+              :src="store.usedStyleIndices.includes(i) ? '/pig-broken.svg' : '/pig.svg'"
+              class="p6-pig-img"
+              alt="style pig"
+            />
+            <p class="p6-pig-label">{{ style.label }}</p>
           </div>
         </div>
 
-        <!-- Error -->
+        <!-- Errors -->
         <p v-if="store.stylesError" class="p6-error">{{ store.stylesError }}</p>
         <p v-if="store.conversionError" class="p6-error">{{ store.conversionError }}</p>
 
-        <!-- Convert button -->
+        <!-- All used notice -->
+        <p v-if="allUsed" class="p6-all-used">{{ t('part6.allUsed') }}</p>
+
+        <!-- Convert button (below selected pig) -->
         <button
-          v-if="store.styles.length"
+          v-if="store.styles.length && !allUsed"
           class="p6-convert-btn"
-          :disabled="store.converting"
-          @click="store.convert()"
+          :disabled="!canConvert"
+          @click="canConvert && store.convert()"
         >
-          <span v-if="store.converting">
-            <span class="p6-btn-spinner" /> Converting…
-          </span>
-          <span v-else>Converting!</span>
+          {{ t('part6.convertBtn') }}
         </button>
       </div>
 
-      <!-- Results (collapsed, click to expand) -->
-      <div v-if="store.results.length" class="p6-results">
-        <div
-          v-for="(r, i) in store.results"
-          :key="i"
-          class="p6-result-item"
-        >
-          <button class="p6-result-header" @click="toggleResult(i)">
-            <span class="p6-result-title">{{ r.styleLabel }} — Result {{ i + 1 }}</span>
-            <svg class="p6-result-chevron" :class="{ 'p6-result-chevron--open': expandedResults.has(i) }" viewBox="0 0 16 16" fill="none">
-              <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <div v-if="expandedResults.has(i)" class="p6-result-image-wrap">
-            <img :src="r.imageUrl" class="p6-result-image" />
-          </div>
+    </div>
+
+    <!-- ── Converting overlay ──────────────────────────────── -->
+    <div v-if="store.view === 'converting'" class="p6-overlay">
+      <div class="p6-converting-card">
+        <div class="p6-orbit">
+          <div class="p6-orbit-dot" style="top:0px;left:30px;background:#FF6B6B" />
+          <div class="p6-orbit-dot" style="top:15px;left:56px;background:#FFB347" />
+          <div class="p6-orbit-dot" style="top:45px;left:56px;background:#FFE66D" />
+          <div class="p6-orbit-dot" style="top:60px;left:30px;background:#7FEC8F" />
+          <div class="p6-orbit-dot" style="top:45px;left:4px;background:#6EC6FF" />
+          <div class="p6-orbit-dot" style="top:15px;left:4px;background:#C39BD3" />
         </div>
+        <p class="p6-converting-text">{{ t('part6.convertingOverlay') }}</p>
       </div>
-
     </div>
 
+    <!-- ── Footer ──────────────────────────────────────────── -->
     <div class="p6-footer">
-      <button class="p6-save-btn" @click="saveAndNext">Save &amp; Next</button>
+      <button class="p6-save-plain-btn" @click="() => {}">{{ t('part6.save') }}</button>
+      <button class="p6-save-btn" @click="saveAndNext">{{ t('part6.saveNext') }}</button>
     </div>
+
   </section>
 </template>
 
@@ -161,8 +198,10 @@ function saveAndNext() {
   background-image: radial-gradient(circle, rgba(0,0,0,0.25) 1px, transparent 1px);
   background-size: 24px 24px;
   box-shadow: inset 0px 0px 3px 2px rgb(0 0 0 / 10%), inset 0px 0px 1px 0px rgba(0,0,0,0.60);
+  position: relative;
 }
 
+/* ── Canvas area ─────────────────────────────────────────── */
 .p6-canvas-area {
   flex: 1;
   overflow-y: auto;
@@ -172,7 +211,7 @@ function saveAndNext() {
   gap: 24px;
 }
 
-/* Steps */
+/* ── Steps ───────────────────────────────────────────────── */
 .p6-step {
   background: #fff;
   border-radius: 16px;
@@ -184,8 +223,6 @@ function saveAndNext() {
   max-width: 760px;
   width: 100%;
 }
-
-.p6-step--pink { background: #fff5f5; }
 
 .p6-step-label {
   margin: 0;
@@ -205,7 +242,7 @@ function saveAndNext() {
   display: inline-block;
 }
 
-/* Upload zone */
+/* ── Upload zone ─────────────────────────────────────────── */
 .p6-upload-zone {
   border: 2px dashed #d1d5db;
   border-radius: 12px;
@@ -225,7 +262,6 @@ function saveAndNext() {
 .p6-upload-zone--filled { cursor: default; border-style: solid; border-color: #e5e7eb; }
 
 .p6-upload-icon svg { width: 40px; height: 40px; }
-
 .p6-upload-label { font-size: 13px; color: #6b7280; margin: 0; }
 
 .p6-select-btn {
@@ -239,7 +275,6 @@ function saveAndNext() {
   cursor: pointer;
   color: #374151;
 }
-
 .p6-select-btn:hover { background: #e5e7eb; }
 
 .p6-sketch-img {
@@ -267,17 +302,15 @@ function saveAndNext() {
   justify-content: center;
   padding: 6px;
 }
-
 .p6-reupload-btn:hover { background: rgba(0,0,0,0.65); }
 
-/* Style cards */
+/* ── Styles loading / hint ───────────────────────────────── */
 .p6-styles-loading {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: 13px;
   color: #6b7280;
-  padding: 8px 0;
 }
 
 .p6-spinner {
@@ -301,65 +334,66 @@ function saveAndNext() {
   text-align: center;
   line-height: 1.6;
 }
-
 .p6-styles-hint p { margin: 0; }
 
-.p6-style-cards {
+/* ── Pig row ─────────────────────────────────────────────── */
+.p6-pig-row {
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 20px;
 }
 
-.p6-style-card {
+.p6-pig-card {
   flex: 1;
-  min-width: 140px;
-  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 12px 14px;
   border-radius: 16px;
-  overflow: hidden;
   border: 3px solid transparent;
+  background: #fafafa;
   cursor: pointer;
-  position: relative;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: transform 0.15s, border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  user-select: none;
 }
 
-.p6-style-card:hover { transform: scale(1.03); border-color: #B2F4BC; }
-.p6-style-card--selected { border-color: #7FEC8F; box-shadow: 0 0 0 2px #7FEC8F; }
+.p6-pig-card:hover:not(.p6-pig-card--used) {
+  border-color: #B2F4BC;
+  transform: translateY(-2px);
+}
 
-.p6-style-card-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.p6-pig-card--selected {
+  border-color: #7FEC8F;
+  box-shadow: 0 0 0 3px rgba(127, 236, 143, 0.45);
+  background: #f0fdf4;
+}
+
+.p6-pig-card--used {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: grayscale(0.4);
+}
+
+.p6-pig-img {
+  width: 100px;
+  height: auto;
   display: block;
 }
 
-.p6-style-card-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.28);
-}
-
-.p6-style-card-label {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.p6-pig-label {
   margin: 0;
-  padding: 12px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
   text-align: center;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
-/* Convert button */
+/* ── Convert button ──────────────────────────────────────── */
 .p6-convert-btn {
   align-self: center;
-  height: 40px;
-  padding: 0 32px;
+  height: 42px;
+  padding: 0 36px;
   background: #7FEC8F;
   border: none;
   border-radius: 999px;
@@ -367,23 +401,24 @@ function saveAndNext() {
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   box-shadow: 2px 2px 6px rgba(0,0,0,0.12);
+  transition: transform 0.15s, opacity 0.15s;
 }
 
-.p6-convert-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.p6-convert-btn:not(:disabled):hover { transform: translateY(-1px) scale(1.02); }
+.p6-convert-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
-.p6-btn-spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(0,0,0,0.2);
-  border-top-color: #000;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+.p6-convert-btn:not(:disabled):hover {
+  transform: translateY(-1px) scale(1.02);
+}
+
+.p6-all-used {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
 }
 
 .p6-error {
@@ -396,70 +431,146 @@ function saveAndNext() {
   padding: 6px 12px;
 }
 
-/* Results */
-.p6-results {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 760px;
-  width: 100%;
-}
-
-.p6-result-item {
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-}
-
-.p6-result-header {
-  width: 100%;
+/* ── Converting overlay ──────────────────────────────────── */
+.p6-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
+  justify-content: center;
+  z-index: 10;
 }
 
-.p6-result-header:hover { background: #f9fafb; }
+.p6-converting-card {
+  background: #fff;
+  border-radius: 24px;
+  padding: 48px 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
 
-.p6-result-title {
-  font-size: 13px;
+.p6-orbit {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  animation: spin 1.4s linear infinite;
+}
+
+.p6-orbit-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.p6-converting-text {
+  margin: 0;
+  font-size: 17px;
   font-weight: 600;
   color: #111827;
+  letter-spacing: 0.02em;
 }
 
-.p6-result-chevron {
-  width: 16px;
-  height: 16px;
-  color: #6b7280;
-  transition: transform 0.2s;
-  flex-shrink: 0;
+/* ── Result view ─────────────────────────────────────────── */
+.p6-result-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 32px 40px;
+  overflow-y: auto;
 }
 
-.p6-result-chevron--open { transform: rotate(180deg); }
-
-.p6-result-image-wrap {
-  padding: 0 16px 16px;
-}
-
-.p6-result-image {
+.p6-compare {
+  display: flex;
+  align-items: center;
+  gap: 24px;
   width: 100%;
-  border-radius: 8px;
+  max-width: 820px;
+}
+
+.p6-compare-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.p6-compare-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   display: block;
 }
 
-/* Footer */
+.p6-compare-caption {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.p6-arrow {
+  flex-shrink: 0;
+}
+
+.p6-arrow svg {
+  width: 56px;
+  height: 28px;
+}
+
+.p6-convert-again-btn {
+  height: 44px;
+  padding: 0 32px;
+  background: #fff;
+  border: 2px solid #7FEC8F;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  color: #111827;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.p6-convert-again-btn:hover {
+  background: #f0fdf4;
+  transform: translateY(-1px);
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
 .p6-footer {
   padding: 16px 40px;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
 }
+
+.p6-save-plain-btn {
+  height: 44px;
+  padding: 0 24px;
+  background: #e6e6e6;
+  color: #374151;
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.p6-save-plain-btn:hover { background: #d8d8d8; }
 
 .p6-save-btn {
   height: 44px;
@@ -474,6 +585,5 @@ function saveAndNext() {
   cursor: pointer;
   box-shadow: 2px 3px 6px rgba(0,0,0,0.12);
 }
-
 .p6-save-btn:hover { transform: translateY(-1px) scale(1.02); }
 </style>

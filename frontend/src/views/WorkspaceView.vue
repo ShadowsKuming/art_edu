@@ -7,13 +7,17 @@ import WorkspaceChatbot from '@/components/workspace/WorkspaceChatbot.vue'
 import Part3Content from '@/components/workspace/part3/Part3Content.vue'
 import Part3StoryPanel from '@/components/workspace/part3/Part3StoryPanel.vue'
 import Part3AnimationPanel from '@/components/workspace/part3/Part3AnimationPanel.vue'
+import Part5Content from '@/components/workspace/part5/Part5Content.vue'
 import Part6Content from '@/components/workspace/part6/Part6Content.vue'
 import Part6AssistancePanel from '@/components/workspace/part6/Part6AssistancePanel.vue'
+import Part7Placeholder from '@/components/workspace/part7/Part7Placeholder.vue'
 import { useSlideStore } from '@/stores/slides'
 
 const slideStore = useSlideStore()
 const isPart3 = computed(() => slideStore.activePart === 3)
+const isPart5 = computed(() => slideStore.activePart === 5)
 const isPart6 = computed(() => slideStore.activePart === 6)
+const isPart7 = computed(() => slideStore.activePart === 7)
 
 // Part 3 mode state
 const part3Mode = ref<'story' | 'animation'>('story')
@@ -73,6 +77,15 @@ function stopResize() {
         </div>
       </template>
 
+      <!-- Part 5: predefined slide + video upload -->
+      <template v-else-if="isPart5">
+        <Part5Content />
+        <div class="resizer" @mousedown="startResize" />
+        <div class="chat-panel" :style="{ width: chatWidth + 'px' }">
+          <WorkspaceChatbot />
+        </div>
+      </template>
+
       <!-- Part 6: special layout -->
       <template v-else-if="isPart6">
         <Part6Content />
@@ -80,6 +93,11 @@ function stopResize() {
         <div class="chat-panel" :style="{ width: chatWidth + 'px' }">
           <Part6AssistancePanel />
         </div>
+      </template>
+
+      <!-- Part 7: placeholder -->
+      <template v-else-if="isPart7">
+        <Part7Placeholder />
       </template>
 
       <!-- All other parts: normal layout -->

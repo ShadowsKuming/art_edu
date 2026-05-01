@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import SlideCanvas from './canvas/SlideCanvas.vue'
 import ColorPicker from './ColorPicker.vue'
 import { useSlideStore, CANVAS_W, CANVAS_H } from '@/stores/slides'
+import { useI18n } from 'vue-i18n'
 
 type Tool = 'text' | 'image' | 'video' | 'audio'
 const activeTool = ref<Tool>('text')
@@ -57,6 +58,10 @@ const showBgColorPicker = ref(false)
 const bgColorDraft = ref('#ffffff')
 const imageMenuAnchorEl = ref<HTMLElement | null>(null)
 
+const hasLocalBackground = computed(() =>
+  (slideStore.activeSlide?.isLocalBackground ?? false) && slideStore.activeSlide?.partId !== 1
+)
+
 function openBgColorPicker() {
   bgColorDraft.value = slideStore.activeSlide?.bgColor ?? '#ffffff'
   showBgColorPicker.value = true
@@ -71,6 +76,11 @@ function applyBgColor() {
 
 function toggleImageMenu() {
   showImageMenu.value = !showImageMenu.value
+}
+
+function resetToGlobal() {
+  if (slideStore.activeSlideId) slideStore.resetSlideToGlobal(slideStore.activeSlideId)
+  showImageMenu.value = false
 }
 
 function onDocClick(e: MouseEvent) {
@@ -129,6 +139,7 @@ function uploadImageElement() {
 function generateImage() {
   showImageMenu.value = false
 }
+const { t } = useI18n()
 const fontFamilies = ['Albert Sans', 'Plus Jakarta Sans', 'Inter', 'Noto Sans SC']
 const fontWeights = ['Normal', 'Medium', 'Bold']
 </script>
@@ -191,36 +202,43 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
 
         <!-- Image tool dropdown -->
         <div v-if="showImageMenu" class="image-menu" @click.stop>
-          <p class="image-menu-section">Add as element</p>
+          <p class="image-menu-section">{{ t('content.imageMenu.addAsElement') }}</p>
           <button class="image-menu-item" @click="uploadImageElement">
             <svg viewBox="0 0 20 20" fill="none" class="image-menu-icon">
               <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
               <circle cx="7" cy="8.5" r="1.5" fill="currentColor"/>
               <path d="M2 14l4-4 3 3 3-3 6 6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
             </svg>
-            <span class="image-menu-label">Upload image</span>
+            <span class="image-menu-label">{{ t('content.imageMenu.uploadImage') }}</span>
           </button>
           <button class="image-menu-item" @click="generateImage">
             <svg viewBox="0 0 20 20" fill="none" class="image-menu-icon">
               <path d="M10 2l1.5 4H16l-3.5 2.5 1.5 4L10 10l-4 2.5 1.5-4L4 6h4.5L10 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
             </svg>
-            <span class="image-menu-label">Generate an image</span>
+            <span class="image-menu-label">{{ t('content.imageMenu.generateImage') }}</span>
           </button>
           <div class="image-menu-divider" />
-          <p class="image-menu-section">Slide background</p>
+          <p class="image-menu-section">{{ t('content.imageMenu.slideBackground') }}</p>
           <button class="image-menu-item" @click="uploadBackground">
             <svg viewBox="0 0 20 20" fill="none" class="image-menu-icon">
               <path d="M10 13V4M10 4l-3 3M10 4l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M3 14v1a2 2 0 002 2h10a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
-            <span class="image-menu-label">Upload background</span>
+            <span class="image-menu-label">{{ t('content.imageMenu.uploadBackground') }}</span>
           </button>
           <button class="image-menu-item" @click="openBgColorPicker">
             <svg viewBox="0 0 20 20" fill="none" class="image-menu-icon">
               <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/>
               <circle cx="10" cy="10" r="3.5" fill="currentColor"/>
             </svg>
-            <span class="image-menu-label">Solid color</span>
+            <span class="image-menu-label">{{ t('content.imageMenu.solidColor') }}</span>
+          </button>
+          <button v-if="hasLocalBackground" class="image-menu-item image-menu-item--reset" @click="resetToGlobal">
+            <svg viewBox="0 0 20 20" fill="none" class="image-menu-icon">
+              <path d="M4 10a6 6 0 1012 0 6 6 0 00-12 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M4 6v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="image-menu-label">{{ t('content.imageMenu.resetToGlobal') }}</span>
           </button>
         </div>
 
@@ -238,23 +256,23 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
           <template v-if="selectedEl?.type === 'text'">
             <div class="props-section">
               <div class="prop-group">
-                <label class="prop-label">Font Family</label>
+                <label class="prop-label">{{ t('content.fontFamily') }}</label>
                 <select v-model="fontFamily" class="prop-select prop-select--wide">
                   <option v-for="f in fontFamilies" :key="f">{{ f }}</option>
                 </select>
               </div>
               <div class="prop-group">
-                <label class="prop-label">Weight</label>
+                <label class="prop-label">{{ t('content.weight') }}</label>
                 <select v-model="fontWeight" class="prop-select">
                   <option v-for="w in fontWeights" :key="w">{{ w }}</option>
                 </select>
               </div>
               <div class="prop-group">
-                <label class="prop-label">Size</label>
+                <label class="prop-label">{{ t('content.size') }}</label>
                 <input v-model.number="fontSize" type="number" class="prop-input-number" />
               </div>
               <div class="prop-group">
-                <label class="prop-label">Alignment</label>
+                <label class="prop-label">{{ t('content.alignment') }}</label>
                 <div class="align-btns">
                   <button
                     v-for="a in ['left','center','right','justify'] as const"
@@ -289,7 +307,7 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
                 </div>
               </div>
               <div class="prop-group">
-                <label class="prop-label">Text Color</label>
+                <label class="prop-label">{{ t('content.textColor') }}</label>
                 <div class="color-row">
                   <button
                     v-for="c in colorSwatches"
@@ -318,7 +336,7 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
           <template v-else-if="selectedEl?.type === 'image'">
             <div class="props-section">
               <div class="prop-group">
-                <label class="prop-label">Flip</label>
+                <label class="prop-label">{{ t('content.flip') }}</label>
                 <div class="flip-btns">
                   <button
                     class="flip-btn"
@@ -351,11 +369,12 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
 
           <template v-else>
             <div class="props-placeholder">
-              {{ hasSlide ? 'Click Tt to add text, or select an element to edit.' : 'Add a slide to get started.' }}
+              {{ hasSlide ? t('content.noSelection') : t('content.noSlide') }}
             </div>
           </template>
 
-          <button class="btn-save-next">Save &amp; Next</button>
+          <button class="btn-save" @click="() => {}">{{ t('content.save') }}</button>
+          <button class="btn-save-next" @click="slideStore.navigateToNextPart()">{{ t('content.saveNext') }}</button>
         </div>
       </div>
     </div>
@@ -615,6 +634,23 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
   padding: 8px 0;
 }
 
+.btn-save {
+  height: 44px;
+  padding: 0 24px;
+  background: #e6e6e6;
+  color: #374151;
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-save:hover { background: #d8d8d8; }
+
 .btn-save-next {
   height: 44px;
   padding: 0 28px;
@@ -632,6 +668,9 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
 }
 
 .btn-save-next:hover { transform: translateY(-1px) scale(1.02); }
+
+.image-menu-item--reset { color: #6b7280; }
+.image-menu-item--reset:hover { background: #f3f4f6; }
 
 .toolbar-area {
   position: relative;

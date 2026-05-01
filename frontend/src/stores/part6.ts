@@ -7,8 +7,9 @@ export interface Style {
 }
 
 export interface StyleResult {
-  styleLabel: string
-  imageUrl: string
+  originalUrl: string
+  prompt: string
+  resultUrl: string
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
@@ -20,13 +21,14 @@ export const usePart6Store = defineStore('part6', () => {
 
   const styles           = ref<Style[]>([])
   const lessonSummary    = ref('')
-  const selectedStyleIdx = ref<number>(0)
+  const selectedStyleIdx = ref<number | null>(null)
   const generatingStyles = ref(false)
   const stylesError      = ref<string | null>(null)
 
-  const converting      = ref(false)
-  const conversionError = ref<string | null>(null)
-  const results         = ref<StyleResult[]>([])
+  const view             = ref<'steps' | 'converting' | 'result'>('steps')
+  const usedStyleIndices = ref<number[]>([])
+  const latestResult     = ref<StyleResult | null>(null)
+  const conversionError  = ref<string | null>(null)
 
   function setSketch(dataUrl: string) {
     sketchDataUrl.value    = dataUrl
@@ -35,8 +37,11 @@ export const usePart6Store = defineStore('part6', () => {
     sketchMime.value       = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
     styles.value           = []
     lessonSummary.value    = ''
-    selectedStyleIdx.value = 0
-    results.value          = []
+    selectedStyleIdx.value = null
+    usedStyleIndices.value = []
+    latestResult.value     = null
+    view.value             = 'steps'
+    conversionError.value  = null
   }
 
   async function generateStyles(lessonContext: string) {
@@ -60,7 +65,7 @@ export const usePart6Store = defineStore('part6', () => {
       const data = await res.json()
       styles.value        = data.styles ?? []
       lessonSummary.value = data.lesson_summary ?? ''
-      selectedStyleIdx.value = 0
+      selectedStyleIdx.value = null
     } catch (e: any) {
       stylesError.value = e.message
     } finally {
@@ -70,11 +75,13 @@ export const usePart6Store = defineStore('part6', () => {
 
   async function convert() {
     if (!sketchBase64.value || !styles.value.length) return
+    if (selectedStyleIdx.value === null) return
     const style = styles.value[selectedStyleIdx.value]
     if (!style) return
 
-    converting.value      = true
+    view.value            = 'converting'
     conversionError.value = null
+
     try {
       const res = await fetch(`${API_BASE}/api/part6/transfer`, {
         method: 'POST',
@@ -90,18 +97,30 @@ export const usePart6Store = defineStore('part6', () => {
         throw new Error(err.detail ?? 'Conversion failed')
       }
       const data = await res.json()
-      results.value.push({ styleLabel: style.label, imageUrl: data.image_url })
+      latestResult.value = {
+        originalUrl: sketchDataUrl.value!,
+        prompt:      style.prompt,
+        resultUrl:   data.image_url,
+      }
+      view.value = 'result'
     } catch (e: any) {
       conversionError.value = e.message
-    } finally {
-      converting.value = false
+      view.value = 'steps'
     }
+  }
+
+  function convertAgain() {
+    if (selectedStyleIdx.value !== null && !usedStyleIndices.value.includes(selectedStyleIdx.value)) {
+      usedStyleIndices.value = [...usedStyleIndices.value, selectedStyleIdx.value]
+    }
+    selectedStyleIdx.value = null
+    view.value = 'steps'
   }
 
   return {
     sketchDataUrl, styles, lessonSummary, selectedStyleIdx,
     generatingStyles, stylesError,
-    converting, conversionError, results,
-    setSketch, generateStyles, convert,
+    view, usedStyleIndices, latestResult, conversionError,
+    setSketch, generateStyles, convert, convertAgain,
   }
 })

@@ -1,48 +1,57 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed } from 'vue'
 import { useSlideStore } from '@/stores/slides'
+import { usePart3Store } from '@/stores/part3'
 import SlideThumbnail from './SlideThumbnail.vue'
+import { useI18n } from 'vue-i18n'
 
-interface Part {
-  id: number
-  label: string
-  status: 'completed' | 'active' | 'inactive'
-}
+const { t, tm } = useI18n()
+
+const PART_IDS = [1, 2, 3, 4, 5, 6, 7]
+
+// Parts that show slide thumbnails + add slide button in the sidebar
+const SLIDE_EDITOR_PARTS = new Set([1, 2, 3, 4])
 
 const slideStore = useSlideStore()
+const part3Store = usePart3Store()
 
-const parts = ref<Part[]>([
-  { id: 1, label: 'Part 1: Cover & Opening', status: 'completed' },
-  { id: 2, label: 'Part 2: Hook & Guided Attention', status: 'active' },
-  { id: 3, label: 'Part 3: Interactive Story', status: 'inactive' },
-  { id: 4, label: 'Part 4: Making Task', status: 'inactive' },
-  { id: 5, label: 'Part 5: Making Example', status: 'inactive' },
-  { id: 6, label: 'Part 6: Work Transformation', status: 'inactive' },
-  { id: 7, label: 'Part 7: Share & Feedback', status: 'inactive' },
-])
+type Status = 'active' | 'completed' | 'inactive'
+
+const parts = computed(() =>
+  PART_IDS.map(id => ({
+    id,
+    label: (tm('sidebar.parts') as string[])[id - 1],
+    status: (
+      id === slideStore.activePart ? 'active' :
+      id <= slideStore.maxUnlockedPart ? 'completed' : 'inactive'
+    ) as Status,
+  }))
+)
 
 const activePartSlides = computed(() => slideStore.slidesForPart(slideStore.activePart))
 
-// Keep sidebar statuses in sync when activePart changes externally (e.g. Save & Next)
-watch(() => slideStore.activePart, (newId, oldId) => {
-  const oldPart = parts.value.find(p => p.id === oldId)
-  const newPart = parts.value.find(p => p.id === newId)
-  if (oldPart && oldPart.status === 'active') oldPart.status = 'completed'
-  if (newPart) newPart.status = 'active'
-})
-
-function selectPart(part: Part) {
-  if (part.status === 'completed' || part.status === 'inactive') {
-    parts.value.forEach(p => {
-      if (p.id === slideStore.activePart) p.status = 'inactive'
-    })
-    part.status = 'active'
-    slideStore.activePart = part.id
+function selectPart(partId: number, status: Status) {
+  if (status !== 'inactive') {
+    slideStore.navigateToPart(partId)
   }
 }
 
 function addSlide() {
-  slideStore.addSlide(slideStore.activePart)
+  const id = slideStore.addSlide(slideStore.activePart)
+  if (slideStore.activePart === 3) {
+    part3Store.ensurePair(id)
+  }
+}
+
+function deleteSlide(slideId: string) {
+  if (slideStore.activePart === 3) {
+    part3Store.removePair(slideId)
+  }
+  slideStore.removeSlide(slideId)
+}
+
+function canDelete(partId: number) {
+  return slideStore.slidesForPart(partId).length > 1
 }
 
 function selectSlide(id: string) {
@@ -53,7 +62,7 @@ function selectSlide(id: string) {
 <template>
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="sidebar-title">Page List</span>
+      <span class="sidebar-title">{{ t('sidebar.pageList') }}</span>
     </div>
 
     <div class="sidebar-body">
@@ -70,7 +79,7 @@ function selectSlide(id: string) {
             'part-row--completed': part.status === 'completed',
             'part-row--inactive': part.status === 'inactive',
           }"
-          @click="selectPart(part)"
+          @click="selectPart(part.id, part.status)"
         >
           <span class="part-label">{{ part.label }}</span>
           <svg
@@ -90,8 +99,11 @@ function selectSlide(id: string) {
           </svg>
         </div>
 
-        <!-- Slide thumbnails (active only) -->
-        <div v-if="part.status === 'active'" class="slides-list">
+        <!-- Slide thumbnails (active slide-editor parts only) -->
+        <div
+          v-if="part.status === 'active' && SLIDE_EDITOR_PARTS.has(part.id)"
+          class="slides-list"
+        >
           <div
             v-for="slide in activePartSlides"
             :key="slide.id"
@@ -100,9 +112,14 @@ function selectSlide(id: string) {
             @click="selectSlide(slide.id)"
           >
             <SlideThumbnail :slide="slide" />
+            <button
+              v-if="canDelete(slide.partId)"
+              class="slide-delete-btn"
+              :title="t('sidebar.deleteSlide')"
+              @click.stop="deleteSlide(slide.id)"
+            >×</button>
           </div>
 
-          <!-- Add slide -->
           <div class="slide-add" @click="addSlide">
             <span class="slide-add-icon">+</span>
           </div>
@@ -138,7 +155,6 @@ function selectSlide(id: string) {
   overflow-y: auto;
 }
 
-/* Part rows */
 .part-row {
   display: flex;
   align-items: center;
@@ -152,12 +168,15 @@ function selectSlide(id: string) {
   background: #B2F4BC;
 }
 
-.part-row--completed,
-.part-row--inactive {
+.part-row--completed {
   background: #E6E6E6;
 }
 
-.part-row--inactive:hover,
+.part-row--inactive {
+  background: #E6E6E6;
+  cursor: not-allowed;
+}
+
 .part-row--completed:hover {
   background: #d9d9d9;
 }
@@ -170,7 +189,7 @@ function selectSlide(id: string) {
 }
 
 .part-row--inactive .part-label {
-  color: #6b7280;
+  color: #9ca3af;
   font-weight: 400;
 }
 
@@ -194,9 +213,10 @@ function selectSlide(id: string) {
   border-radius: 8px;
   background: #fff;
   border: 1px solid #e5e7eb;
-  overflow: hidden;
+  overflow: visible;
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  position: relative;
 }
 
 .slide-thumb:hover,
@@ -205,6 +225,27 @@ function selectSlide(id: string) {
   box-shadow: 0 0 0 2px #B2F4BC;
 }
 
+.slide-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.slide-thumb:hover .slide-delete-btn { display: flex; }
+.slide-delete-btn:hover { background: #dc2626; }
 
 .slide-add {
   width: 100%;
@@ -219,7 +260,7 @@ function selectSlide(id: string) {
 }
 
 .slide-add:hover {
-  border-color: #22c55e;
+  border-color: #7FEC8F;
   background: #f0fdf4;
 }
 
@@ -230,6 +271,6 @@ function selectSlide(id: string) {
 }
 
 .slide-add:hover .slide-add-icon {
-  color: #22c55e;
+  color: #7FEC8F;
 }
 </style>

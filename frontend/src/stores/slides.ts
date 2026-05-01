@@ -24,8 +24,8 @@ export interface SlideElement {
   src?: string
   flipH?: boolean
   flipV?: boolean
-  rotation?: number   // degrees
-  cropT?: number      // inset fractions 0-1
+  rotation?: number
+  cropT?: number
   cropR?: number
   cropB?: number
   cropL?: number
@@ -35,8 +35,9 @@ export interface Slide {
   id: string
   partId: number
   elements: SlideElement[]
-  background?: string   // image data URL (clears bgColor)
-  bgColor?: string      // solid color (clears background)
+  background?: string    // image data URL
+  bgColor?: string       // solid color
+  isLocalBackground?: boolean  // true = teacher override, false/undefined = follows global theme
 }
 
 let elCounter = 0
@@ -45,7 +46,12 @@ export const useSlideStore = defineStore('slides', () => {
   const slides = ref<Slide[]>([])
   const activeSlideId = ref<string | null>(null)
   const selectedElementId = ref<string | null>(null)
-  const activePart = ref<number>(2)
+  const activePart = ref<number>(1)
+  const maxUnlockedPart = ref<number>(1)
+
+  // Global theme — set implicitly by Part 1 background changes
+  const globalBackground = ref<string | undefined>(undefined)
+  const globalBgColor = ref<string | undefined>(undefined)
 
   const activeSlide = computed(() =>
     slides.value.find(s => s.id === activeSlideId.value) ?? null
@@ -61,7 +67,12 @@ export const useSlideStore = defineStore('slides', () => {
 
   function addSlide(partId: number): string {
     const id = `slide-${Date.now()}`
-    slides.value.push({ id, partId, elements: [] })
+    slides.value.push({
+      id, partId, elements: [],
+      background: globalBackground.value,
+      bgColor: globalBgColor.value,
+      isLocalBackground: false,
+    })
     activeSlideId.value = id
     selectedElementId.value = null
     return id
@@ -125,25 +136,122 @@ export const useSlideStore = defineStore('slides', () => {
     selectedElementId.value = id
   }
 
+  function _propagateGlobal() {
+    slides.value.forEach(s => {
+      if (!s.isLocalBackground) {
+        s.background = globalBackground.value
+        s.bgColor = globalBgColor.value
+      }
+    })
+  }
+
   function setSlideBackground(slideId: string, bg: string) {
     const slide = slides.value.find(s => s.id === slideId)
-    if (slide) { slide.background = bg; slide.bgColor = undefined }
+    if (!slide) return
+    if (slide.partId === 1) {
+      globalBackground.value = bg
+      globalBgColor.value = undefined
+      slide.background = bg
+      slide.bgColor = undefined
+      slide.isLocalBackground = false
+      _propagateGlobal()
+    } else {
+      slide.isLocalBackground = true
+      slide.background = bg
+      slide.bgColor = undefined
+    }
   }
 
   function setSlideBgColor(slideId: string, color: string) {
     const slide = slides.value.find(s => s.id === slideId)
-    if (slide) { slide.bgColor = color; slide.background = undefined }
+    if (!slide) return
+    if (slide.partId === 1) {
+      globalBgColor.value = color
+      globalBackground.value = undefined
+      slide.bgColor = color
+      slide.background = undefined
+      slide.isLocalBackground = false
+      _propagateGlobal()
+    } else {
+      slide.isLocalBackground = true
+      slide.bgColor = color
+      slide.background = undefined
+    }
+  }
+
+  function resetSlideToGlobal(slideId: string) {
+    const slide = slides.value.find(s => s.id === slideId)
+    if (!slide) return
+    slide.isLocalBackground = false
+    slide.background = globalBackground.value
+    slide.bgColor = globalBgColor.value
   }
 
   function navigateToNextPart() {
-    if (activePart.value < 7) activePart.value++
+    const next = activePart.value + 1
+    if (next > 7) return
+    activePart.value = next
+    if (next > maxUnlockedPart.value) maxUnlockedPart.value = next
+  }
+
+  function navigateToPart(partId: number) {
+    if (partId >= 1 && partId <= maxUnlockedPart.value) {
+      activePart.value = partId
+    }
+  }
+
+  function getSnapshot() {
+    return {
+      slides: JSON.parse(JSON.stringify(slides.value)) as Slide[],
+      activePart: activePart.value,
+      maxUnlockedPart: maxUnlockedPart.value,
+      globalBackground: globalBackground.value,
+      globalBgColor: globalBgColor.value,
+    }
+  }
+
+  function loadSnapshot(snap: ReturnType<typeof getSnapshot>) {
+    slides.value = snap.slides
+    activePart.value = snap.activePart
+    maxUnlockedPart.value = snap.maxUnlockedPart
+    globalBackground.value = snap.globalBackground
+    globalBgColor.value = snap.globalBgColor
+    activeSlideId.value = snap.slides[0]?.id ?? null
+    selectedElementId.value = null
+  }
+
+  function removeSlide(slideId: string) {
+    const idx = slides.value.findIndex(s => s.id === slideId)
+    if (idx === -1) return
+    const partId = slides.value[idx].partId
+    const partSlides = slides.value.filter(s => s.partId === partId)
+    if (partSlides.length <= 1) return  // keep at least one
+    slides.value.splice(idx, 1)
+    if (activeSlideId.value === slideId) {
+      const remaining = slides.value.filter(s => s.partId === partId)
+      activeSlideId.value = remaining[Math.min(idx, remaining.length - 1)]?.id ?? null
+      selectedElementId.value = null
+    }
+  }
+
+  function reset() {
+    slides.value = []
+    activeSlideId.value = null
+    selectedElementId.value = null
+    activePart.value = 1
+    maxUnlockedPart.value = 1
+    globalBackground.value = undefined
+    globalBgColor.value = undefined
   }
 
   return {
-    slides, activeSlideId, selectedElementId, activePart,
+    slides, activeSlideId, selectedElementId, activePart, maxUnlockedPart,
+    globalBackground, globalBgColor,
     activeSlide, selectedElement,
     slidesForPart, addSlide, selectSlide,
     addElement, addImageElement, updateElement, removeElement, selectElement,
-    setSlideBackground, setSlideBgColor, navigateToNextPart,
+    setSlideBackground, setSlideBgColor, resetSlideToGlobal,
+    navigateToNextPart, navigateToPart,
+    removeSlide, getSnapshot, loadSnapshot, reset,
   }
 })

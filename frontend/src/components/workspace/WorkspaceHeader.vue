@@ -1,16 +1,27 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { useNavigationStore } from '@/stores/navigation'
+import { useSlideStore } from '@/stores/slides'
+import { usePart5Store } from '@/stores/part5'
+import { useProjectsStore } from '@/stores/projects'
+import { useI18n } from 'vue-i18n'
+import { toggleLocale } from '@/i18n'
 
 defineProps<{
   canStartTeaching?: boolean
 }>()
 
 const router = useRouter()
-const nav = useNavigationStore()
+const slideStore = useSlideStore()
+const part5Store = usePart5Store()
+const projectsStore = useProjectsStore()
+const { t, locale } = useI18n()
 
 function goBack() {
-  nav.canAccessDashboard = true
+  projectsStore.saveCurrentProject(
+    slideStore.getSnapshot(),
+    part5Store.videoDataUrl ?? undefined,
+    part5Store.videoName || undefined,
+  )
   router.push('/dashboard')
 }
 </script>
@@ -23,15 +34,15 @@ function goBack() {
       </div>
 
       <div class="header-actions">
-        <button class="btn-outline" @click="goBack">Back</button>
-        <button class="btn-outline">Save Draft</button>
-        <button class="btn-outline">Preview Lesson</button>
+        <button class="btn-lang" @click="toggleLocale">{{ locale === 'en' ? '中文' : 'EN' }}</button>
+        <button class="btn-outline" @click="goBack">{{ t('nav.back') }}</button>
+        <button class="btn-outline">{{ t('nav.previewLesson') }}</button>
         <button
           class="btn-filled"
           :class="canStartTeaching ? 'btn-filled--active' : 'btn-filled--disabled'"
           :disabled="!canStartTeaching"
         >
-          Start Teaching
+          {{ t('nav.startTeaching') }}
         </button>
       </div>
     </div>
@@ -65,6 +76,19 @@ function goBack() {
   justify-content: flex-end;
   gap: clamp(8px, -20px + 3.65vw, 50px);
 }
+
+.btn-lang {
+  padding: clamp(3px, 0.16vw, 4px) clamp(8px, -1.5px + 1.04vw, 14px);
+  border-radius: 999px;
+  border: 1.5px solid #d1d5db;
+  background: #fff;
+  font-size: clamp(11px, 10px + 0.1vw, 13px);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  color: #374151;
+}
+.btn-lang:hover { border-color: #7FEC8F; background: #f0fdf4; }
 
 .btn-outline,
 .btn-filled {

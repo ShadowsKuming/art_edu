@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Albert Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
-  font-family: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Albert Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
 }

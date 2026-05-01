@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useNavigationStore } from '@/stores/navigation'
+import { useProjectsStore } from '@/stores/projects'
 import HomeView from '@/views/HomeView.vue'
 
 const router = createRouter({
@@ -24,14 +24,11 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  const nav = useNavigationStore()
-
-  if (to.name === 'dashboard' && !nav.canAccessDashboard) {
-    return { name: 'home' }
-  }
-
-  if (to.name === 'workspace' && !nav.canAccessWorkspace) {
-    return { name: 'dashboard' }
+  if (to.name === 'workspace') {
+    const projectsStore = useProjectsStore()
+    if (!projectsStore.activeProjectId) {
+      return { name: 'dashboard' }
+    }
   }
 })
 

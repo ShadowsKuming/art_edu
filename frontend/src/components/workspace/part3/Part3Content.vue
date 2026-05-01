@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { usePart3Store } from '@/stores/part3'
 import { useSlideStore } from '@/stores/slides'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ mode: 'story' | 'animation' }>()
 const emit  = defineEmits<{ 'update:mode': [mode: 'story' | 'animation'] }>()
 
 const store      = usePart3Store()
 const slideStore = useSlideStore()
+const { t, locale } = useI18n()
 
 const selectedVersionIdx = ref<number | null>(null)
+
+// Sync active pair with active slide, reset selection on pair switch
+watch(
+  () => slideStore.activeSlideId,
+  (id) => {
+    if (id && slideStore.slides.find(s => s.id === id)?.partId === 3) {
+      store.ensurePair(id)
+      selectedVersionIdx.value = null
+    }
+  },
+  { immediate: true },
+)
+
+const hasPair    = computed(() => !!store.activePairId)
+const hasStory   = computed(() => !!store.storyData)
+const hasAnim    = computed(() => store.animationVersions.length > 0)
 
 const activeVideoUrl = computed(() => {
   if (selectedVersionIdx.value === null) return null
@@ -25,7 +43,7 @@ function selectVersion(i: number) {
 
 function openFilePicker() {
   const input = document.createElement('input')
-  input.type  = 'file'
+  input.type   = 'file'
   input.accept = 'image/*'
   input.style.cssText = 'position:fixed;top:-999px;left:-999px;'
   document.body.appendChild(input)
@@ -34,20 +52,34 @@ function openFilePicker() {
     input.remove()
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => { store.setImage(reader.result as string); selectedVersionIdx.value = null }
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      store.setImage(dataUrl)
+      // Mirror image as slide background so the sidebar thumbnail shows it
+      if (slideStore.activeSlideId) {
+        slideStore.setSlideBackground(slideStore.activeSlideId, dataUrl)
+      }
+      selectedVersionIdx.value = null
+    }
     reader.readAsDataURL(file)
   })
   input.click()
 }
 
-async function onGenerateStory() {
+// Story button: generate on first click, just switch mode on subsequent clicks
+async function onStoryClick() {
   emit('update:mode', 'story')
-  await store.generateStory()
+  if (!hasStory.value) {
+    await store.generateStory(locale.value)
+  }
 }
 
-async function onGenerateAnimation() {
+// Animation button: generate on first click, just switch mode on subsequent clicks
+async function onAnimationClick() {
   emit('update:mode', 'animation')
-  await store.generateAnimation()
+  if (!hasAnim.value) {
+    await store.generateAnimation()
+  }
 }
 
 function saveAndNext() {
@@ -60,6 +92,18 @@ function saveAndNext() {
 
 <template>
   <section class="p3-content">
+
+    <!-- Empty state: no slides yet for Part 3 -->
+    <div v-if="!hasPair" class="p3-empty-state">
+      <svg viewBox="0 0 48 48" fill="none" class="p3-empty-icon">
+        <rect x="4" y="10" width="40" height="28" rx="4" stroke="#d1d5db" stroke-width="2"/>
+        <circle cx="17" cy="21" r="4" stroke="#d1d5db" stroke-width="2"/>
+        <path d="M4 34l10-10 8 8 6-6 16 12" stroke="#d1d5db" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <p class="p3-empty-label" v-html="t('part3.emptyState')" />
+    </div>
+
+    <template v-else>
     <div class="p3-canvas-area">
 
       <!-- Image display -->
@@ -70,7 +114,7 @@ function saveAndNext() {
             <circle cx="17" cy="21" r="4" stroke="#9ca3af" stroke-width="2"/>
             <path d="M4 34l10-10 8 8 6-6 16 12" stroke="#9ca3af" stroke-width="2" stroke-linejoin="round"/>
           </svg>
-          <p class="p3-upload-label">Click to upload artwork image</p>
+          <p class="p3-upload-label">{{ t('part3.uploadLabel') }}</p>
         </div>
 
         <template v-else>
@@ -85,7 +129,7 @@ function saveAndNext() {
           />
           <!-- Otherwise show the static image -->
           <img v-else :src="store.imageDataUrl" class="p3-image" />
-          <button class="p3-reupload-btn" title="Replace image" @click="openFilePicker">
+          <button class="p3-reupload-btn" :title="t('part3.replaceImage')" @click="openFilePicker">
             <svg viewBox="0 0 16 16" fill="none">
               <path d="M13 8A5 5 0 112 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               <path d="M13 4v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -96,7 +140,7 @@ function saveAndNext() {
 
       <!-- Attempt counter -->
       <p v-if="mode === 'animation' && store.imageDataUrl" class="p3-attempt-counter">
-        Remaining animation attempts: {{ store.remainingAttempts }} / 3
+        {{ t('part3.remainingAttempts', { n: store.remainingAttempts }) }}
       </p>
 
       <!-- Mode buttons -->
@@ -105,27 +149,29 @@ function saveAndNext() {
           class="p3-mode-btn"
           :class="{ 'p3-mode-btn--active': mode === 'story' }"
           :disabled="!store.imageDataUrl || store.storyLoading"
-          @click="onGenerateStory"
+          @click="onStoryClick"
         >
           <svg viewBox="0 0 20 20" fill="none" class="p3-btn-icon">
             <path d="M4 5h12M4 8h8M4 11h10M4 14h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
-          <span v-if="store.storyLoading && mode === 'story'">Generating…</span>
-          <span v-else>Generate Story</span>
+          <span v-if="store.storyLoading">{{ t('part3.generating') }}</span>
+          <span v-else-if="hasStory">{{ t('part3.story') }}</span>
+          <span v-else>{{ t('part3.generateStory') }}</span>
         </button>
 
         <button
           class="p3-mode-btn"
           :class="{ 'p3-mode-btn--active': mode === 'animation' }"
-          :disabled="!store.imageDataUrl || store.remainingAttempts <= 0 || store.animationLoading"
-          @click="onGenerateAnimation"
+          :disabled="!store.imageDataUrl || !hasStory || (!hasAnim && (store.remainingAttempts <= 0 || store.animationLoading))"
+          @click="onAnimationClick"
         >
           <svg viewBox="0 0 20 20" fill="none" class="p3-btn-icon">
             <rect x="2" y="5" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
             <path d="M14 8l4-2v8l-4-2V8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
           </svg>
-          <span v-if="store.animationLoading && mode === 'animation'">Generating…</span>
-          <span v-else>Generate Animation</span>
+          <span v-if="store.animationLoading">{{ t('part3.generating') }}</span>
+          <span v-else-if="hasAnim">{{ t('part3.animation') }}</span>
+          <span v-else>{{ t('part3.generateAnimation') }}</span>
         </button>
       </div>
 
@@ -157,7 +203,7 @@ function saveAndNext() {
             </svg>
           </div>
           <span class="p3-anim-label">
-            {{ v.status === 'pending' ? 'Processing…' : v.status === 'failed' ? 'Failed' : `Animation ${i + 1}` }}
+            {{ v.status === 'pending' ? t('part3.processing') : v.status === 'failed' ? t('part3.failed') : t('part3.animationN', { n: i + 1 }) }}
           </span>
         </div>
       </div>
@@ -165,8 +211,11 @@ function saveAndNext() {
     </div>
 
     <div class="p3-footer">
-      <button class="p3-save-btn" @click="saveAndNext">Save &amp; Next</button>
+      <span v-if="!activeVideoUrl" class="p3-footer-hint">{{ t('part3.selectVersionHint') }}</span>
+      <button class="p3-save-plain-btn" @click="() => {}">{{ t('part3.save') }}</button>
+      <button class="p3-save-btn" :disabled="!activeVideoUrl" @click="saveAndNext">{{ t('part3.saveNext') }}</button>
     </div>
+    </template>
   </section>
 </template>
 
@@ -378,8 +427,25 @@ function saveAndNext() {
   padding: 16px 32px;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
 }
+
+.p3-save-plain-btn {
+  height: 44px;
+  padding: 0 24px;
+  background: #e6e6e6;
+  color: #374151;
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.p3-save-plain-btn:hover { background: #d8d8d8; }
 
 .p3-save-btn {
   height: 44px;
@@ -395,5 +461,33 @@ function saveAndNext() {
   box-shadow: 2px 3px 6px rgba(0,0,0,0.12);
 }
 
-.p3-save-btn:hover { transform: translateY(-1px) scale(1.02); }
+.p3-save-btn:hover:not(:disabled) { transform: translateY(-1px) scale(1.02); }
+.p3-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.p3-footer-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  flex: 1;
+  text-align: right;
+  padding-right: 8px;
+}
+
+.p3-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px;
+}
+
+.p3-empty-icon { width: 56px; height: 56px; }
+
+.p3-empty-label {
+  font-size: 14px;
+  color: #9ca3af;
+  margin: 0;
+  text-align: center;
+}
 </style>
