@@ -1,6 +1,15 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Slide } from './slides'
+
+const STORAGE_KEY = 'artbloom-projects'
+
+function load<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch { return fallback }
+}
 
 export interface SlideSnapshot {
   slides: Slide[]
@@ -14,14 +23,15 @@ export interface Project {
   id: string
   name: string
   createdAt: string
+  status?: 'draft' | 'completed' | 'taught' | 'saved'
   snapshot: SlideSnapshot
   part5VideoDataUrl?: string
   part5VideoName?: string
 }
 
 export const useProjectsStore = defineStore('projects', () => {
-  const projects = ref<Project[]>([])
-  const activeProjectId = ref<string | null>(null)
+  const projects        = ref<Project[]>(load(`${STORAGE_KEY}-list`, []))
+  const activeProjectId = ref<string | null>(load(`${STORAGE_KEY}-active`, null))
 
   const activeProject = computed(() =>
     projects.value.find(p => p.id === activeProjectId.value) ?? null
@@ -59,6 +69,9 @@ export const useProjectsStore = defineStore('projects', () => {
   function setActiveProject(id: string) {
     activeProjectId.value = id
   }
+
+  watch(projects, val => localStorage.setItem(`${STORAGE_KEY}-list`, JSON.stringify(val)), { deep: true })
+  watch(activeProjectId, val => localStorage.setItem(`${STORAGE_KEY}-active`, JSON.stringify(val)))
 
   return {
     projects, activeProjectId, activeProject,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -9,23 +10,25 @@ interface Message {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
 
-const suggestions = [
-  'The learning objectives of this lesson?',
-  'What colour tone works best for this slide deck?',
-  'Where can I find images for this lesson?',
-]
+const { t, tm, locale } = useI18n()
 
-const messages = ref<Message[]>([
-  {
+function makeWelcome(): Message {
+  return {
     role: 'assistant',
-    text: 'Hi, I am ArtBloom! Ask me anything about the slide design. For example:',
-    suggestions,
-  },
-])
+    text: t('chatbot.greeting'),
+    suggestions: (tm('chatbot.suggestions') as string[]).map(s => String(s)),
+  }
+}
 
-const input   = ref('')
-const loading = ref(false)
+const messages = ref<Message[]>([makeWelcome()])
+
+const input    = ref('')
+const loading  = ref(false)
 const scrollEl = ref<HTMLElement | null>(null)
+
+watch(locale, () => {
+  messages.value = [makeWelcome()]
+})
 
 function scrollBottom() {
   nextTick(() => scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight, behavior: 'smooth' }))
@@ -48,13 +51,13 @@ async function send(text?: string) {
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify({ messages: history, language: locale.value }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     messages.value.push({ role: 'assistant', text: data.reply })
   } catch (e: any) {
-    messages.value.push({ role: 'assistant', text: 'Sorry, something went wrong. Please try again.' })
+    messages.value.push({ role: 'assistant', text: t('chatbot.error') })
   } finally {
     loading.value = false
     scrollBottom()
@@ -67,7 +70,7 @@ async function send(text?: string) {
 
     <!-- Header -->
     <div class="chatbot-header">
-      <span class="chatbot-title">Assistance</span>
+      <span class="chatbot-title">{{ t('chatbot.title') }}</span>
     </div>
 
     <!-- Bot identity -->
@@ -75,7 +78,7 @@ async function send(text?: string) {
       <img src="/LOGO.png" alt="ArtBloom" class="bot-avatar" />
       <div class="bot-info">
         <span class="bot-name">ArtBloom</span>
-        <span class="bot-subtitle">Creative Assistant</span>
+        <span class="bot-subtitle">{{ t('chatbot.subtitle') }}</span>
       </div>
     </div>
 
@@ -116,7 +119,7 @@ async function send(text?: string) {
     <div class="input-area">
       <textarea
         v-model="input"
-        placeholder="Ask questions about the slides design......"
+        :placeholder="t('chatbot.placeholder')"
         class="chat-input"
         rows="2"
         :disabled="loading"

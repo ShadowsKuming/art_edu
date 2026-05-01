@@ -280,6 +280,7 @@ class ChatMsg(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMsg]
+    language: str = "en"
 
 
 @app.post("/api/chat")
@@ -288,10 +289,11 @@ async def chat(req: ChatRequest):
         raise HTTPException(500, "ARK_API_KEY is not set")
 
     history = [{"role": m.role, "content": m.text} for m in req.messages]
+    system  = CHAT_SYSTEM + _lang_suffix(req.language)
 
     payload = {
         "model": CHAT_MODEL,
-        "messages": [{"role": "system", "content": CHAT_SYSTEM}] + history,
+        "messages": [{"role": "system", "content": system}] + history,
         "max_tokens": 800,
     }
 
