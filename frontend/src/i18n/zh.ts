@@ -1,14 +1,204 @@
 export default {
   lang: '中文',
   home: {
-    welcome: '欢迎使用 ArtBloom',
-    desc: 'AI 赋能美术教育，一课一节。',
-    getStarted: '立即开始',
+    nav: {
+      home: '首页',
+      tutorial: '使用指南',
+      contact: '联系我们',
+      access: '进入',
+    },
+    access: {
+      title: '使用邀请码访问',
+      subtitle: '请使用研究团队提供的邀请码访问 ArtBloom',
+      placeholder: '输入邀请码',
+      submit: '进入 ArtBloom',
+      closeAria: '关闭访问弹窗',
+    },
+    hero: {
+      titleArt: 'Art',
+      titleBloom: 'Bloom',
+      description:
+        '面向小学美术课堂的 AI 教学工作流，帮助老师在备课、授课、创作引导和反馈之间顺畅切换。',
+      captionTopRight: '从教材出发，构建故事与互动。',
+      captionBottomRight: '在创作过程中提供可视化的指导与反馈。',
+      mainImageAlt: 'ArtBloom 主视觉插画',
+      photo1Alt: '老师在电脑上备课',
+      photo2Alt: '孩子们在课堂上用蜡笔绘画',
+      photo3Alt: '美术教室中的师生互动',
+    },
+    tutorial: {
+      title: '使用指南',
+      subtitle: '从教材出发，按步骤搭建结构化的课堂幻灯片。',
+      intro:
+        'ArtBloom 不是传统的幻灯片编辑器，而是围绕备课、课堂教学和课中辅助而设计的教学工作流系统。',
+      introBold: 'ArtBloom',
+      bannerAlt: '使用指南横幅',
+      steps: [
+        {
+          title: '选择一节教材课文',
+          body: '选择你想要教授的年级、册别、单元与课时。',
+        },
+        {
+          title: 'AI 辅助创作',
+          body: '使用 ArtBloom 获得文本建议、故事生成、动画生成与页面级润色。',
+        },
+        {
+          title: '构建结构化课件',
+          body: '在引导式的页面结构中编辑课堂内容。',
+        },
+        {
+          title: '预览课程',
+          body: '在进入授课模式前检查页面顺序、媒体播放与互动流程。',
+        },
+        {
+          title: '开始上课',
+          body: '直接进入演示模式，在课堂上完成完整的教学。',
+        },
+      ],
+    },
+    contact: {
+      title: '联系我们',
+      subtitle:
+        '如果你对 ArtBloom 的使用、试点参与、研究合作或反馈有任何问题，欢迎与研究团队联系。',
+      bannerAlt: '联系我们横幅',
+      helpTitle: '我们能帮你什么',
+      helpItems: [
+        {
+          title: '使用支持',
+          body: '邀请码、登录、课程编辑和授课模式相关问题',
+        },
+        {
+          title: '研究合作',
+          body: '试点研究、学校合作与学术交流',
+        },
+        {
+          title: '反馈建议',
+          body: '功能建议、Bug 反馈与使用体验评价',
+        },
+      ],
+      emailLabel: '邮箱',
+      emailValue: 'machi2019uk@163.com',
+      wechatLabel: '微信',
+      wechatValue: 'chi_chi_131',
+      form: {
+        nameLabel: '姓名',
+        firstNamePlaceholder: '名',
+        lastNamePlaceholder: '姓',
+        emailLabel: '邮箱',
+        emailPlaceholder: 'b*************.com',
+        phoneLabel: '电话',
+        phonePlaceholder: '+1(480) 555-0103',
+        messageLabel: '留言',
+        send: '发送消息',
+        required: '必填',
+      },
+    },
   },
   nav: {
     back: '返回',
     previewLesson: '预览课程',
     startTeaching: '开始上课',
+  },
+  lessonSelect: {
+    title: '选择教材课文，开始备课',
+    grade: '{n}年级',
+    volume: '第{n}册',
+    unit: '第{n}单元',
+    lesson: '第{n}课',
+    backToVolumes: '返回教材选择',
+    closeAria: '关闭课程选择',
+    volumeAria: '打开 {grade} 年级第 {volume} 册',
+  },
+  community: {
+    title: '课件社区',
+    subtitle: '浏览社区共享的幻灯片课件，从其他老师的课程中获取灵感。',
+    backToDashboard: '返回工作台',
+    heroAlt: '装饰性绘制图形',
+    gridAria: '共享的课件',
+    filters: {
+      aria: '筛选社区课程',
+      gradeLevel: '年级',
+      unit: '单元',
+      lesson: '课时',
+      allGrades: '全部年级',
+      allUnits: '全部单元',
+      allLessons: '全部课时',
+      discover: '查找',
+    },
+    card: {
+      preview: '预览',
+      save: '收藏',
+      unitLessonShort: '第{unit}单元 • 第{lesson}课',
+    },
+    pagination: {
+      aria: '分页',
+      prev: '上一页',
+      next: '下一页',
+    },
+  },
+  dashboardHub: {
+    title: '工作台',
+    subtitle:
+      '欢迎使用 ArtBloom 工作台。在这里，你可以创建幻灯片课件、管理教学素材，并快速回到日常的备课与授课流程。',
+    greeting: '你好，{name}',
+    homeAriaLabel: '返回首页',
+    dashboardAriaLabel: 'Go to dashboard',
+    accountAriaLabel: '打开我的账户',
+    avatarAlt: '用户头像',
+    heroAlt: '装饰性绘制图形',
+    entryAriaLabel: '打开 {title}',
+    cards: {
+      createLesson: {
+        title: '新建课程',
+        description: '从教材课文出发，创建结构化的全新幻灯片课件。',
+      },
+      myLessons: {
+        title: '我的课程',
+        description: '查看、编辑和管理你已创建、保存或正在使用的幻灯片课件。',
+      },
+      community: {
+        title: '课件社区',
+        description: '浏览社区共享的幻灯片课件，将有用的课程加入到你的教学流程中。',
+      },
+      startTeaching: {
+        title: '开始上课',
+        description: '快速选择一份已完成的幻灯片课件，进入授课模式。',
+      },
+      myAccount: {
+        title: '我的账户',
+        description: '查看账户信息并提交反馈。',
+      },
+    },
+  },
+  account: {
+    title: '我的账户',
+    backToDashboard: '返回工作台',
+    welcome: '欢迎你，{name}',
+    subtitle: '管理你的资料、提交反馈，并保持创作灵感。',
+    decorAlt: '装饰性的师生拼贴图',
+    profile: {
+      displayName: '显示名称',
+      displayNamePlaceholder: '设置一个显示名称',
+      bio: '教学格言',
+      bioPlaceholder: '分享一句你的教学格言或简介…',
+      editAvatarAria: '编辑头像',
+    },
+    inviteCode: {
+      label: '邀请码',
+    },
+    feedback: {
+      title: '帮助我们改进 ArtBloom',
+      body: '我们很想听到你对功能的体验和建议。你的反馈将塑造 ArtBloom 的下一个版本。',
+      send: '提交反馈',
+    },
+    quote: {
+      text: '"每个孩子都是艺术家。问题是长大后如何继续做一名艺术家。" —— 毕加索',
+    },
+    picker: {
+      title: '选择你的头像',
+      ariaLabel: '头像选择器',
+      closeAria: '关闭头像选择器',
+    },
   },
   dashboard: {
     myLessons: '我的课程',

@@ -1,14 +1,207 @@
 export default {
   lang: 'EN',
   home: {
-    welcome: 'Welcome to ArtBloom',
-    desc: 'AI-powered art education, lesson by lesson.',
-    getStarted: 'Get Started',
+    nav: {
+      home: 'Home',
+      tutorial: 'Tutorial',
+      contact: 'Contact',
+      access: 'Access',
+    },
+    access: {
+      title: 'Access with Invitation Code',
+      subtitle:
+        'Use the code provided by the research team to access ArtBloom',
+      placeholder: 'Type Invitation Code',
+      submit: 'Enter ArtBloom',
+      closeAria: 'Close access dialog',
+    },
+    hero: {
+      titleArt: 'Art',
+      titleBloom: 'Bloom',
+      description:
+        'An AI teaching workflow for primary art classrooms, helping teachers move smoothly across lesson preparation, instruction, creative guidance, and feedback.',
+      captionTopRight: 'Start from the textbook, then build stories and interaction.',
+      captionBottomRight: 'Provide visible guidance and feedback during making.',
+      mainImageAlt: 'ArtBloom hero illustration',
+      photo1Alt: 'Teacher preparing a lesson on a laptop',
+      photo2Alt: 'Children drawing with crayons in class',
+      photo3Alt: 'Teacher and students in an art classroom',
+    },
+    tutorial: {
+      title: 'Tutorial',
+      subtitle:
+        'Start from the textbook and build a structured lesson deck step by step for classroom teaching.',
+      intro:
+        'ArtBloom is not a traditional slide editor, but a teaching workflow system designed around lesson preparation, classroom delivery, and in-class support.',
+      introBold: 'ArtBloom',
+      bannerAlt: 'Tutorial overview banner',
+      steps: [
+        {
+          title: 'Choose a textbook lesson',
+          body: 'Select the grade, volume, unit and lesson you want to teach.',
+        },
+        {
+          title: 'Author with AI Assistance',
+          body: 'Use ArtBloom for text suggestions, story, animation generation, and page-level refinement.',
+        },
+        {
+          title: 'Build a structured slide deck',
+          body: 'Edit your lesson within a guided page structure for classroom use.',
+        },
+        {
+          title: 'Preview the lesson',
+          body: 'Check page order, media playback, and interaction flow before entering teaching mode.',
+        },
+        {
+          title: 'Start teaching',
+          body: 'Launch the completed lesson directly in presentation mode for classroom teaching.',
+        },
+      ],
+    },
+    contact: {
+      title: 'Contact Us',
+      subtitle:
+        'If you have any questions about using ArtBloom, participating in the pilot, research collaboration, or sharing feedback, please get in touch with the research team.',
+      bannerAlt: 'Get in touch banner',
+      helpTitle: 'How We Can Help',
+      helpItems: [
+        {
+          title: 'Access Support',
+          body: 'Invitation code, login, lesson editing, and teaching-mode issues',
+        },
+        {
+          title: 'Research collaboration',
+          body: 'Pilot studies, school partnerships, and academic exchange',
+        },
+        {
+          title: 'Feedback',
+          body: 'Feature suggestions, bug reports, and user experience comments',
+        },
+      ],
+      emailLabel: 'Email',
+      emailValue: 'machi2019uk@163.com',
+      wechatLabel: 'WeChat',
+      wechatValue: 'chi_chi_131',
+      form: {
+        nameLabel: 'Name',
+        firstNamePlaceholder: 'First Name',
+        lastNamePlaceholder: 'Last Name',
+        emailLabel: 'Email',
+        emailPlaceholder: 'b*************.com',
+        phoneLabel: 'Phone',
+        phonePlaceholder: '+1(480) 555-0103',
+        messageLabel: 'Comment or Message',
+        send: 'Send Message',
+        required: 'Required',
+      },
+    },
   },
   nav: {
     back: 'Back',
     previewLesson: 'Preview Lesson',
     startTeaching: 'Start Teaching',
+  },
+  lessonSelect: {
+    title: 'Select a textbook lesson to start lesson-prep',
+    grade: 'Grade {n}',
+    volume: 'Volume {n}',
+    unit: 'Unit {n}',
+    lesson: 'Lesson {n}',
+    backToVolumes: 'Back to volume picker',
+    closeAria: 'Close lesson selection',
+    volumeAria: 'Open Grade {grade}, Volume {volume}',
+  },
+  community: {
+    title: 'Community',
+    subtitle:
+      'Browse shared slide decks and example lessons to inspire your teaching.',
+    backToDashboard: 'Back to Dashboard',
+    heroAlt: 'Decorative painted shapes',
+    gridAria: 'Shared lesson decks',
+    filters: {
+      aria: 'Filter community lessons',
+      gradeLevel: 'Grade Level',
+      unit: 'Unit',
+      lesson: 'Lesson',
+      allGrades: 'All Grades',
+      allUnits: 'All Units',
+      allLessons: 'All Lessons',
+      discover: 'Discover',
+    },
+    card: {
+      preview: 'Preview',
+      save: 'Save',
+      unitLessonShort: 'Unit {unit} • Lesson {lesson}',
+    },
+    pagination: {
+      aria: 'Pagination',
+      prev: 'Previous page',
+      next: 'Next page',
+    },
+  },
+  dashboardHub: {
+    title: 'Dashboard',
+    subtitle:
+      'Welcome to the ArtBloom dashboard. Here, you can create slide decks, manage your teaching materials, and quickly return to your daily lesson preparation and teaching workflow.',
+    greeting: 'Hi, {name}',
+    homeAriaLabel: 'Return to homepage',
+    dashboardAriaLabel: 'Go to dashboard',
+    accountAriaLabel: 'Open my account',
+    avatarAlt: 'User avatar',
+    heroAlt: 'Decorative painted shapes illustration',
+    entryAriaLabel: 'Open {title}',
+    cards: {
+      createLesson: {
+        title: 'Create Lesson',
+        description: 'Start from a textbook lesson to create a new structured slide deck.',
+      },
+      myLessons: {
+        title: 'My Lessons',
+        description: 'View, edit, manage the slide decks you have created, saved, or are currently using.',
+      },
+      community: {
+        title: 'Community',
+        description: 'Browse shared slide decks and add useful lessons to your own teaching workflow.',
+      },
+      startTeaching: {
+        title: 'Start Teaching',
+        description: 'Quickly choose a completed slide deck and begin teaching.',
+      },
+      myAccount: {
+        title: 'My Account',
+        description: 'View your account details and share feedback.',
+      },
+    },
+  },
+  account: {
+    title: 'My Account',
+    backToDashboard: 'Back to Dashboard',
+    welcome: 'Welcome, {name}',
+    subtitle: 'Manage your profile, share feedback, and stay inspired.',
+    decorAlt: 'Decorative collage of teachers and pupils',
+    profile: {
+      displayName: 'Display Name',
+      displayNamePlaceholder: 'Add a display name',
+      bio: 'Teaching Motto',
+      bioPlaceholder: 'Share a short teaching motto or bio…',
+      editAvatarAria: 'Edit avatar',
+    },
+    inviteCode: {
+      label: 'Invitation Code',
+    },
+    feedback: {
+      title: 'Help us improve ArtBloom',
+      body: 'We would love to hear what is working and what is not. Your feedback shapes the next version of ArtBloom.',
+      send: 'Send Feedback',
+    },
+    quote: {
+      text: '“Every child is an artist. The problem is how to remain an artist once we grow up.” — Pablo Picasso',
+    },
+    picker: {
+      title: 'Choose your avatar',
+      ariaLabel: 'Avatar picker',
+      closeAria: 'Close avatar picker',
+    },
   },
   dashboard: {
     myLessons: 'My Lessons',

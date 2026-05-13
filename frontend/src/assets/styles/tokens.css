@@ -1,0 +1,120 @@
+/* ──────────────────────────────────────────────────────────────────────
+   Design tokens — colors, typography, spacing, radii, shadows, layout.
+   Lift these from Figma; reference everywhere via var(--…).
+   ────────────────────────────────────────────────────────────────────── */
+
+:root {
+    /* ── Brand & neutrals ─────────────────────────────────────── */
+    --color-primary: #7FEC8F;
+    --color-primary-soft: #B2F4BC;
+    --color-bg: #FFFFFF;
+    --color-surface-soft: #F8FAF7;
+    /* "How We Can Help" card */
+    --color-input-bg: #F1F4F5;
+    --color-border: #D9D9D9;
+    --color-divider: #B7B7B7;
+    --color-text: #0C0C0C;
+    /* Natural Black */
+    --color-text-strong: #2F3334;
+    --color-text-muted: #464646;
+    /* Natural-2 */
+    --color-text-soft: #606060;
+    /* Natural-3 */
+    --color-text-placeholder: #7B7B7B;
+    /* Natural-4 */
+    --color-danger: #FE2A2A;
+
+    /* ── Tutorial step gradients (5 cards) ────────────────────── */
+    --grad-card-1: linear-gradient(133deg, #FFC6F2 4%, #FFF3FC 96%);
+    /* pink   */
+    --grad-card-2: linear-gradient(222deg, #FFC2A5 4%, #FFF7F3 90%);
+    /* peach  */
+    --grad-card-3: linear-gradient(219deg, #E8F1FF 11%, #A2C5FF 100%);
+    /* blue   */
+    --grad-card-4: linear-gradient(148deg, #FAFFE2 18%, #EFFF96 100%);
+    /* yellow */
+    --grad-card-5: linear-gradient(223deg, #BAFFC5 18%, #E8FFEC 97%);
+    /* green  */
+
+    /* ── Step number bubble fills ────────────────────────────── */
+    --chip-1: #FFCBF3;
+    --chip-2: #FFC9AE;
+    --chip-3: #B7D2FF;
+    --chip-4: #EDFF8D;
+    --chip-5: #B7FFC3;
+
+    /* ── How-we-can-help icon bubble fills ────────────────────── */
+    --bubble-support: #DEFCE7;
+    --bubble-collaboration: #FEF0C2;
+    --bubble-feedback: #F7DCEA;
+
+    /* ── Contact-info icon bubble fills ───────────────────────── */
+    --bubble-email: #E2E1FA;
+    /* soft purple */
+    --bubble-wechat: #DEFCE7;
+    /* mint (matches support) */
+
+    /* ── Typography families ─────────────────────────────────── */
+    --font-display: 'IF Kica', 'Playfair Display', 'Albert Sans', system-ui, serif;
+    --font-body: 'Albert Sans', system-ui, -apple-system, sans-serif;
+    --font-script: 'Waiting for the Sunrise', 'Caveat', cursive;
+
+    /* ── Type scale ──────────────────────────────────────────── */
+    --fs-hero: clamp(72px, 9.5vw, 185px);
+    --fs-h2: clamp(34px, 3.5vw, 50px);
+    --fs-card-title: clamp(22px, 1.8vw, 30px);
+    --fs-body-lg: clamp(18px, 1.4vw, 22px);
+    --fs-body: 18px;
+    --fs-body-sm: 16px;
+    --fs-script: clamp(18px, 1.4vw, 22px);
+    --fs-nav: 18px;
+
+    /* ── Spacing scale (4-pt rhythm) ─────────────────────────── */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+    --space-9: 96px;
+    --space-10: 128px;
+
+    /* ── Radii ───────────────────────────────────────────────── */
+    --radius-input: 16px;
+    --radius-card: 30px;
+    --radius-card-lg: 35px;
+    --radius-pill: 999px;
+
+    /* ── Shadows ─────────────────────────────────────────────── */
+    --shadow-card: 0 6px 10px rgba(0, 0, 0, 0.08);
+    --shadow-soft: 0 4px 10px rgba(0, 0, 0, 0.08);
+    --shadow-photo: 10px 10px 20px rgba(0, 0, 0, 0.25);
+    --shadow-header: 0 2px 4px rgba(0, 0, 0, 0.06);
+    --shadow-card-soft: 2px 10px 15px rgba(0, 0, 0, 0.05);
+    /* Dashboard action card */
+    --shadow-entry-btn: 2px 4px 10px rgba(0, 0, 0, 0.08);
+    /* Card → entry circle button */
+    --shadow-avatar: 3px 3px 6px rgba(0, 0, 0, 0.15);
+    /* Dashboard header avatar */
+    --shadow-divider: 0 4px 4px rgba(0, 0, 0, 0.10);
+    /* Dashboard header bottom line */
+
+    /* ── Dashboard hub card colors (5 fully-saturated tints) ──── */
+    --card-create: #FFE1F8;
+    /* pink   — Create Lesson  */
+    --card-lessons: #FFE1D2;
+    /* peach  — My Lessons     */
+    --card-community: #CEE1FF;
+    /* blue   — Community      */
+    --card-teach: #F2FFA9;
+    /* yellow — Start Teaching */
+    --card-account: #CEFFD6;
+    /* green  — My Account     */
+
+    /* ── Layout ──────────────────────────────────────────────── */
+    --content-max: 1700px;
+    --gutter: clamp(20px, 4vw, 80px);
+    --header-height: 88px;
+}

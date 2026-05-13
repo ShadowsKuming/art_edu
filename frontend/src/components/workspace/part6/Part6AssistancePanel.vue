@@ -1,10 +1,20 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { usePart6Store } from '@/stores/part6'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
 
 const store = usePart6Store()
+
+/**
+ * Currently selected style, or `null` when nothing is selected.
+ * Centralises the `selectedStyleIdx` null-check so we can use this
+ * directly in template/script without TypeScript flagging `null`
+ * as an array index.
+ */
+const selectedStyle = computed(() =>
+  store.selectedStyleIdx !== null ? store.styles[store.selectedStyleIdx] : null,
+)
 
 interface Message {
   role: 'assistant' | 'user'
@@ -65,7 +75,7 @@ async function send(text?: string) {
       })
 
       // Show the prompt for the selected style
-      const selected = store.styles[store.selectedStyleIdx]
+      const selected = selectedStyle.value
       if (selected) {
         messages.value.push({
           role: 'assistant',
@@ -86,7 +96,7 @@ async function send(text?: string) {
 
     // Inject current style info as context
     const stylesContext = store.styles.length
-      ? `\n\nCurrent style options: ${store.styles.map((s, i) => `${i + 1}. ${s.label}: ${s.prompt}`).join(' | ')}\nSelected: ${store.styles[store.selectedStyleIdx]?.label}`
+      ? `\n\nCurrent style options: ${store.styles.map((s, i) => `${i + 1}. ${s.label}: ${s.prompt}`).join(' | ')}\nSelected: ${selectedStyle.value?.label}`
       : ''
 
     const systemHint = stylesContext
@@ -152,7 +162,7 @@ function onKeydown(e: KeyboardEvent) {
               v-for="label in msg.styleChips"
               :key="label"
               class="ap-chip"
-              :class="{ 'ap-chip--active': store.styles[store.selectedStyleIdx]?.label === label }"
+              :class="{ 'ap-chip--active': selectedStyle?.label === label }"
               @click="selectChip(label)"
             >
               <span class="ap-chip-dot" />{{ label }}

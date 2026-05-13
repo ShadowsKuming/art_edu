@@ -1,0 +1,36 @@
+/* ──────────────────────────────────────────────────────────────────────
+   Local font faces used across ArtBloom.
+   Source files live in ./fonts/.
+   ────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+    font-family: 'IF Kica';
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url('./fonts/ifkica-light.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'IF Kica';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('./fonts/ifkica-regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'IF Kica';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('./fonts/ifkica-bold.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Waiting for the Sunrise';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('./fonts/WaitingfortheSunrise-Regular.ttf') format('truetype');
+}
