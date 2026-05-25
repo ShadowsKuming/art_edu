@@ -1,39 +1,40 @@
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectsStore } from '@/stores/projects'
 import { useSlideStore } from '@/stores/slides'
-
-interface Message {
-  role: 'user' | 'assistant'
-  text: string
-  suggestions?: string[]
-}
+import { useChatbotStore } from '@/stores/chatbot'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 const { t, tm, locale } = useI18n()
 const projectsStore = useProjectsStore()
 const slideStore = useSlideStore()
+const chatbotStore = useChatbotStore()
 
-
-function makeWelcome(): Message {
+function makeWelcome() {
   return {
-    role: 'assistant',
+    role: 'assistant' as const,
     text: t('chatbot.greeting'),
     suggestions: (tm('chatbot.suggestions') as string[]).map(s => String(s)),
   }
 }
 
-const messages = ref<Message[]>([makeWelcome()])
+// Seed the welcome message only on first mount (store is empty)
+onMounted(() => {
+  if (chatbotStore.messages.length === 0) {
+    chatbotStore.setMessages([makeWelcome()])
+  }
+})
+
+// Reset to new welcome when locale changes
+watch(locale, () => {
+  chatbotStore.setMessages([makeWelcome()])
+})
 
 const input    = ref('')
 const loading  = ref(false)
 const scrollEl = ref<HTMLElement | null>(null)
-
-watch(locale, () => {
-  messages.value = [makeWelcome()]
-})
 
 function scrollBottom() {
   nextTick(() => scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight, behavior: 'smooth' }))
@@ -44,12 +45,12 @@ async function send(text?: string) {
   if (!content || loading.value) return
 
   input.value = ''
-  messages.value.push({ role: 'user', text: content })
+  chatbotStore.push({ role: 'user', text: content })
   scrollBottom()
 
   loading.value = true
   try {
-    const history = messages.value
+    const history = chatbotStore.messages
       .filter(m => !m.suggestions)
       .map(m => ({ role: m.role, text: m.text }))
 
@@ -61,8 +62,6 @@ async function send(text?: string) {
       body: JSON.stringify({
         messages: history,
         language: locale.value,
-        // LKP wiring — when both are set, backend injects the
-        // Part-specific prompt fragment from the seed.
         lesson_id: lessonId ?? undefined,
         part_id: partId ?? undefined,
       }),
@@ -70,9 +69,9 @@ async function send(text?: string) {
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
-    messages.value.push({ role: 'assistant', text: data.reply })
+    chatbotStore.push({ role: 'assistant', text: data.reply })
   } catch (e: any) {
-    messages.value.push({ role: 'assistant', text: t('chatbot.error') })
+    chatbotStore.push({ role: 'assistant', text: t('chatbot.error') })
   } finally {
     loading.value = false
     scrollBottom()
@@ -100,7 +99,7 @@ async function send(text?: string) {
     <!-- Messages -->
     <div ref="scrollEl" class="chatbot-messages">
       <div
-        v-for="(msg, i) in messages"
+        v-for="(msg, i) in chatbotStore.messages"
         :key="i"
         class="message-row"
         :class="msg.role === 'user' ? 'message-row--user' : 'message-row--assistant'"
