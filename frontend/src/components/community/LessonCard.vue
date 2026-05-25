@@ -34,7 +34,16 @@ interface Props {
     date: string
     /** Optional thumbnail URL. Falls back to a flat grey block. */
     thumbnail?: string
+    /**
+     * `true` when this lesson is already in the teacher's My Lessons
+     * library (matched on `meta.lessonId`). The Save button switches
+     * to a muted "Saved" state — still clickable so the user gets a
+     * "Already in My Lessons" toast, but visibly distinct so they
+     * know hitting it again won't add a duplicate.
+     */
+    saved?: boolean
 }
+
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -92,8 +101,17 @@ const subtitle = computed(() => {
                     </svg>
                     {{ t('community.card.preview') }}
                 </button>
-                <button class="lc__btn lc__btn--primary" type="button" @click="emit('save', id)">
-                    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <button
+                    class="lc__btn"
+                    :class="saved ? 'lc__btn--saved' : 'lc__btn--primary'"
+                    type="button"
+                    :aria-pressed="saved ? 'true' : 'false'"
+                    @click="emit('save', id)"
+                >
+                    <!-- Bookmark glyph swaps from outline (Save) to a
+                         filled checkmark badge (Saved) so the action's
+                         outcome is communicable even without colour. -->
+                    <svg v-if="!saved" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                         <path
                             d="M4 2h8v12l-4-3-4 3V2z"
                             stroke="currentColor"
@@ -102,8 +120,22 @@ const subtitle = computed(() => {
                             fill="none"
                         />
                     </svg>
-                    {{ t('community.card.save') }}
+                    <svg v-else viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path
+                            d="M4 2h8v12l-4-3-4 3V2z"
+                            fill="currentColor"
+                        />
+                        <path
+                            d="M6 7l1.6 1.6L10.5 5.7"
+                            stroke="#ffffff"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+                    </svg>
+                    {{ saved ? t('community.card.saved') : t('community.card.save') }}
                 </button>
+
             </div>
         </div>
 
@@ -231,6 +263,27 @@ const subtitle = computed(() => {
 .lc__btn--primary:hover {
     filter: brightness(0.97);
 }
+
+/* Already-saved state — muted grey pill with a darker check icon so
+   the affordance is communicable even at a glance. Still clickable
+   (parent fires an "Already in My Lessons" toast). */
+.lc__btn--saved {
+    background: #e5e7eb;
+    border: 1px solid #d1d5db;
+    color: #4b5563;
+    font-weight: 600;
+    cursor: default;
+}
+
+.lc__btn--saved:hover {
+    background: #dadde2;
+    filter: none;
+}
+
+.lc__btn--saved svg {
+    color: #4b5563;
+}
+
 
 /* ── Footer ─────────────────────────────────────────────────── */
 .lc__footer {

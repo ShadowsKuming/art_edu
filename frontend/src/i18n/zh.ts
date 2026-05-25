@@ -128,7 +128,18 @@ export default {
     card: {
       preview: '预览',
       save: '收藏',
+      saved: '已收藏',
       unitLessonShort: '第{unit}单元 • 第{lesson}课',
+    },
+    preview: {
+      title: '课件预览',
+      slideOf: '第 {part} 部分 · 第 {n} 张',
+      close: '关闭',
+      empty: '本课暂时没有幻灯片。',
+    },
+    save: {
+      savedToMyLessons: '已添加到我的课程',
+      alreadySaved: '已在我的课程中',
     },
     pagination: {
       aria: '分页',
@@ -136,6 +147,7 @@ export default {
       next: '下一页',
     },
   },
+
   dashboardHub: {
     title: '工作台',
     subtitle:
@@ -291,7 +303,10 @@ export default {
   part3: {
     emptyState: '点击侧边栏的 + 添加第一张作品',
     uploadLabel: '点击上传作品图片',
+    uploadOrPick: '点击上传，或在上方选择本课的推荐画作',
+    pickArtworkLabel: '本课推荐画作',
     replaceImage: '更换图片',
+
     remainingAttempts: '剩余生成次数：{n} / 3',
     generateStory: '生成故事',
     story: '故事',
@@ -347,8 +362,28 @@ export default {
     placeholder: '输入关于幻灯片设计的问题…',
     error: '抱歉，出现了错误，请重试。',
   },
+  part7: {
+    noLessonTitle: '第七部分需要绑定教材课程',
+    noLessonHint:
+      '请从课件社区打开一节课（或新建一节）——第七部分会依据课程评价维度生成学生作品反馈。',
+    studentWorks: '学生作品',
+    studentWorksHint:
+      '上传学生创作中或已完成的作品照片，点击缩略图即可生成针对性评价。',
+    uploadLabel: '上传学生作品',
+    removeWork: '移除该作品',
+    selectWork: '请先在左侧选择一张学生作品。',
+    studentNote: '学生备注（选填）',
+    studentNotePh: '例如："兔子爬着长长的梯子去摘月亮。"',
+    generate: '生成 AI 评价',
+    regenerate: '重新生成评价',
+    generating: '生成中…',
+    feedbackHeading: 'AI 评价',
+    wordCount: '{n} 字',
+    dimensionsCovered: '已覆盖维度：',
+  },
   part6: {
     step1Label: '第一步：上传草稿或未完成的作品',
+
     uploadLabel: '上传学生作品',
     selectFiles: '选择文件',
     replace: '更换',

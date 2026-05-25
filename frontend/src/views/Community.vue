@@ -8,29 +8,45 @@
  *   • <DashboardHeader>          — shared authed-area header
  *   • Back-to-dashboard link
  *   • Title block (Community + Underline.svg + subtitle) with a
- *     decorative painted-shapes hero floated to the right
+ *     decorative painted-shapes hero floated to the right 
  *   • Filter bar (Grade Level / Unit / Lesson + green Discover pill)
- *   • Grid of <LessonCard> tiles (currently dummy data)
- *   • Pagination (3 buttons + prev/next, all decorative)
+ *   • Grid of <LessonCard> tiles (one per LKP in LESSON_REGISTRY)
  *
- * The filter and pagination controls render to spec but their
- * `@change` / `@click` handlers are intentional no-ops while the
- * backend is still placeholder.
+ * Pagination was removed once the dummy data was dropped — with a
+ * single real LKP there's nothing to paginate. Re-introduce a
+ * paginator (or infinite scroll) when the registry grows.
+ *
+ * Filter controls render to spec but their `@change` / `@click`
+ * handlers are intentional no-ops while the backend is still
+ * placeholder.
  */
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef } from 'vue'
+
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue'
 import LessonCard from '@/components/community/LessonCard.vue'
+import SlidePreviewModal from '@/components/community/SlidePreviewModal.vue'
 
-import { communityLessons } from '@/data/communityDummy'
+import { LESSON_REGISTRY } from '@/data/lessons'
+
+import { hydrateProjectFromLesson } from '@/utils/lessonSeed'
+import { useProjectsStore } from '@/stores/projects'
+import { useToastStore } from '@/stores/toast'
+import type { Slide } from '@/stores/slides'
 
 import underlineUrl from '@/assets/images/Underline.svg'
 import dashboardHeroUrl from '@/assets/images/dashboard-hero.png'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const projectsStore = useProjectsStore()
+const toast = useToastStore()
+
+
+
+
 
 // ── Filter state — purely visual for now ────────────────────────
 const gradeFilter = ref<'all'>('all')
@@ -47,26 +63,152 @@ function onDiscover() {
     })
 }
 
-// ── Card actions — stubs ────────────────────────────────────────
+// ── Card actions ────────────────────────────────────────────────
+
+/**
+ * Set of `meta.lessonId`s already present in the teacher's library.
+ * Recomputed reactively as `projectsStore.projects` mutates (via the
+ * Pinia ref) so the Save button on each card auto-flips to its
+ * "Saved" muted variant the moment a save completes.
+ *
+ * Legacy projects without `meta` are skipped; they don't correspond
+ * to any Community LKP so the lookup never finds them anyway.
+ */
+const savedLessonIds = computed(
+    () => new Set(projectsStore.projects.map((p) => p.meta?.lessonId).filter(Boolean) as string[]),
+)
+
+// ── Preview modal state ─────────────────────────────────────────
+/**
+ * `previewState.open` is true when the modal is visible.
+ * Slides are hydrated fresh on every open so the live `locale` is
+ * honoured (Chinese text vs English). We use `shallowRef` for the
+ * slide list — the Slide objects themselves aren't mutated by the
+ * preview, so Pinia/Vue don't need deep reactivity here.
+ */
+const previewOpen = ref(false)
+const previewSlides = shallowRef<Slide[]>([])
+const previewTitle = ref('')
+const previewSubtitle = ref('')
+
 function onPreview(id: string) {
-    console.info('[Community] preview lesson', id)
+    const seed = LESSON_REGISTRY.find((lkp) => lkp.lesson_id === id)
+    if (!seed) {
+        console.warn('[Community] preview: no LKP found for', id)
+        return
+    }
+    const { snapshot } = hydrateProjectFromLesson(
+        seed,
+        locale.value === 'zh' ? 'zh' : 'en',
+    )
+    previewSlides.value = snapshot.slides
+    previewTitle.value =
+        locale.value === 'zh' ? seed.lesson_title_zh : seed.lesson_title_en
+    // Mirror the card's "Unit N · Lesson M" subtitle so the modal feels
+    // like a continuation of the card the user just clicked.
+    const idMatch = /^g(\d)v(\d)-u(\d+)-l(\d+)$/.exec(seed.lesson_id)
+    const unit = idMatch ? +idMatch[3] : 0
+    const lesson = idMatch ? +idMatch[4] : 0
+    previewSubtitle.value = t('community.card.unitLessonShort', { unit, lesson })
+    previewOpen.value = true
 }
+
+function closePreview() {
+    previewOpen.value = false
+}
+
+/**
+ * Save = copy the LKP into the teacher's My Lessons library as a
+ * new Project.
+ *
+ * Behaviour:
+ *   • If a project with the same `meta.lessonId` already exists,
+ *     fire an "Already in My Lessons" toast and do nothing else.
+ *   • Otherwise hydrate the LKP, create a project, persist the
+ *     hydrated snapshot, tag it with `status: 'saved'` (matches the
+ *     existing "Saved" tab in My Lessons), and fire a success toast.
+ *
+ * Crucially we **don't** disturb whatever the user has open in the
+ * workspace — `activeProjectId` is restored to its previous value
+ * after the new project is written.
+ */
 function onSave(id: string) {
-    console.info('[Community] save lesson', id)
+    const seed = LESSON_REGISTRY.find((lkp) => lkp.lesson_id === id)
+    if (!seed) {
+        console.warn('[Community] save: no LKP found for', id)
+        return
+    }
+
+    // Duplicate guard — match by canonical LKP id rather than name so
+    // a user-renamed copy still blocks re-import.
+    if (savedLessonIds.value.has(seed.lesson_id)) {
+        toast.show(t('community.save.alreadySaved'), 'info')
+        return
+    }
+
+    const { name, meta, snapshot } = hydrateProjectFromLesson(
+        seed,
+        locale.value === 'zh' ? 'zh' : 'en',
+    )
+
+    // Remember which project (if any) the user currently has active so
+    // we can restore it — `createProject` sets the new id as active as
+    // a side-effect.
+    const prevActiveId = projectsStore.activeProjectId
+
+    const newId = projectsStore.createProject(name, meta)
+    projectsStore.saveCurrentProject(snapshot)
+
+    // Stamp the project as a Community-saved one so it lands in the
+    // "Saved" filter tab on My Lessons. Direct mutation is safe because
+    // the projects array is a deep watched Pinia ref (persisted to LS).
+    const created = projectsStore.projects.find((p) => p.id === newId)
+    if (created) created.status = 'saved'
+
+    // Restore the previously-active project (or clear if there wasn't
+    // one). This keeps the workspace untouched if the user already had
+    // a deck open in another tab/route.
+    projectsStore.setActiveProject(prevActiveId ?? '')
+
+    toast.show(t('community.save.savedToMyLessons'), 'success')
 }
 
-// ── Pagination — decorative ─────────────────────────────────────
-const currentPage = ref(1)
-const pages = [1, 2, 3] as const
 
-function onPageClick(p: number) {
-    currentPage.value = p
-    // No real pagination yet — the dummy list is shown as-is
-    // regardless of page selection.
-}
+
 
 // ── Data ────────────────────────────────────────────────────────
-const lessons = computed(() => communityLessons)
+/**
+ * Only the real LKP-backed lessons are shown — the dummy placeholder
+ * data was removed once the first real LKP (g2v2-u4-l4) shipped. New
+ * lessons appear here automatically by adding a JSON file under
+ * `backend/data/lessons/` and re-running `npm run sync-lessons`
+ * (or `npm run build`, which calls it via `prebuild`).
+ *
+ * We adapt each LKP row into the `CommunityLesson` shape on the fly
+ * so the card component doesn't need to change.
+ */
+const lessons = computed(() =>
+    LESSON_REGISTRY.map((seed) => {
+        const idMatch = /^g(\d)v(\d)-u(\d+)-l(\d+)$/.exec(seed.lesson_id)
+        const unit = idMatch ? +idMatch[3] : 0
+        const lesson = idMatch ? +idMatch[4] : 0
+        // Surface the first textbook artwork as the thumbnail — gives
+        // the card a sensible preview without any extra metadata.
+        const thumb = seed.textbook_artworks?.[0]?.image_url
+        return {
+            id: seed.lesson_id,
+            titleEn: seed.lesson_title_en,
+            titleZh: seed.lesson_title_zh,
+            unit,
+            lesson,
+            author: 'ArtBloom Team',
+            date: new Date().toISOString(),
+            thumbnail: thumb,
+        }
+    }),
+)
+
+
 
 // ── Navigation ──────────────────────────────────────────────────
 function backToDashboard() {
@@ -158,39 +300,28 @@ function backToDashboard() {
                 <LessonCard v-for="lesson in lessons" :key="lesson.id" :id="lesson.id"
                     :title-en="lesson.titleEn" :title-zh="lesson.titleZh" :unit="lesson.unit"
                     :lesson="lesson.lesson" :author="lesson.author" :date="lesson.date"
-                    :thumbnail="lesson.thumbnail" @preview="onPreview" @save="onSave" />
+                    :thumbnail="lesson.thumbnail"
+                    :saved="savedLessonIds.has(lesson.id)"
+                    @preview="onPreview" @save="onSave" />
             </section>
 
-            <!-- Pagination — decorative -->
-            <nav class="community__pagination" :aria-label="t('community.pagination.aria')">
-                <button class="page page--icon" type="button"
-                    :aria-label="t('community.pagination.prev')"
-                    :disabled="currentPage === 1"
-                    @click="onPageClick(Math.max(1, currentPage - 1))">
-                    <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                        <path d="M7.5 2L3.5 6l4 4" stroke="currentColor" stroke-width="1.5"
-                            stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                </button>
-
-                <button v-for="p in pages" :key="p" class="page" type="button"
-                    :class="{ 'page--active': currentPage === p }" @click="onPageClick(p)">
-                    {{ p }}
-                </button>
-
-                <button class="page page--icon" type="button"
-                    :aria-label="t('community.pagination.next')"
-                    :disabled="currentPage === pages.length"
-                    @click="onPageClick(Math.min(pages.length, currentPage + 1))">
-                    <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                        <path d="M4.5 2l4 4-4 4" stroke="currentColor" stroke-width="1.5"
-                            stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                </button>
-            </nav>
+            <!-- Pagination removed alongside the dummy data — re-add
+                 when the lesson registry grows past one page. -->
         </main>
+
+        <!-- Read-only preview popup. Slides are re-hydrated on every
+             open() call so the active locale wins. -->
+        <SlidePreviewModal
+            :open="previewOpen"
+            :slides="previewSlides"
+            :title="previewTitle"
+            :subtitle="previewSubtitle"
+            @close="closePreview"
+        />
+
     </div>
 </template>
+
 
 <style scoped>
 .community {

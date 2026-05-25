@@ -4,8 +4,96 @@
 > Repo: https://github.com/ShadowsKuming/art_edu
 > Local path: `/Users/kevinlee/Downloads/art_edu`
 > Latest commit at time of writing: `3162456` (Update .env.example)
+> Last in-session update: 2026-05-25 (Pilot LKP integration —
+> backend Commander + Part 7 commenter + frontend LKP wiring).
+
+---
+
+## 0. Pilot LKP integration status (2026-05-25)
+
+Implementation pass for the **Pilot Lesson Knowledge Package (LKP)**
+flow described in `backed-files/ArtBloom_Pilot_Feature_Spec.md` and
+`backed-files/ArtBloom_New_API_Spec.md`. Status of each subtask:
+
+### Phase A — Backend infrastructure ✅
+- `backend/lesson_types.py` — Pydantic mirror of LKP schema.
+- `backend/lesson_context.py` — `LessonContextManager` with
+  `load()`, `list_available()`, and per-executor context builders
+  (`build_executor_a/b/c/d_context`, `build_part7_comment_context`).
+- `backend/data/lessons/g2v2-u4-l4.json` — first LKP file
+  ("So Long, So Long..." / 好长好长……).
+- `backend/main.py` — mounts `/textbook-assets` static files,
+  imports + instantiates `LessonContextManager`, exposes
+  `available_lessons` on `/health`.
+
+### Phase B — Existing 6 endpoints extended with `lesson_id` ✅
+`/api/story/stream`, `/api/story/continue/stream`, `/api/animation/submit`,
+`/api/chat`, `/api/part6/generate-styles`, `/api/part6/transfer` all
+accept an optional `lesson_id` (and `artwork_id` / `part_id` where
+relevant) and short-circuit to the LKP context when present.
+
+### Phase C — New `POST /api/part7/comment` ✅
+Returns `{ feedback_text, word_count, dimensions_covered, timestamp }`
+for a student-work image, anchored on the lesson's assessment rubric.
+
+### Phase D — Frontend wiring ✅
+- `frontend/src/types/lesson.ts` — TS mirror of LKP schema.
+- `frontend/scripts/sync-lessons.js` + `package.json` `prebuild`
+  script — copies `backend/data/lessons/*.json` into
+  `frontend/src/data/lessons/*.json`.
+- `frontend/src/data/lessons/index.ts` — `LESSONS` registry +
+  `getLesson(id)` + `LESSON_REGISTRY` array.
+- `frontend/src/utils/lessonSeed.ts` —
+  `hydrateProjectFromLesson(seed, locale)` builds slides + `ProjectMeta`
+  from an LKP.
+- `frontend/src/stores/projects.ts` — exposes `activeLessonId`
+  computed (reads `activeProject.meta.lessonId`).
+- `frontend/src/stores/part3.ts` — `setArtworkFromUrl(url, artworkId)`,
+  `selectedArtworkId`; all generate calls thread `lesson_id` + `artwork_id`.
+- `frontend/src/stores/part6.ts` — both endpoints thread `lesson_id`.
+- `frontend/src/stores/part7.ts` — NEW per-slide pair store calling
+  `/api/part7/comment`, with student-note and multiple work uploads.
+- `frontend/src/components/workspace/WorkspaceChatbot.vue` — threads
+  `lesson_id` + `part_id` into `/api/chat`.
+- `frontend/src/components/workspace/part3/Part3Content.vue` —
+  curated-artwork picker tiles above the upload affordance (only
+  rendered when an LKP is loaded).
+- `frontend/src/components/workspace/part7/Part7Content.vue` — NEW
+  UI: left column with upload + student-work thumbnails, right
+  column with image preview, student-note textarea, generate button,
+  feedback card with word count + covered dimensions. Empty state
+  for non-LKP projects.
+- `frontend/src/views/CreateLesson.vue` — Part 7 now renders
+  `Part7Content` instead of the placeholder.
+- `frontend/src/views/Community.vue` — `LESSON_REGISTRY` rows
+  prepended to the card grid; **Save** action calls
+  `hydrateProjectFromLesson` → `projectsStore.createProject` →
+  `slideStore.loadSnapshot` → navigates to the editor.
+- `frontend/src/i18n/{en,zh}.ts` — `part3.pickArtworkLabel`,
+  `part3.uploadOrPick`, full `part7.*` keys.
+
+### Phase E — Smoke tests ✅
+- `python -c "import main"` from `backend/` succeeds.
+- `/health` returns `available_lessons: ['g2v2-u4-l4']`.
+- `npx vue-tsc --noEmit` is clean.
+- `npx vite build` builds in ~650ms with zero errors.
+
+### Carried over for the next session
+- Author additional LKPs (G2V2-U4-L5, U5-L1, U5-L2 — JSONs already
+  exist in `backed-files/` but need to be copied + synced).
+- Read-only Community **Preview** page is still a stub.
+- Backend has TODO comments where Branch B (executor D) needs a
+  separate LLM call to derive 3 styles from the canonical
+  `executor_d_styles.styles[0]` template — currently returns the
+  seed list verbatim for both branches.
+- Reset-to-seed action on the lesson editor (re-hydrate without
+  losing chat history) — not yet implemented.
+
+---
+
 > Last in-session update: 2026-09-05 (Dashboard "Create Lesson" → 3-stage
 > textbook/unit/lesson selection modal wired to a curriculum data module).
+
 
 ---
 
@@ -1135,3 +1223,193 @@ under `dist/assets/`.
   If page-weight matters on slower networks, run it through a webp
   pipeline; we deliberately kept the PNG to match Figma's `imageRef`
   exactly for now.
+
+
+
+## 17. G2V2-U4-L4 designed slides + bilingual element text (2026-05-25)
+
+The pilot LKP `g2v2-u4-l4` ("好长好长……") gained **5 fully designed
+slides** across Parts 1 / 2 / 4 — the first time any LKP shipped real
+layouts rather than the generic "section title + content_points"
+fallback in `lessonSeed.ts`. The same change introduced **per-element
+bilingual text** so the existing EN/中 toggle in `WorkspaceHeader.vue`
+now swaps overlay copy live without losing the other language's edits.
+
+### Schema additions
+
+`SlideElementSeed` (TS in `frontend/src/types/lesson.ts`, Pydantic in
+`backend/lesson_types.py`) gained two optional fields:
+
+```ts
+content_en?: string
+content_zh?: string
+```
+
+`SlideElement` (the runtime Pinia type in `frontend/src/stores/slides.ts`)
+gained the matching pair:
+
+```ts
+contentEn?: string
+contentZh?: string
+```
+
+When at least one of the two LKP fields is present, `lessonSeed.ts`
+populates both runtime fields and projects whichever side matches the
+hydration locale into `content` (falling back to the other side if
+only one was authored).
+
+### Runtime model
+
+`useSlideStore()` now exposes:
+
+- `locale: Ref<'en' | 'zh'>` — mirror of `i18n.global.locale.value`.
+- `setLocale(next)` — walks every slide, re-projects `content` from
+  `contentEn` / `contentZh` for elements that have either set. Hand-
+  created text (no variants) is left alone, so the Add Text button
+  still behaves exactly as before.
+- `updateElement(slideId, id, patch)` — when `patch.content` is
+  present *and* the element is bilingual, the new text is mirrored
+  into the active locale's variant. The other language survives.
+
+`App.vue` runs a `watch(locale, …, { immediate: true })` that calls
+`slideStore.setLocale(...)` so the workspace's EN/中 button now drives
+slide text in addition to UI chrome.
+
+### Seeder behaviour
+
+`buildElements()` in `frontend/src/utils/lessonSeed.ts`:
+
+- Used to gate on `default_elements && default_elements.length` —
+  changed to `default_elements !== undefined` so an explicit empty
+  array means "image-only slide, skip the generic fallback". The
+  Part 1 cover slide uses this to render the artwork full-bleed
+  without redundant overlay text.
+- `buildSlides(seed, locale)` now threads the active locale through
+  to each element constructor.
+
+### LKP rewrite
+
+`backend/data/lessons/g2v2-u4-l4.json`'s `slide_framework` grew from
+7 → **9 entries** (Part 2 ×2, Part 4 ×2, others ×1):
+
+| page | part | slide title (zh / en) |
+|---|---|---|
+| 1 | 1 | 封面 (image-only cover) |
+| 2 | 2 | 长长的纸，不一样！/ Long Paper Is Different! |
+| 3 | 2 | 长纸能做什么？/ What Can Long Paper Do? |
+| 4 | 3 | (placeholder, no design yet) |
+| 5 | 4 | 摆一摆，想一想 / Lay It Out, Think It Through |
+| 6 | 4 | 画一画，添细节 / Draw It, Add the Details |
+| 7 | 5 | (placeholder) |
+| 8 | 6 | (placeholder) |
+| 9 | 7 | (placeholder) |
+
+Each designed slide ships title + subtitle + image + 3 step-cards, every
+text element carrying both Chinese (extracted from the textbook author
+team's PPTX) and freshly authored English. The cover background and
+the four content-slide images live in
+`frontend/src/assets/textbook-assets/G2V2-U4-L4/design/` and are
+served by the backend's `/textbook-assets` static mount on port 8001.
+
+### Source assets
+
+The 5 design images were extracted from `好长好长part1.pptx` /
+`part2.pptx` / `part4.pptx` (now in the same folder) using
+`unzip → ppt/media/image*.png`. The PPTX files are kept on disk so
+later edits can re-extract; the canonical assets in `design/` are
+what the LKP URLs point at.
+
+### Caveats / TODO
+
+- Parts 3 / 5 / 6 / 7 still render via the generic seeder fallback
+  (section title + content_points). When those parts get designed
+  layouts, follow the same `default_elements` pattern and the
+  bilingual text will Just Work.
+- Multi-slide-per-part is supported by the seeder (`buildSlides`
+  produces one Slide per `slide_framework` entry regardless of how
+  many share a `part_id`), so the `WorkspaceSidebar` already shows
+  "Part 2 · 1 / 2" style numbering correctly.
+- The `lessonSeed.ts` seeder's locale parameter is read at *create*
+  time. After hydration, the workspace's locale toggle is what drives
+  swaps — no need to re-hydrate.
+- `vue-tsc --noEmit` ✓ and Pydantic `LessonSeedData.model_validate(...)`
+  ✓ on the rewritten JSON.
+
+
+## 18. Community Preview popup + Save-to-MyLessons + global toast (2026-05-25)
+
+The Community page's Preview / Save buttons used to be functional
+stubs — Preview just opened the lesson in the workspace (no read-only
+view existed), and Save was a `console.info` placeholder. Both are now
+real, and a small global toast system was added en route.
+
+### Behavioural change
+
+- **Preview** opens a centred modal showing every slide of the
+  selected LKP as a vertically scrollable thumbnail list. The modal
+  is read-only — no edit controls, no buttons except a close ✕.
+  Closes on backdrop click, ✕, or Esc. Does *not* navigate away.
+- **Save** copies the LKP into the teacher's My Lessons library as a
+  new Project tagged with `status: 'saved'` (so it lands in the
+  existing "Saved" filter tab on `/dashboard/lessons`), then fires a
+  bottom-right toast. The previously-active project is restored, so
+  whatever the user has open in the workspace isn't disturbed.
+- **Duplicate guard** — when a project already exists with the same
+  `meta.lessonId`, the LessonCard's Save button switches to a muted
+  grey "Saved" pill with a filled-bookmark/checkmark icon, and
+  re-clicking fires an "Already in My Lessons" toast instead of
+  creating a duplicate.
+
+### New / changed files
+
+| File | Purpose |
+|---|---|
+| `src/components/community/SlidePreviewModal.vue` | **New.** Teleported read-only deck previewer. Props: `open`, `slides: Slide[]`, `title`, `subtitle?`. Renders one `SlideThumbnail` per slide inside a 16:9 frame with a "Part N · Slide M" label. Locks body scroll while open. Reusable — drop into the My Lessons row "Preview" action later. |
+| `src/components/common/ToastHost.vue` | **New.** Single global renderer. Teleports a pill-shaped card to the bottom-right with a slide+fade transition. Tone class (`success` / `info` / `warning`) shifts the icon colour. Click-to-dismiss. |
+| `src/stores/toast.ts` | **New.** Tiny Pinia store: `show(text, tone='success', durationMs=3000)`, `dismiss()`, `current`. Single in-flight message — calling `show()` again replaces and resets the timer. No queue. |
+| `src/App.vue` | Mounts `<ToastHost />` once (still owns the i18n→slide-store locale watcher). |
+| `src/views/Community.vue` | `onPreview` hydrates the LKP and pops the modal (no more workspace navigation). `onSave` hydrates → dedupes by `meta.lessonId` → `createProject` + `saveCurrentProject` + tags `status: 'saved'` → restores `activeProjectId` → fires toast. A reactive `savedLessonIds` Set drives the new card state. Removed the now-unused `slideStore` / `part5Store` imports. |
+| `src/components/community/LessonCard.vue` | New optional `saved?: boolean` prop. When true, the Save button renders as a muted grey "Saved" pill (`#e5e7eb` background, `#d1d5db` border, `#4b5563` text + icon) with a filled bookmark + checkmark glyph. Still clickable so the parent can fire the "Already in My Lessons" toast. |
+| `src/i18n/{en,zh}.ts` | New keys: `community.card.saved`, `community.preview.{title,slideOf,close,empty}`, `community.save.{savedToMyLessons,alreadySaved}`. |
+
+### State-flow
+
+```text
+LessonCard ──(@save id)──► Community.onSave
+                              │
+                              ├─ savedLessonIds.has(lessonId)?
+                              │     └─ yes → toast.show("Already in My Lessons", "info")
+                              │
+                              ├─ hydrateProjectFromLesson(seed, locale)
+                              ├─ prevActiveId = projectsStore.activeProjectId
+                              ├─ projectsStore.createProject(name, meta) → newId  (side-effect: sets newId as active)
+                              ├─ projectsStore.saveCurrentProject(snapshot)
+                              ├─ projects.find(newId).status = 'saved'
+                              ├─ projectsStore.setActiveProject(prevActiveId ?? '')
+                              └─ toast.show("Saved to My Lessons", "success")
+```
+
+`savedLessonIds` is a `computed` over `projectsStore.projects` so the
+Save → Saved transition re-renders every visible card immediately
+after a successful save.
+
+### Edit path
+
+Editing a community-saved lesson is *already* wired — `MyLessons.vue`
+→ Edit button → `resumeProject(id)` → `slideStore.loadSnapshot(...)`
+→ router-push to `/workspace`. No additional changes needed.
+
+### Caveats / TODO
+
+- The dedupe key is `meta.lessonId`. If we ever let teachers
+  *manually* duplicate a saved lesson (e.g. "Save another copy") we'll
+  need either a UI affordance to bypass the guard or to lift the key
+  to a composite (`lessonId + userIntent`).
+- The toast store is single-slot deliberately. If product later wants
+  stacked toasts (e.g. multi-action confirmations) replace `current`
+  with a queue and let `ToastHost` render a list.
+- The Preview modal numbers slides per-Part ("Part 2 · Slide 1 / 2")
+  to mirror the workspace sidebar. If the eventual full-deck preview
+  wants page numbers instead, just swap the computed in
+  `SlidePreviewModal.vue` — it's a single Map<partId, count> walker.
+- `vue-tsc --noEmit` ✓.

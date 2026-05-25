@@ -131,7 +131,18 @@ export default {
     card: {
       preview: 'Preview',
       save: 'Save',
+      saved: 'Saved',
       unitLessonShort: 'Unit {unit} • Lesson {lesson}',
+    },
+    preview: {
+      title: 'Lesson Preview',
+      slideOf: 'Part {part} · Slide {n}',
+      close: 'Close',
+      empty: 'This lesson has no slides yet.',
+    },
+    save: {
+      savedToMyLessons: 'Saved to My Lessons',
+      alreadySaved: 'Already in My Lessons',
     },
     pagination: {
       aria: 'Pagination',
@@ -139,6 +150,7 @@ export default {
       next: 'Next page',
     },
   },
+
   dashboardHub: {
     title: 'Dashboard',
     subtitle:
@@ -294,7 +306,10 @@ export default {
   part3: {
     emptyState: 'Click + in the sidebar to add your first artwork',
     uploadLabel: 'Click to upload artwork image',
+    uploadOrPick: 'Click to upload — or pick a curated artwork above',
+    pickArtworkLabel: 'Curated artworks for this lesson',
     replaceImage: 'Replace image',
+
     remainingAttempts: 'Remaining animation attempts: {n} / 3',
     generateStory: 'Generate Story',
     story: 'Story',
@@ -350,8 +365,28 @@ export default {
     placeholder: 'Ask questions about the slide design…',
     error: 'Sorry, something went wrong. Please try again.',
   },
+  part7: {
+    noLessonTitle: 'Part 7 needs a curriculum lesson',
+    noLessonHint:
+      'Open a lesson from Community (or create one) — Part 7 uses the lesson rubric to ground student-work feedback.',
+    studentWorks: 'Student Works',
+    studentWorksHint:
+      'Upload a photo of a student\'s in-progress or finished work. Choose a thumbnail to comment on it.',
+    uploadLabel: 'Upload student work',
+    removeWork: 'Remove this work',
+    selectWork: 'Select a student work on the left to begin.',
+    studentNote: 'Student note (optional)',
+    studentNotePh: 'e.g. "Bunny climbing a long ladder to pick the moon."',
+    generate: 'Generate AI Feedback',
+    regenerate: 'Regenerate Feedback',
+    generating: 'Generating…',
+    feedbackHeading: 'AI Feedback',
+    wordCount: '{n} words',
+    dimensionsCovered: 'Covered:',
+  },
   part6: {
     step1Label: 'Step 1: Upload a sketch or unfinished work',
+
     uploadLabel: 'Upload Student Work',
     selectFiles: 'Select Files',
     replace: 'Replace',
