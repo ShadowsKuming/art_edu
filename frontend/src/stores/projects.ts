@@ -11,6 +11,30 @@ function load<T>(key: string, fallback: T): T {
   } catch { return fallback }
 }
 
+// Strip legacy absolute localhost URLs from stored slide element src/background fields.
+// Older snapshots baked in http://localhost:8001/textbook-assets/... before assets
+// were moved to public/. Replace with root-relative paths so Cloudflare Pages serves them.
+function migrateProjects(projects: Project[]): Project[] {
+  const OLD = 'http://localhost:8001/textbook-assets/'
+  const NEW = '/textbook-assets/'
+  const fix = (s: string) => s.startsWith(OLD) ? NEW + s.slice(OLD.length) : s
+  return projects.map(p => ({
+    ...p,
+    snapshot: {
+      ...p.snapshot,
+      globalBackground: p.snapshot.globalBackground ? fix(p.snapshot.globalBackground) : p.snapshot.globalBackground,
+      slides: p.snapshot.slides.map(slide => ({
+        ...slide,
+        background: slide.background ? fix(slide.background) : slide.background,
+        elements: slide.elements.map(el => ({
+          ...el,
+          src: el.src ? fix(el.src) : el.src,
+        })),
+      })),
+    },
+  }))
+}
+
 export interface SlideSnapshot {
   slides: Slide[]
   activePart: number
@@ -67,7 +91,7 @@ export interface Project {
 }
 
 export const useProjectsStore = defineStore('projects', () => {
-  const projects = ref<Project[]>(load(`${STORAGE_KEY}-list`, []))
+  const projects = ref<Project[]>(migrateProjects(load(`${STORAGE_KEY}-list`, [])))
   const activeProjectId = ref<string | null>(load(`${STORAGE_KEY}-active`, null))
 
   const activeProject = computed(() =>
