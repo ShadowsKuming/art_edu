@@ -26,6 +26,7 @@ export interface SlideSnapshot {
    * Required key, value may be `undefined` when no theme is set.
    */
   globalBgColor: string | undefined
+  activeSlideId: string | null
 }
 
 /**
@@ -105,6 +106,7 @@ export const useProjectsStore = defineStore('projects', () => {
         maxUnlockedPart: 1,
         globalBackground: undefined,
         globalBgColor: undefined,
+        activeSlideId: null,
       },
       meta,
     })

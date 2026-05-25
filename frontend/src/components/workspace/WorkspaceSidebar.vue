@@ -48,7 +48,7 @@ function selectPart(partId: number, status: Status) {
 }
 
 function addSlide() {
-  const id = slideStore.addSlide(slideStore.activePart)
+  slideStore.addSlide(slideStore.activePart)
 }
 
 function deleteSlide(slideId: string) {

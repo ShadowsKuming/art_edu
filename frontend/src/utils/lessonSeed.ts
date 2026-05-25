@@ -177,6 +177,7 @@ export function hydrateProjectFromLesson(
         maxUnlockedPart: 7, // hydrated lessons unlock every Part immediately
         globalBackground: undefined,
         globalBgColor: undefined,
+        activeSlideId: null,
     }
 
     const name = locale === 'zh' ? seed.lesson_title_zh : seed.lesson_title_en
