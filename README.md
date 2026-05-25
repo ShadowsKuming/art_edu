@@ -10,7 +10,7 @@ art_edu/
 └── frontend/       Vue 3 + Vite + TypeScript UI
 ```
 
-## Prerequisites
+## Prerequisites123
 
 | Tool | Minimum version |
 |------|----------------|
