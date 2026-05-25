@@ -10,4 +10,10 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    proxy: {
+      '/textbook-assets': 'http://localhost:8001',
+      '/api': 'http://localhost:8001',
+    },
+  },
 })

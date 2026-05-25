@@ -2,7 +2,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { usePart6Store } from '@/stores/part6'
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 const store = usePart6Store()
 

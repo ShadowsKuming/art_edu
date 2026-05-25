@@ -308,6 +308,7 @@ export default {
     uploadLabel: 'Click to upload artwork image',
     uploadOrPick: 'Click to upload — or pick a curated artwork above',
     pickArtworkLabel: 'Curated artworks for this lesson',
+    loadingArtwork: 'Loading artwork…',
     replaceImage: 'Replace image',
 
     remainingAttempts: 'Remaining animation attempts: {n} / 3',

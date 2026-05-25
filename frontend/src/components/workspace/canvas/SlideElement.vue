@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, inject, onMounted, watch, nextTick } from 'vue'
 import type { Ref } from 'vue'
-import { CANVAS_W, CANVAS_H } from '@/stores/slides'
+import { CANVAS_W, CANVAS_H, useSlideStore } from '@/stores/slides'
 import type { SlideElement } from '@/stores/slides'
 
 const props = defineProps<{
@@ -15,6 +15,7 @@ const emit = defineEmits<{
   delete: []
 }>()
 
+const slideStore = useSlideStore()
 const canvasEl = inject<Ref<HTMLElement | null>>('canvasEl')
 const editing  = ref(false)
 const cropping = ref(false)
@@ -98,6 +99,7 @@ function onDragStart(e: MouseEvent) {
   if (editing.value || cropping.value) return
   e.stopPropagation()
   emit('select')
+  slideStore.checkpoint()
 
   const scale  = getScale()
   const startX = e.clientX
@@ -126,6 +128,7 @@ function onDragStart(e: MouseEvent) {
 function onResizeStart(e: MouseEvent, handle: typeof HANDLES[number]) {
   e.stopPropagation()
   e.preventDefault()
+  slideStore.checkpoint()
 
   const scale  = getScale()
   const startX = e.clientX
@@ -159,6 +162,7 @@ function onResizeStart(e: MouseEvent, handle: typeof HANDLES[number]) {
 function onRotateStart(e: MouseEvent) {
   e.stopPropagation()
   e.preventDefault()
+  slideStore.checkpoint()
 
   const rect = elRef.value!.getBoundingClientRect()
   const cx = rect.left + rect.width  / 2
@@ -183,6 +187,7 @@ function onRotateStart(e: MouseEvent) {
 function onCropHandleStart(e: MouseEvent, handle: { xEdge: number; yEdge: number }) {
   e.stopPropagation()
   e.preventDefault()
+  slideStore.checkpoint()
 
   const scale  = getScale()
   const startX = e.clientX
@@ -219,6 +224,7 @@ function onCropHandleStart(e: MouseEvent, handle: { xEdge: number; yEdge: number
 
 function startEdit(e: MouseEvent) {
   e.stopPropagation()
+  slideStore.checkpoint()
   editing.value = true
   nextTick(() => {
     textEl.value?.focus()

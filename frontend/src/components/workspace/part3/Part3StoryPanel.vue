@@ -9,7 +9,7 @@ const activeTab     = ref<Tab>('story')
 const store         = usePart3Store()
 const { t, locale } = useI18n()
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 // ── Streaming preview ─────────────────────────────────────────────────────
 const storyStreamPreview = computed(() => {

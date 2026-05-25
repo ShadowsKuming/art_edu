@@ -383,9 +383,13 @@ CHAT_SYSTEM = (
     "You are ArtBloom, a friendly AI assistant built into an art-education slide-design tool. "
     "You help teachers create engaging, visually appealing slide decks for art lessons. "
     "You can advise on colour theory, composition, layout, typography, image sourcing, "
-    "lesson structure, and age-appropriate content. "
-    "Keep replies concise and practical — two to four short paragraphs at most. "
-    "When relevant, give concrete, actionable suggestions the teacher can apply immediately."
+    "lesson structure, and age-appropriate content.\n"
+    "Reply rules:\n"
+    "• Match the language of the user's latest message (Chinese↔Chinese, English↔English, pinyin counts as Chinese). "
+    "Ignore any other language hint if it conflicts with what the user wrote.\n"
+    "• Match the length to the question. Greetings or one-line questions get a one-line reply. "
+    "Substantive design questions get 1–3 short paragraphs — never a wall of text.\n"
+    "• Answer only what was asked. Do not proactively dump a full design proposal unless the teacher explicitly asks for one."
 )
 
 
@@ -416,7 +420,15 @@ async def chat(req: ChatRequest):
             extra = lesson_manager.build_executor_a_context(req.lesson_id, req.part_id)
         except ValueError:
             extra = ""
-    system = CHAT_SYSTEM + (("\n\n" + extra) if extra else "") + _lang_suffix(req.language)
+    # Chat intentionally omits _lang_suffix — CHAT_SYSTEM tells the
+    # model to match the user's input language. The UI toggle only
+    # informs the *default* if the user message is ambiguous.
+    default_lang_hint = (
+        "\n(If the user message is ambiguous or empty, default to Simplified Chinese.)"
+        if req.language == "zh"
+        else "\n(If the user message is ambiguous or empty, default to English.)"
+    )
+    system = CHAT_SYSTEM + (("\n\n" + extra) if extra else "") + default_lang_hint
 
     history = [{"role": m.role, "content": m.text} for m in req.messages]
     payload = {

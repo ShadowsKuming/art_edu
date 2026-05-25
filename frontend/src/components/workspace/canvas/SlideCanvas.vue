@@ -16,6 +16,19 @@ function onKeyDown(e: KeyboardEvent) {
   const target = e.target as HTMLElement
   if (target.isContentEditable) return
   if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
+
+  const ctrl = e.ctrlKey || e.metaKey
+  if (ctrl && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    slideStore.undo()
+    return
+  }
+  if (ctrl && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+    e.preventDefault()
+    slideStore.redo()
+    return
+  }
+
   if ((e.key === 'Delete' || e.key === 'Backspace') && slideStore.selectedElementId && slideStore.activeSlide) {
     e.preventDefault()
     slideStore.removeElement(slideStore.activeSlide.id, slideStore.selectedElementId)
@@ -79,6 +92,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
   border-radius: 16px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   overflow: hidden;
+  container-type: inline-size;
 }
 
 .slide-bg-color {

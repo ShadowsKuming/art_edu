@@ -97,6 +97,7 @@ export const useSlideStore = defineStore('slides', () => {
   }
 
   function addSlide(partId: number): string {
+    checkpoint()
     const id = `slide-${Date.now()}`
     slides.value.push({
       id, partId, elements: [],
@@ -115,6 +116,7 @@ export const useSlideStore = defineStore('slides', () => {
   }
 
   function addElement(slideId: string, type: ElementType) {
+    checkpoint()
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
     const id = `el-${++elCounter}`
@@ -135,6 +137,7 @@ export const useSlideStore = defineStore('slides', () => {
   }
 
   function addImageElement(slideId: string, src: string, width: number, height: number) {
+    checkpoint()
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
     const id = `el-${++elCounter}`
@@ -201,6 +204,7 @@ export const useSlideStore = defineStore('slides', () => {
 
 
   function removeElement(slideId: string, id: string) {
+    checkpoint()
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
     slide.elements = slide.elements.filter(e => e.id !== id)
@@ -221,6 +225,7 @@ export const useSlideStore = defineStore('slides', () => {
   }
 
   function setSlideBackground(slideId: string, bg: string) {
+    checkpoint()
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
     if (slide.partId === 1) {
@@ -238,6 +243,7 @@ export const useSlideStore = defineStore('slides', () => {
   }
 
   function setSlideBgColor(slideId: string, color: string) {
+    checkpoint()
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
     if (slide.partId === 1) {
@@ -255,6 +261,7 @@ export const useSlideStore = defineStore('slides', () => {
   }
 
   function resetSlideToGlobal(slideId: string) {
+    checkpoint()
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
     slide.isLocalBackground = false
@@ -282,6 +289,7 @@ export const useSlideStore = defineStore('slides', () => {
       maxUnlockedPart: maxUnlockedPart.value,
       globalBackground: globalBackground.value,
       globalBgColor: globalBgColor.value,
+      activeSlideId: activeSlideId.value,
     }
   }
 
@@ -291,11 +299,37 @@ export const useSlideStore = defineStore('slides', () => {
     maxUnlockedPart.value = snap.maxUnlockedPart
     globalBackground.value = snap.globalBackground
     globalBgColor.value = snap.globalBgColor
-    activeSlideId.value = snap.slides[0]?.id ?? null
+    activeSlideId.value = snap.activeSlideId ?? snap.slides[0]?.id ?? null
     selectedElementId.value = null
   }
 
+  // ── Undo / Redo ────────────────────────────────────────────────────────────
+
+  type Snapshot = ReturnType<typeof getSnapshot>
+  const past = ref<Snapshot[]>([])
+  const future = ref<Snapshot[]>([])
+  const MAX_HISTORY = 50
+
+  function checkpoint() {
+    past.value.push(getSnapshot())
+    if (past.value.length > MAX_HISTORY) past.value.shift()
+    future.value = []
+  }
+
+  function undo() {
+    if (!past.value.length) return
+    future.value.push(getSnapshot())
+    loadSnapshot(past.value.pop()!)
+  }
+
+  function redo() {
+    if (!future.value.length) return
+    past.value.push(getSnapshot())
+    loadSnapshot(future.value.pop()!)
+  }
+
   function removeSlide(slideId: string) {
+    checkpoint()
     const idx = slides.value.findIndex(s => s.id === slideId)
     if (idx === -1) return
     const partId = slides.value[idx].partId
@@ -329,6 +363,9 @@ export const useSlideStore = defineStore('slides', () => {
     setSlideBackground, setSlideBgColor, resetSlideToGlobal,
     navigateToNextPart, navigateToPart,
     removeSlide, getSnapshot, loadSnapshot, reset,
+    checkpoint, undo, redo,
+    canUndo: computed(() => past.value.length > 0),
+    canRedo: computed(() => future.value.length > 0),
   }
 
 })

@@ -20,6 +20,8 @@ art_edu/
 
 You also need a **Volcengine Ark API key**. Create one at [https://console.volcengine.com/ark](https://console.volcengine.com/ark).
 
+> **TTS** uses `edge-tts` (Microsoft Neural voices) which is included in the conda environment and requires no API key.
+
 ---
 
 ## Backend setup
@@ -127,20 +129,24 @@ npm run dev
 | Part | Feature | AI used |
 |------|---------|---------|
 | 1–2 | Slide editor (text, images, backgrounds) | — |
-| 3 | Interactive story generation | Doubao vision LLM |
+| 3 | Interactive story generation (SSE streaming) | Doubao vision LLM |
+| 3 | Branching story continuation | Doubao vision LLM |
 | 3 | Image-to-video animation (3 attempts) | Doubao Seedance video |
+| 3 | Story narration TTS (6 voices) | edge-tts (Microsoft Neural) |
 | 6 | Sketch style transfer | Doubao Seedream image |
-| All | Slide-design chatbot (right panel) | Doubao vision LLM |
+| All | Slide-design chatbot, language-aware | Doubao vision LLM |
 
 ## API endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Check server and config |
-| POST | `/api/story/generate` | Generate interactive story from image |
+| POST | `/api/story/generate` | Generate interactive story from image (SSE stream) |
+| POST | `/api/story/continue` | Generate story continuation for chosen branch (SSE stream) |
 | POST | `/api/animation/submit` | Submit image-to-video task |
 | GET | `/api/animation/status/{task_id}` | Poll animation task status |
-| POST | `/api/chat` | Slide-design chatbot |
+| POST | `/api/chat` | Slide-design chatbot (accepts `language` param) |
+| POST | `/api/tts` | Text-to-speech — returns MP3 audio blob |
 | POST | `/api/part6/generate-styles` | Generate 3 style transfer prompts |
 | POST | `/api/part6/transfer` | Apply style transfer to sketch |
 

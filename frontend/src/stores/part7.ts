@@ -17,7 +17,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useProjectsStore } from './projects'
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 export interface StudentWork {
     id: string

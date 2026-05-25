@@ -305,6 +305,7 @@ export default {
     uploadLabel: '点击上传作品图片',
     uploadOrPick: '点击上传，或在上方选择本课的推荐画作',
     pickArtworkLabel: '本课推荐画作',
+    loadingArtwork: '正在加载画作…',
     replaceImage: '更换图片',
 
     remainingAttempts: '剩余生成次数：{n} / 3',

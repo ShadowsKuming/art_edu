@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import { useSlideStore } from '@/stores/slides'
 import { usePart3Store } from '@/stores/part3'
+import { useProjectsStore } from '@/stores/projects'
+import { getLesson } from '@/data/lessons'
 import SlideThumbnail from './SlideThumbnail.vue'
 import { useI18n } from 'vue-i18n'
 
@@ -9,11 +11,13 @@ const { t, tm } = useI18n()
 
 const PART_IDS = [1, 2, 3, 4, 5, 6, 7]
 
-// Parts that show slide thumbnails + add slide button in the sidebar
-const SLIDE_EDITOR_PARTS = new Set([1, 2, 3, 4])
+// Parts 1, 2, 4 show normal slide thumbnails.
+// Part 3 gets its own artwork list below.
+const SLIDE_EDITOR_PARTS = new Set([1, 2, 4])
 
 const slideStore = useSlideStore()
 const part3Store = usePart3Store()
+const projectsStore = useProjectsStore()
 
 type Status = 'active' | 'completed' | 'inactive'
 
@@ -30,6 +34,13 @@ const parts = computed(() =>
 
 const activePartSlides = computed(() => slideStore.slidesForPart(slideStore.activePart))
 
+// Curated artworks from the active lesson (Part 3 only)
+const part3CuratedArtworks = computed(() => {
+  const lessonId = projectsStore.activeLessonId
+  if (!lessonId) return []
+  return getLesson(lessonId)?.textbook_artworks ?? []
+})
+
 function selectPart(partId: number, status: Status) {
   if (status !== 'inactive') {
     slideStore.navigateToPart(partId)
@@ -38,15 +49,9 @@ function selectPart(partId: number, status: Status) {
 
 function addSlide() {
   const id = slideStore.addSlide(slideStore.activePart)
-  if (slideStore.activePart === 3) {
-    part3Store.ensurePair(id)
-  }
 }
 
 function deleteSlide(slideId: string) {
-  if (slideStore.activePart === 3) {
-    part3Store.removePair(slideId)
-  }
   slideStore.removeSlide(slideId)
 }
 
@@ -56,6 +61,60 @@ function canDelete(partId: number) {
 
 function selectSlide(id: string) {
   slideStore.selectSlide(id)
+}
+
+// ── Part 3 artwork actions ──────────────────────────────────────
+
+function pickCuratedArtwork(artworkId: string, url: string) {
+  // Ensure a Part-3 slide + pair exists
+  const part3Slides = slideStore.slides.filter(s => s.partId === 3)
+  if (part3Slides.length === 0) {
+    const id = slideStore.addSlide(3)
+    part3Store.ensurePair(id)
+  } else {
+    part3Store.ensurePair(part3Slides[0].id)
+    slideStore.selectSlide(part3Slides[0].id)
+  }
+  part3Store.setArtworkFromUrl(url, artworkId)
+  const activeId = slideStore.activeSlideId
+  if (activeId) slideStore.setSlideBackground(activeId, url)
+}
+
+function pickUploadedArtwork(id: string) {
+  const art = part3Store.uploadedArtworks.find(a => a.id === id)
+  if (!art) return
+  part3Store.selectUploadedArtwork(id)
+  const activeId = slideStore.activeSlideId
+  if (activeId) slideStore.setSlideBackground(activeId, art.imageDataUrl)
+}
+
+function uploadNewArtwork() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.style.cssText = 'position:fixed;top:-999px;left:-999px;'
+  document.body.appendChild(input)
+  input.addEventListener('change', () => {
+    const file = input.files?.[0]
+    input.remove()
+    if (!file) return
+    // Ensure a Part-3 slide + pair exists
+    let part3SlideId = slideStore.slides.find(s => s.partId === 3)?.id ?? null
+    if (!part3SlideId) {
+      part3SlideId = slideStore.addSlide(3)
+    }
+    part3Store.ensurePair(part3SlideId)
+    slideStore.selectSlide(part3SlideId)
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      part3Store.addUploadedArtwork(dataUrl)
+      slideStore.setSlideBackground(part3SlideId!, dataUrl)
+    }
+    reader.readAsDataURL(file)
+  })
+  input.click()
 }
 </script>
 
@@ -99,9 +158,49 @@ function selectSlide(id: string) {
           </svg>
         </div>
 
-        <!-- Slide thumbnails (active slide-editor parts only) -->
+        <!-- Part 3: artwork list instead of slide thumbnails -->
         <div
-          v-if="part.status === 'active' && SLIDE_EDITOR_PARTS.has(part.id)"
+          v-if="part.status === 'active' && part.id === 3"
+          class="slides-list"
+        >
+          <!-- Curated artworks from LKP -->
+          <div
+            v-for="art in part3CuratedArtworks"
+            :key="art.artwork_id"
+            class="slide-thumb artwork-thumb"
+            :class="{ 'slide-thumb--active': part3Store.selectedArtworkId === art.artwork_id }"
+            @click="pickCuratedArtwork(art.artwork_id, art.image_url)"
+          >
+            <img :src="art.image_url" :alt="art.title_zh" class="artwork-thumb-img" />
+            <div class="artwork-thumb-label">
+              <span>{{ art.title_zh }}</span>
+            </div>
+          </div>
+
+          <!-- User-uploaded artworks -->
+          <div
+            v-for="ua in part3Store.uploadedArtworks"
+            :key="ua.id"
+            class="slide-thumb artwork-thumb"
+            :class="{ 'slide-thumb--active': part3Store.selectedUploadedId === ua.id }"
+            @click="pickUploadedArtwork(ua.id)"
+          >
+            <img :src="ua.imageDataUrl" alt="" class="artwork-thumb-img" />
+            <button
+              class="slide-delete-btn"
+              @click.stop="part3Store.removeUploadedArtwork(ua.id)"
+            >×</button>
+          </div>
+
+          <!-- Upload new artwork -->
+          <div class="slide-add" @click="uploadNewArtwork">
+            <span class="slide-add-icon">+</span>
+          </div>
+        </div>
+
+        <!-- Normal slide thumbnails for parts 1, 2, 4 -->
+        <div
+          v-else-if="part.status === 'active' && SLIDE_EDITOR_PARTS.has(part.id)"
           class="slides-list"
         >
           <div
@@ -164,22 +263,10 @@ function selectSlide(id: string) {
   user-select: none;
 }
 
-.part-row--active {
-  background: #B2F4BC;
-}
-
-.part-row--completed {
-  background: #E6E6E6;
-}
-
-.part-row--inactive {
-  background: #E6E6E6;
-  cursor: not-allowed;
-}
-
-.part-row--completed:hover {
-  background: #d9d9d9;
-}
+.part-row--active    { background: #B2F4BC; }
+.part-row--completed { background: #E6E6E6; }
+.part-row--inactive  { background: #E6E6E6; cursor: not-allowed; }
+.part-row--completed:hover { background: #d9d9d9; }
 
 .part-label {
   font-size: 14px;
@@ -187,19 +274,11 @@ function selectSlide(id: string) {
   color: #111827;
   line-height: 1.4;
 }
+.part-row--inactive .part-label { color: #9ca3af; font-weight: 400; }
 
-.part-row--inactive .part-label {
-  color: #9ca3af;
-  font-weight: 400;
-}
+.check-icon { width: 20px; height: 20px; flex-shrink: 0; }
 
-.check-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-/* Slide thumbnails */
+/* Slide / artwork thumbnails list */
 .slides-list {
   padding: 8px 16px 16px;
   display: flex;
@@ -212,8 +291,8 @@ function selectSlide(id: string) {
   aspect-ratio: 16 / 9;
   border-radius: 8px;
   background: #fff;
-  border: 1px solid #e5e7eb;
-  overflow: visible;
+  border: 2px solid #e5e7eb;
+  overflow: hidden;
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   position: relative;
@@ -221,8 +300,30 @@ function selectSlide(id: string) {
 
 .slide-thumb:hover,
 .slide-thumb--active {
-  border-color: #B2F4BC;
+  border-color: #7FEC8F;
   box-shadow: 0 0 0 2px #B2F4BC;
+}
+
+/* Artwork thumbnail variant */
+.artwork-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.artwork-thumb-label {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 4px 8px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.6));
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 .slide-delete-btn {
@@ -243,7 +344,6 @@ function selectSlide(id: string) {
   justify-content: center;
   padding: 0;
 }
-
 .slide-thumb:hover .slide-delete-btn { display: flex; }
 .slide-delete-btn:hover { background: #dc2626; }
 
@@ -258,19 +358,7 @@ function selectSlide(id: string) {
   justify-content: center;
   cursor: pointer;
 }
-
-.slide-add:hover {
-  border-color: #7FEC8F;
-  background: #f0fdf4;
-}
-
-.slide-add-icon {
-  font-size: 28px;
-  color: #9ca3af;
-  line-height: 1;
-}
-
-.slide-add:hover .slide-add-icon {
-  color: #7FEC8F;
-}
+.slide-add:hover { border-color: #7FEC8F; background: #f0fdf4; }
+.slide-add-icon { font-size: 28px; color: #9ca3af; line-height: 1; }
+.slide-add:hover .slide-add-icon { color: #7FEC8F; }
 </style>

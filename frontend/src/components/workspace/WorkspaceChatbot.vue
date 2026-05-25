@@ -10,7 +10,7 @@ interface Message {
   suggestions?: string[]
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 const { t, tm, locale } = useI18n()
 const projectsStore = useProjectsStore()

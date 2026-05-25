@@ -25,9 +25,17 @@ export interface AnimationVersion {
   status: AnimationStatus
 }
 
+export interface UploadedArtwork {
+  id: string
+  imageDataUrl: string   // data URL
+  imageBase64: string | null
+  imageMime: string
+}
+
 export interface Part3Pair {
   id: string   // = slide ID
-  imageDataUrl: string | null
+  imageDataUrl: string | null  // data URL for uploaded files; plain URL for curated artworks
+  imageUrl: string | null      // original URL for curated artworks (used for lazy base64 fetch)
   imageBase64: string | null
   imageMime: string
   /**
@@ -36,6 +44,8 @@ export interface Part3Pair {
    * artwork-specific story hint via the LessonContextManager.
    */
   selectedArtworkId: string | null
+  uploadedArtworks: UploadedArtwork[]
+  selectedUploadedId: string | null
   storyData: StoryData | null
   storyLoading: boolean
   storyError: string | null
@@ -53,13 +63,13 @@ export interface Part3Pair {
 }
 
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 function makePair(id: string): Part3Pair {
   return {
     id,
-    imageDataUrl: null, imageBase64: null, imageMime: 'image/jpeg',
-    selectedArtworkId: null,
+    imageDataUrl: null, imageUrl: null, imageBase64: null, imageMime: 'image/jpeg',
+    selectedArtworkId: null, uploadedArtworks: [], selectedUploadedId: null,
     storyData: null, storyLoading: false, storyError: null, storyStreamText: '',
     animationVersions: [], animationLoading: false, animationError: null,
     remainingAttempts: 3, chosenVideoUrl: null,
@@ -157,16 +167,52 @@ export const usePart3Store = defineStore('part3', () => {
     activePairId.value = id
   }
 
-  function setImage(dataUrl: string) {
+  function addUploadedArtwork(dataUrl: string) {
     const pair = activePair.value
     if (!pair) return
-    pair.imageDataUrl = dataUrl
+    const id = `ua-${Date.now()}`
     const [meta, b64] = dataUrl.split(',')
-    pair.imageBase64 = b64
-    pair.imageMime = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
-    // User-uploaded image — clear any prior curated-artwork selection.
+    const mime = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+    pair.uploadedArtworks.push({ id, imageDataUrl: dataUrl, imageBase64: b64, imageMime: mime })
+    _selectUploaded(pair, id)
+  }
+
+  function selectUploadedArtwork(id: string) {
+    const pair = activePair.value
+    if (!pair) return
+    _selectUploaded(pair, id)
+  }
+
+  function removeUploadedArtwork(id: string) {
+    const pair = activePair.value
+    if (!pair) return
+    pair.uploadedArtworks = pair.uploadedArtworks.filter(a => a.id !== id)
+    if (pair.selectedUploadedId === id) {
+      const next = pair.uploadedArtworks[0]
+      if (next) {
+        _selectUploaded(pair, next.id)
+      } else {
+        pair.selectedUploadedId = null
+        pair.imageDataUrl = null
+        pair.imageBase64 = null
+        pair.imageUrl = null
+        pair.storyData = null
+        pair.storyStreamText = ''
+        pair.animationVersions = []
+        pair.remainingAttempts = 3
+      }
+    }
+  }
+
+  function _selectUploaded(pair: Part3Pair, id: string) {
+    const art = pair.uploadedArtworks.find(a => a.id === id)
+    if (!art) return
+    pair.selectedUploadedId = id
     pair.selectedArtworkId = null
-    // Re-uploading invalidates anything generated against the previous image.
+    pair.imageDataUrl = art.imageDataUrl
+    pair.imageUrl = null
+    pair.imageBase64 = art.imageBase64
+    pair.imageMime = art.imageMime
     pair.storyData = null
     pair.storyStreamText = ''
     pair.animationVersions = []
@@ -175,28 +221,54 @@ export const usePart3Store = defineStore('part3', () => {
 
   /**
    * Pick one of the LKP's curated artworks (Pilot demo flow).
-   * Fetches the image, base64-encodes it, and remembers `artworkId`
-   * so subsequent /api/story and /api/animation calls include it.
+   * Stores the URL immediately for display — no async fetch here.
+   * Base64 is populated lazily by `_ensureBase64` before any LLM call.
    */
-  async function setArtworkFromUrl(url: string, artworkId: string) {
+  function setArtworkFromUrl(url: string, artworkId: string) {
     const pair = activePair.value
     if (!pair) return
-    const dataUrl = await fetchImageAsDataUrl(url)
-    pair.imageDataUrl = dataUrl
-    const [meta, b64] = dataUrl.split(',')
-    pair.imageBase64 = b64
-    pair.imageMime = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+    pair.imageDataUrl = url
+    pair.imageUrl = url
+    pair.imageBase64 = null
+    pair.imageMime = 'image/jpeg'
     pair.selectedArtworkId = artworkId
+    pair.selectedUploadedId = null
     pair.storyData = null
     pair.storyStreamText = ''
     pair.animationVersions = []
     pair.remainingAttempts = 3
   }
 
+  /**
+   * Ensures `pair.imageBase64` is populated before an LLM call.
+   * If the image came from a curated artwork URL, fetch and convert now.
+   * If it's already a data URL (user upload), extract base64 from it.
+   */
+  async function _ensureBase64(pair: Part3Pair): Promise<boolean> {
+    if (pair.imageBase64) return true
+    const src = pair.imageUrl ?? pair.imageDataUrl
+    if (!src) return false
+    try {
+      let dataUrl: string
+      if (src.startsWith('data:')) {
+        dataUrl = src
+      } else {
+        dataUrl = await fetchImageAsDataUrl(src)
+      }
+      const [meta, b64] = dataUrl.split(',')
+      pair.imageBase64 = b64
+      pair.imageMime = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+      return true
+    } catch {
+      return false
+    }
+  }
+
 
   async function generateStory(language = 'en') {
     const pair = activePair.value
-    if (!pair?.imageBase64) return
+    if (!pair?.imageDataUrl) return
+    if (!await _ensureBase64(pair)) return
     pair.storyLoading = true
     pair.storyError = null
     pair.storyStreamText = ''
@@ -245,7 +317,7 @@ export const usePart3Store = defineStore('part3', () => {
 
   async function generateContinuation(choiceId: number, language = 'en') {
     const pair = activePair.value
-    if (!pair?.storyData || !pair.imageBase64) return
+    if (!pair?.storyData || !pair.imageDataUrl) return
 
     // Already cached — just switch selection
     if (pair.generatedContinuations[choiceId] !== undefined) {
@@ -257,6 +329,7 @@ export const usePart3Store = defineStore('part3', () => {
     if (!choice) return
 
     pair.selectedChoiceId = choiceId
+    if (!await _ensureBase64(pair)) return
     pair.continuationLoading = true
     pair.continuationError = null
     pair.continuationStreamText = ''
@@ -298,7 +371,8 @@ export const usePart3Store = defineStore('part3', () => {
 
   async function generateAnimation(customPrompt = '') {
     const pair = activePair.value
-    if (!pair?.imageBase64 || pair.remainingAttempts <= 0) return
+    if (!pair?.imageDataUrl || pair.remainingAttempts <= 0) return
+    if (!await _ensureBase64(pair)) return
     pair.animationLoading = true
     pair.animationError = null
     pair.remainingAttempts--
@@ -379,14 +453,18 @@ export const usePart3Store = defineStore('part3', () => {
   }
 
   const selectedArtworkId = computed(() => activePair.value?.selectedArtworkId ?? null)
+  const selectedUploadedId = computed(() => activePair.value?.selectedUploadedId ?? null)
+  const uploadedArtworks = computed(() => activePair.value?.uploadedArtworks ?? [])
 
   return {
     pairs, activePairId, activePair,
     imageDataUrl, storyData, storyLoading, storyError,
     animationVersions, animationLoading, animationError, remainingAttempts, chosenVideoUrl,
     selectedChoiceId, continuationLoading, continuationError, activeContinuation,
-    storyStreamText, continuationStreamText, selectedArtworkId,
-    ensurePair, removePair, setImage, setArtworkFromUrl,
+    storyStreamText, continuationStreamText,
+    selectedArtworkId, selectedUploadedId, uploadedArtworks,
+    ensurePair, removePair, setArtworkFromUrl,
+    addUploadedArtwork, selectUploadedArtwork, removeUploadedArtwork,
     generateStory, generateAnimation, saveChosenVideo, generateContinuation,
   }
 })

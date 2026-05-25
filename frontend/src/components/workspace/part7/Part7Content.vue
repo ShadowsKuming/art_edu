@@ -8,7 +8,7 @@
  * Requires an LKP-anchored project — without `projectsStore.activeLessonId`
  * the page shows a clear empty state explaining why.
  */
-import { computed, watch } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePart7Store } from '@/stores/part7'
 import { useSlideStore } from '@/stores/slides'
@@ -19,7 +19,25 @@ const slideStore = useSlideStore()
 const projectsStore = useProjectsStore()
 const { t, locale } = useI18n()
 
-// Ensure a pair per Part-7 slide
+// Ensure at least one Part-7 slide exists and is selected when this panel mounts.
+// The sidebar only manages slides for parts 1-4, so Part 7 must self-bootstrap.
+onMounted(() => {
+    const part7Slides = slideStore.slides.filter((s) => s.partId === 7)
+    if (part7Slides.length === 0) {
+        const id = slideStore.addSlide(7)
+        store.ensurePair(id)
+    } else {
+        const current = slideStore.slides.find((s) => s.id === slideStore.activeSlideId)
+        if (!current || current.partId !== 7) {
+            slideStore.selectSlide(part7Slides[0].id)
+        }
+        const activeId = slideStore.slides.find((s) => s.partId === 7 && s.id === slideStore.activeSlideId)?.id
+            ?? part7Slides[0].id
+        store.ensurePair(activeId)
+    }
+})
+
+// Keep the pair in sync when the active slide changes
 watch(
     () => slideStore.activeSlideId,
     (id) => {
@@ -27,7 +45,6 @@ watch(
             store.ensurePair(id)
         }
     },
-    { immediate: true },
 )
 
 const hasLesson = computed(() => !!projectsStore.activeLessonId)
