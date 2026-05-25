@@ -43,18 +43,41 @@ load_dotenv()
 
 app = FastAPI(title="ArtBloom API")
 
+# CORS — origins are env-driven so production can be locked down later.
+# Default keeps the local Vite dev ports working. In production we set
+# CORS_ALLOW_ORIGINS to "*" (dev pilot) or a comma-separated list of
+# Pages / custom domains.
+_cors_env = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+if _cors_env == "*":
+    _cors_origins: list[str] = ["*"]
+elif _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _cors_origins = ["http://localhost:5173", "http://localhost:5174"]
+
+# `allow_credentials=True` is incompatible with the "*" wildcard in
+# Starlette/FastAPI, so we flip credentials off when wildcarding.
+_cors_credentials = _cors_origins != ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Textbook asset mount (pilot only — switches to R2 in production).
-# The same physical files used by the frontend are served here so the
-# Doubao vision LLM (and any other downstream consumer) can fetch them
-# via plain HTTP without a base64 round-trip through the browser.
+# Textbook asset mount.
+#   • Dev: the same physical files used by the frontend are served at
+#     `/textbook-assets/...` so the Doubao vision LLM (and any other
+#     downstream consumer) can fetch them via plain HTTP without a
+#     base64 round-trip through the browser.
+#   • Production: assets live in Cloudflare R2 — set
+#     `TEXTBOOK_ASSETS_URL=https://pub-xxx.r2.dev` and the frontend
+#     points lesson URLs there directly. The mount below is skipped
+#     when the production env var is set OR when the directory is
+#     missing (Render's slug doesn't include `frontend/`).
+_TEXTBOOK_ASSETS_URL = os.getenv("TEXTBOOK_ASSETS_URL", "").strip()
 _TEXTBOOK_DIR = (
     Path(__file__).resolve().parent.parent
     / "frontend"
@@ -62,7 +85,12 @@ _TEXTBOOK_DIR = (
     / "assets"
     / "textbook-assets"
 )
-if _TEXTBOOK_DIR.exists():
+if _TEXTBOOK_ASSETS_URL:
+    print(
+        f"[startup] textbook-assets served externally from {_TEXTBOOK_ASSETS_URL}",
+        flush=True,
+    )
+elif _TEXTBOOK_DIR.exists():
     app.mount(
         "/textbook-assets",
         StaticFiles(directory=str(_TEXTBOOK_DIR)),
@@ -70,6 +98,7 @@ if _TEXTBOOK_DIR.exists():
     )
 else:
     print(f"[startup] textbook-assets dir not found at {_TEXTBOOK_DIR}", flush=True)
+
 
 ARK_API_KEY = os.getenv("ARK_API_KEY", "")
 STORY_MODEL = os.getenv("ARK_STORY_MODEL", "doubao-seed-2-0-lite-260215")

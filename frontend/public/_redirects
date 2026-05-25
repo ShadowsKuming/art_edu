@@ -1,0 +1,3 @@
+# Cloudflare Pages SPA fallback — sends every unknown path to index.html
+# so Vue Router's history mode works (e.g. /dashboard, /community, etc.).
+/*    /index.html   200

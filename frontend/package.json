@@ -8,7 +8,8 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "sync-lessons": "node scripts/sync-lessons.js",
-    "prebuild": "npm run sync-lessons"
+    "prebuild": "npm run sync-lessons",
+    "r2:sync": "node scripts/sync-r2-assets.js"
   },
   "dependencies": {
     "pinia": "^3.0.4",
@@ -24,6 +25,7 @@
     "tailwindcss": "^4.2.4",
     "typescript": "~6.0.2",
     "vite": "^8.0.10",
-    "vue-tsc": "^3.2.7"
+    "vue-tsc": "^3.2.7",
+    "wrangler": "^4.94.0"
   }
 }
