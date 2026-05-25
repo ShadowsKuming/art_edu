@@ -12,7 +12,6 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/textbook-assets': 'http://localhost:8001',
       '/api': 'http://localhost:8001',
     },
   },

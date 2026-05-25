@@ -10,11 +10,12 @@
  *
  * Production URL rewriting
  * ────────────────────────
- * LKP JSONs use root-relative `/textbook-assets/…` paths. In dev the
- * Vite proxy forwards these to the local backend. In production set
- * `VITE_ASSETS_BASE` to the backend origin (e.g. the Render URL or an
- * R2 bucket) and every `/textbook-assets/…` path is prefixed with that
- * host so the browser and the vision LLM both reach the right server.
+ * LKP JSONs use root-relative `/textbook-assets/…` paths. In dev Vite
+ * serves them directly from `public/textbook-assets/`. In production
+ * Cloudflare Pages serves the same files at the same root-relative paths,
+ * so `VITE_ASSETS_BASE` can be left empty — `rewriteAssetUrls` is a no-op.
+ * Set `VITE_ASSETS_BASE` only if assets are hosted on a separate origin
+ * (e.g. R2 bucket or a CDN).
  */
 
 import type { LessonSeedData } from '@/types/lesson'

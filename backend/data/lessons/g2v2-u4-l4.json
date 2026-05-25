@@ -56,7 +56,7 @@
       "section": "封面",
       "content_points": "课题《好长好长……》、年级、出版社",
       "asset_types": "背景图（封面）",
-      "default_background": "http://localhost:8001/textbook-assets/G2V2-U4-L4/design/p1-s1-cover.png",
+      "default_background": "/textbook-assets/G2V2-U4-L4/design/p1-s1-cover.png",
       "default_elements": [
         {
           "type": "text",
@@ -119,7 +119,7 @@
           "width": 280,
           "height": 170,
           "content": "",
-          "src": "http://localhost:8001/textbook-assets/G2V2-U4-L4/design/p2-s1-paper-roll.png"
+          "src": "/textbook-assets/G2V2-U4-L4/design/p2-s1-paper-roll.png"
         },
         {
           "type": "text",
@@ -302,7 +302,7 @@
           "width": 280,
           "height": 170,
           "content": "",
-          "src": "http://localhost:8001/textbook-assets/G2V2-U4-L4/design/p2-s2-caterpillar.png"
+          "src": "/textbook-assets/G2V2-U4-L4/design/p2-s2-caterpillar.png"
         },
         {
           "type": "text",
@@ -447,7 +447,7 @@
           "width": 280,
           "height": 170,
           "content": "",
-          "src": "http://localhost:8001/textbook-assets/G2V2-U4-L4/design/p4-s1-landscape.png"
+          "src": "/textbook-assets/G2V2-U4-L4/design/p4-s1-landscape.png"
         },
         {
           "type": "text",
@@ -585,7 +585,7 @@
           "width": 280,
           "height": 170,
           "content": "",
-          "src": "http://localhost:8001/textbook-assets/G2V2-U4-L4/design/p4-s2-playground.png"
+          "src": "/textbook-assets/G2V2-U4-L4/design/p4-s2-playground.png"
         },
         {
           "type": "text",
@@ -708,7 +708,7 @@
       "artist_zh": "蔡皋",
       "year": 2009,
       "medium_zh": "图画书",
-      "image_url": "http://localhost:8001/textbook-assets/G2V2-U4-L4/art01-taohuayuan1.jpg",
+      "image_url": "/textbook-assets/G2V2-U4-L4/art01-taohuayuan1.jpg",
       "license_status": "Pilot study 内部使用,不公开分发。来源:《桃花源的故事》绘本, 21世纪出版社, 2009",
       "textbook_position": "page 44",
       "visual_description_zh": "横幅长卷画风,呈现桃花源中粉色桃花林,白色溪流蜿蜒穿过,远山如黛,前景有渔人独舟。色彩以粉、绿、灰为主,意境梦幻悠远。",
@@ -724,7 +724,7 @@
       "artist_zh": "蔡皋",
       "year": 2009,
       "medium_zh": "图画书",
-      "image_url": "http://localhost:8001/textbook-assets/G2V2-U4-L4/art02-taohuayuan2.jpg",
+      "image_url": "/textbook-assets/G2V2-U4-L4/art02-taohuayuan2.jpg",
       "license_status": "Pilot study 内部使用,不公开分发。来源:《桃花源的故事》绘本, 21世纪出版社, 2009 (另一跨页)",
       "textbook_position": "page 44 (同一书的另一跨页)",
       "visual_description_zh": "《桃花源的故事》中的另一跨页,延续 art01 的长卷构图,呈现桃花源内部场景。色彩与画风延续 art01。",
@@ -740,7 +740,7 @@
       "artist_zh": "高楼方子",
       "year": 2020,
       "medium_zh": "图画书",
-      "image_url": "http://localhost:8001/textbook-assets/G2V2-U4-L4/art03-changtoufa.jpg",
+      "image_url": "/textbook-assets/G2V2-U4-L4/art03-changtoufa.jpg",
       "license_status": "Pilot study 内部使用,不公开分发。来源:《小真的长头发》绘本中文版, 2020",
       "textbook_position": "page 44",
       "visual_description_zh": "横幅长画,主角小女孩坐在椅子上,身边一群女孩协助拉起她超长的黑色头发,头发上挂满了各色衣物,如同一条晾衣绳。色彩明快,人物表情夸张可爱。",
@@ -802,7 +802,7 @@
       "encouragement_tone": "warm"
     }
   },
-  "example_video_url": "http://localhost:8001/textbook-assets/G2V2-U4-L4/example.mp4",
+  "example_video_url": "/textbook-assets/G2V2-U4-L4/example.mp4",
   "example_video_notes_zh": "Part 5(Making Example)示范视频。研究员负责提供真实老师/工匠/孩子的示范录像,60-90 秒。",
   "tts_voice_recommendation": "zh-CN-XiaoxiaoNeural",
   "classroom_activity": {
