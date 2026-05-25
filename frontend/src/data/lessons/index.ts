@@ -10,14 +10,11 @@
  *
  * Production URL rewriting
  * ────────────────────────
- * LKP JSONs ship with hard-coded `http://localhost:8001/textbook-assets/…`
- * URLs so the backend's StaticFiles mount + Doubao vision LLM see the
- * same files in dev. In production we set `VITE_ASSETS_BASE` to the
- * Cloudflare R2 public bucket (e.g. `https://pub-xxx.r2.dev`) and
- * rewrite every `localhost:8001/textbook-assets/...` → R2 host below.
- *
- * If you want the backend (Render) to *also* see R2 instead of local
- * disk, set `TEXTBOOK_ASSETS_URL` in Render env to the same R2 host.
+ * LKP JSONs use root-relative `/textbook-assets/…` paths. In dev the
+ * Vite proxy forwards these to the local backend. In production set
+ * `VITE_ASSETS_BASE` to the backend origin (e.g. the Render URL or an
+ * R2 bucket) and every `/textbook-assets/…` path is prefixed with that
+ * host so the browser and the vision LLM both reach the right server.
  */
 
 import type { LessonSeedData } from '@/types/lesson'
@@ -26,24 +23,22 @@ import g2v2_u4_l4 from './g2v2-u4-l4.json'
 
 // ─── Asset URL rewriting ─────────────────────────────────────────────
 
-const DEV_ASSETS_BASE = 'http://localhost:8001/textbook-assets'
-
 // Trim trailing slash so concatenation is predictable.
 const PROD_ASSETS_BASE = (
     (import.meta.env.VITE_ASSETS_BASE as string | undefined)?.replace(/\/+$/, '') ?? ''
 )
 
 /**
- * Walk an arbitrary JSON-like structure and replace every occurrence
- * of the dev assets prefix with the configured production prefix.
- * No-op when `VITE_ASSETS_BASE` is unset (i.e. local development).
+ * Walk an arbitrary JSON-like structure and prefix every root-relative
+ * `/textbook-assets/…` path with PROD_ASSETS_BASE.
+ * No-op when `VITE_ASSETS_BASE` is unset (i.e. local development with proxy).
  */
 function rewriteAssetUrls<T>(node: T): T {
     if (!PROD_ASSETS_BASE) return node
 
     if (typeof node === 'string') {
-        if (node.startsWith(DEV_ASSETS_BASE)) {
-            return node.replace(DEV_ASSETS_BASE, `${PROD_ASSETS_BASE}`) as unknown as T
+        if (node.startsWith('/textbook-assets/')) {
+            return (PROD_ASSETS_BASE + node) as unknown as T
         }
         return node
     }

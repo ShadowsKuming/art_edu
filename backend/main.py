@@ -29,8 +29,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from lesson_context import lesson_manager
@@ -91,13 +90,25 @@ if _TEXTBOOK_ASSETS_URL:
         flush=True,
     )
 elif _TEXTBOOK_DIR.exists():
-    app.mount(
-        "/textbook-assets",
-        StaticFiles(directory=str(_TEXTBOOK_DIR)),
-        name="textbook-assets",
-    )
+    print(f"[startup] textbook-assets serving from {_TEXTBOOK_DIR}", flush=True)
 else:
     print(f"[startup] textbook-assets dir not found at {_TEXTBOOK_DIR}", flush=True)
+
+
+@app.get("/textbook-assets/{path:path}")
+async def serve_textbook_asset(path: str):
+    """Serve textbook assets through the CORS middleware (app.mount bypasses it)."""
+    if _TEXTBOOK_ASSETS_URL:
+        return RedirectResponse(f"{_TEXTBOOK_ASSETS_URL.rstrip('/')}/{path}")
+    if not _TEXTBOOK_DIR.exists():
+        raise HTTPException(404, "Textbook assets directory not available")
+    file_path = (_TEXTBOOK_DIR / path).resolve()
+    # Guard against path traversal.
+    if not str(file_path).startswith(str(_TEXTBOOK_DIR.resolve())):
+        raise HTTPException(403)
+    if not file_path.is_file():
+        raise HTTPException(404)
+    return FileResponse(file_path)
 
 
 ARK_API_KEY = os.getenv("ARK_API_KEY", "")
