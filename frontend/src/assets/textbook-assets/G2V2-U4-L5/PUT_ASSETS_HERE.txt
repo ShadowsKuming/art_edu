@@ -1,0 +1,5 @@
+本目录应放 3 张 JPG + 1 段 MP4:
+  art01-nian.jpg            年(朱慧颖, 2015)
+  art02-shuilongtou.jpg     糟了!我忘了关水龙头!(刘畅, 2022)
+  art03-chouchoubier.jpg    臭臭的比尔(丹尼尔·帕斯盖特, 2018)
+  example.mp4               Part 5 示范视频(把故事标题用字形/颜色/装饰设计得醒目, 60-90s)

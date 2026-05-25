@@ -1,0 +1,224 @@
+{
+  "lesson_id": "g2v2-u4-l5",
+  "lesson_title_zh": "吸引人的标题",
+  "lesson_title_en": "An Eye-Catching Title",
+  "unit_id": "g2v2-u4",
+  "unit_title_zh": "我的图画书",
+  "unit_title_en": "My Picture Book",
+  "unit_big_idea_zh": "艺术家用图画书讲故事，表达所思所想",
+  "grade": 2,
+  "volume": 2,
+  "publisher": "湖南美术出版社",
+  "textbook_page_range": [
+    46,
+    47
+  ],
+  "teacher_guide_page_range": [
+    83,
+    85
+  ],
+  "category": "A",
+  "category_reason": "Flat title / typography / graphic design task",
+  "learning_task_zh": "为自己喜欢的故事设计标题",
+  "learning_objectives": {
+    "know": "图画书的标题可以用丰富多样的字体，艺术家可以用有趣的标题吸引大家读故事",
+    "understand": "改变标题的字形、大小、颜色、花纹等能让故事标题更吸引人",
+    "do": "能为自己喜欢的书或自编的故事书设计一个吸引人的标题"
+  },
+  "key_art_concepts": [
+    "字形（字的形状和笔画处理）",
+    "大小对比",
+    "颜色搭配",
+    "花纹与装饰",
+    "标题位置与布局",
+    "标题与故事内容的呼应"
+  ],
+  "teaching_focus_zh": "欣赏优秀图画书标题,结合故事内容赏析标题设计,感受图画书的字体之美；能改变标题的字形、大小、颜色、花纹等,让故事标题更吸引人",
+  "teaching_difficulty_zh": [
+    "能根据故事内容设计吸引人的故事标题",
+    "能兼顾文字美感与画面整体的统一"
+  ],
+  "driving_question_zh": "如何让图画书标题表现故事内容,更吸引人?",
+  "guiding_questions_zh": [
+    "你见过哪些有意思的图画书标题?它们最吸引你的地方是什么呢?",
+    "艺术家的标题设计分别运用了哪些方法?为什么要这样设计呢?",
+    "怎样通过标题设计突出故事主题呢?"
+  ],
+  "assessment_criteria": [
+    "能选择喜欢的故事或自编故事,设计标题",
+    "能用至少 2 种方法（字形/大小/颜色/装饰）让标题吸引人",
+    "能介绍自己的标题如何表现故事主题"
+  ],
+  "slide_framework": [
+    {
+      "page": 1,
+      "section": "封面",
+      "content_points": "课题《吸引人的标题》、年级、出版社",
+      "asset_types": "设计感标题背景图"
+    },
+    {
+      "page": 2,
+      "section": "导入·封面对比",
+      "content_points": "展示同一故事两个封面（标题字体不同）,提问哪个更吸引人",
+      "asset_types": "两版书封面图"
+    },
+    {
+      "page": 3,
+      "section": "新授·欣赏不同风格",
+      "content_points": "展示并通过故事讲解《年》/《糟了!我忘了关水龙头!》/《臭臭的比尔》等标题范例",
+      "asset_types": "封面图、互动故事、动画"
+    },
+    {
+      "page": 4,
+      "section": "艺术实践·任务布置",
+      "content_points": "为自己喜欢的故事或自编故事设计一个标题",
+      "asset_types": "任务文字"
+    },
+    {
+      "page": 5,
+      "section": "艺术实践·步骤提示",
+      "content_points": "构思布局→添画轮廓→选择颜色",
+      "asset_types": "步骤示意图"
+    },
+    {
+      "page": 6,
+      "section": "作品转化",
+      "content_points": "学生标题草图上传 + 3 种风格转换",
+      "asset_types": "风格示例"
+    },
+    {
+      "page": 7,
+      "section": "评价·标题艺术展",
+      "content_points": "模拟展览,学生介绍设计思路,互评优点",
+      "asset_types": "评价句式"
+    }
+  ],
+  "textbook_artworks": [
+    {
+      "artwork_id": "G2V2-U4-L5-art01",
+      "title_zh": "年",
+      "artist_zh": "朱慧颖",
+      "year": 2015,
+      "medium_zh": "图画书封面",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U4-L5/art01-nian.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。来源:《年》绘本封面, 2015",
+      "textbook_position": "page 46",
+      "visual_description_zh": "封面以红色为主调,中心一个金色的'年'字,周围环绕红色鞭炮装饰图案,营造浓烈的春节氛围",
+      "title_design_method_zh": "用立体感强烈、色彩鲜艳的红金配色,周围添加文化象征性装饰（鞭炮）",
+      "executor_b_prompt_hint_zh": "POV: 一个中国小朋友过春节的所见所闻。'年'是关于春节的传说而不是'年兽吓人'——重点写贴对联、放小礼花、吃团圆饭的喜庆,标题中的'年'字变化呼应春节的红火气氛。儿童本位,避免年兽传说中怪兽吓人的细节。",
+      "recommended_for_executor_b": true,
+      "story_topic_zh": "关于中国春节的喜庆传说和家庭团圆(注意:年兽传说要做儿童化处理,不强调恐怖元素)"
+    },
+    {
+      "artwork_id": "G2V2-U4-L5-art02",
+      "title_zh": "糟了！我忘了关水龙头！",
+      "artist_zh": "刘畅",
+      "year": 2022,
+      "medium_zh": "图画书封面",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U4-L5/art02-shuilongtou.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。来源:《糟了！我忘了关水龙头！》绘本封面, 2022",
+      "textbook_position": "page 46",
+      "visual_description_zh": "封面是浴室场景,瓷砖墙背景,中心标题文字被设计成水流的形态,字体起伏摇晃,营造水溢出的紧张感",
+      "title_design_method_zh": "字形跟随主题（水流形态）、笔画动感、夸张感叹号传递情绪",
+      "executor_b_prompt_hint_zh": "POV: 一个粗心的小学生回家发现忘记关水龙头的搞笑混乱。基调是诙谐和'糟糕但好玩'而不是真的灾难。可以有水溢出来变成小池塘、小鸭子漂在上面等童趣化处理,避免水管爆裂、家具损坏等成人感担忧。",
+      "recommended_for_executor_b": true,
+      "story_topic_zh": "关于一个粗心孩子忘记关水龙头后的搞笑混乱(儿童视角,以滑稽和好奇为主调)"
+    },
+    {
+      "artwork_id": "G2V2-U4-L5-art03",
+      "title_zh": "臭臭的比尔",
+      "artist_zh": "丹尼尔·帕斯盖特",
+      "artist_origin_zh": "英国",
+      "year": 2018,
+      "medium_zh": "图画书封面",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U4-L5/art03-chouchoubier.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。来源:《臭臭的比尔》绘本中文版封面, 2018",
+      "textbook_position": "page 46",
+      "visual_description_zh": "封面是一只蓬乱、表情滑稽的黄色小狗,标题字体歪斜可爱,周围有飞舞的小虫,营造臭烘烘但又招人喜爱的氛围",
+      "title_design_method_zh": "字形扭曲歪斜传递'臭'的滑稽感,周围添加情景装饰（小虫）",
+      "executor_b_prompt_hint_zh": "POV: 小狗比尔的好朋友(一个小孩子)的视角,讲述比尔很臭但人见人爱的故事。臭味的描写要保持滑稽不要恶心(可以描写'比尔身上的味道像踩到了小花'之类幽默化处理),小虫子是友好的伙伴而不是讨厌的虫害。",
+      "recommended_for_executor_b": true,
+      "story_topic_zh": "关于一只很臭但很可爱的小狗(滑稽童话调,友善基调)"
+    }
+  ],
+  "default_executor_b_artwork_id": "G2V2-U4-L5-art02",
+  "animation_default_mood": "playful",
+  "executor_d_styles": {
+    "branch": "A",
+    "styles": [
+      {
+        "style_id": 1,
+        "style_name_zh": "字形夸张",
+        "style_description_zh": "把孩子写的字按主题进行夸张变形（字形跟随含义）",
+        "linked_learning_objective": "根据文字的含义来装饰、改变字形笔画",
+        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character and the basic layout. Now exaggerate each character's shape to MATCH ITS MEANING — make 'long' characters elongated, 'small' characters tiny, 'tall' characters towering, 'round' characters bulbous. Keep the child's pen style. Vivid colors. Image-to-image strength: 0.55.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      },
+      {
+        "style_id": 2,
+        "style_name_zh": "色彩更情绪化",
+        "style_description_zh": "根据标题情绪选择颜色（开心=暖色、安静=冷色、紧张=对比强烈）",
+        "linked_learning_objective": "根据文字的含义改变字的颜色",
+        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character's shape exactly. Now re-color each character with an emotionally appropriate palette: bright warm tones for happy/exciting titles, cool blues/greens for calm/quiet titles, high-contrast clashing colors for tense/dramatic titles. Apply gradient fills inside each stroke. Image-to-image strength: 0.4.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      },
+      {
+        "style_id": 3,
+        "style_name_zh": "添加装饰图案",
+        "style_description_zh": "在字的笔画里或周围添加与故事内容相关的装饰图案",
+        "linked_learning_objective": "在文字周围添加装饰细节,让标题更有吸引力",
+        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character's outline. Now embellish: replace selected strokes with thematic illustrations (e.g., a water droplet becomes part of a stroke for a water-themed title; small flowers grow from strokes for a spring title). Add small thematic decorations floating around the title. Keep readability. Image-to-image strength: 0.5.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      }
+    ]
+  },
+  "executor_a_part_prompts": {
+    "part1": "你是一位资深小学美术教师助手。本节课是《吸引人的标题》,学习任务:为自己喜欢的故事设计标题。现在老师正在备 Part 1(封面与开场)。请帮老师设计能引发学生兴趣、呼应本课主题的封面要点(标题字体、视觉风格、开场提问)。回复简洁、可执行,2-4 段。",
+    "part2": "你是一位资深小学美术教师助手。本节课是《吸引人的标题》,关键概念:字形（字的形状和笔画处理）, 大小对比, 颜色搭配。现在老师正在备 Part 2(导入与注意力引导)。请帮老师设计能在 2-3 分钟内激发学生兴趣并自然过渡到本课核心概念的导入活动。建议形式可以是儿歌、提问、悬念、生活场景等。",
+    "part4": "你是一位资深小学美术教师助手。本节课是《吸引人的标题》,学习任务:为自己喜欢的故事设计标题。现在老师正在备 Part 4(制作任务布置)。请帮老师把任务说明设计得清晰、具体、有挑战但可达成。包含:任务目标、关键约束、时间预期、安全提示。",
+    "part5": "你是一位资深小学美术教师助手。本节课是《吸引人的标题》。现在老师正在备 Part 5(示范环节)。请帮老师准备示范要点:哪些步骤需要演示、哪些细节需要强调、如何让全班看清。如有 example 视频,请帮老师设计如何引导学生观看。",
+    "part7": {
+      "system_prompt": "你是一位温暖、专业的小学美术教师。本节课是《吸引人的标题》,学习任务:为自己喜欢的故事设计标题。请基于学生提交的作品照片,给出 100-120 字的鼓励性反馈。评论应:(1)首先肯定一个具体的亮点(不能空洞);(2)对照本课的学习目标和评价维度,指出一个可改进的方向;(3)结尾用一句温暖的话鼓励学生继续创作。语气应温暖、像跟孩子面对面说话,避免使用过于专业的术语。",
+      "feedback_word_count": [
+        100,
+        120
+      ],
+      "feedback_dimensions": [
+        "主题表现",
+        "色彩运用",
+        "构图",
+        "创意"
+      ],
+      "encouragement_tone": "warm"
+    }
+  },
+  "example_video_url": "r2://artbloom-pilot/textbook/G2V2-U4-L5/example.mp4",
+  "example_video_notes_zh": "Part 5(Making Example)示范视频。研究员负责提供真实老师/工匠/孩子的示范录像,60-90 秒,详见 handoff §13.3b。",
+  "tts_voice_recommendation": "lively_girl",
+  "classroom_activity": {
+    "task_zh": "请选择合适的方式,为你喜欢的书或自编的故事书设计一个吸引人的标题",
+    "task_en": "Choose a suitable method and design an eye-catching title for a favorite book or your own story.",
+    "duration_minutes": 20,
+    "materials_zh": [
+      "水彩纸",
+      "水彩笔",
+      "彩铅",
+      "装饰材料"
+    ],
+    "safety_notes_zh": [],
+    "expected_outcome_zh": "一个使用了至少 2 种设计方法（字形/大小/颜色/装饰）的故事标题"
+  },
+  "suggested_ai_support_zh": "Title style options, font-size/colour/layout suggestions, theme-to-design mapping",
+  "special_note_for_system": "This lesson centers on TITLE DESIGN (typography), not narrative storytelling. The 'master artworks' here are book covers, and Executor B should generate stories ABOUT THE BOOK NAMED IN THE TITLE — letting students explore the content the title promises. The art concepts (字形/大小/颜色/花纹) appear in the story as 'parts of the title that speak different feelings'.",
+  "design_methods_from_textbook_zh": [
+    "根据文字的含义改变字的大小排列",
+    "根据文字的含义来装饰、改变字形笔画,让标题更好地表现故事主题",
+    "根据文字的含义改变字的颜色,添上花纹,让标题更有吸引力",
+    "根据文字的含义在文字周围添加装饰细节,让标题更有吸引力"
+  ],
+  "additional_reference_books_in_teacher_guide_zh": [
+    "《大城市里的小象》——'大小变化'范例",
+    "《蓝色的天空》——'颜色搭配'范例",
+    "《小怪兽也刷牙》——'花纹装饰'范例"
+  ]
+}

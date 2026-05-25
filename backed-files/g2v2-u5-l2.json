@@ -1,0 +1,274 @@
+{
+  "lesson_id": "g2v2-u5-l2",
+  "lesson_title_zh": "自制乐器",
+  "lesson_title_en": "Make Your Own Musical Instrument",
+  "unit_id": "g2v2-u5",
+  "unit_title_zh": "音乐入画来",
+  "unit_title_en": "Music Meets Art",
+  "unit_big_idea_zh": "视觉艺术能表现音乐之美",
+  "grade": 2,
+  "volume": 2,
+  "publisher": "湖南美术出版社",
+  "textbook_page_range": [
+    52,
+    53
+  ],
+  "teacher_guide_page_range": [
+    96,
+    99
+  ],
+  "category": "B",
+  "category_reason": "Functional physical crafting from everyday materials",
+  "learning_task_zh": "感受材料与声音的关系,自制小乐器",
+  "learning_objectives": {
+    "know": "古今常见的几种乐器及其演奏方式；常见生活物品能组合发出不同声音",
+    "understand": "感受材料的不同特质,理解材质与声音之间的关系",
+    "do": "能利用日常生活中易得的材料组合、制作、装饰小乐器,并玩节奏游戏"
+  },
+  "key_art_concepts": [
+    "材料与声音的关系",
+    "四种演奏方式（弹拨/吹/拉弦/敲击）",
+    "古今乐器对比",
+    "组合 + 调整 + 装饰的设计流程",
+    "音调变化原理（数量/长度/大小）"
+  ],
+  "teaching_focus_zh": "选择生活中易得的材料进行组合,制作并装饰小乐器",
+  "teaching_difficulty_zh": [
+    "了解制作乐器的材料特质,根据生活中易得材料的特质巧妙组合、创意装饰制作小乐器,并与同学进行演奏"
+  ],
+  "driving_question_zh": "观察思考,你发现身边易得的材料中哪些可以制作成小乐器?",
+  "guiding_questions_zh": [
+    "观察教材图片,说说《伎乐图》中有什么古代乐器,它们是通过什么方式发出美妙声音的?",
+    "生活中哪些物品能敲（弹）出像乐器一样好听的声音?",
+    "你能用生活中易得的物品组合制作乐器吗?还有更多的组合方式吗?",
+    "自制乐器的声音如何像真实乐器一样产生音调高低的变化?",
+    "我们怎么制作并装饰乐器?"
+  ],
+  "assessment_criteria": [
+    "能选择易得材料组合制作出一件小乐器",
+    "能说出乐器的材料、外观、演奏方式",
+    "能与同学进行合奏",
+    "正确、安全地使用剪刀等工具"
+  ],
+  "slide_framework": [
+    {
+      "page": 1,
+      "section": "封面",
+      "content_points": "课题《自制乐器》",
+      "asset_types": "各种自制乐器实物背景"
+    },
+    {
+      "page": 2,
+      "section": "导入·情境创设",
+      "content_points": "宣布班级音乐会,缺乐器,引出自制乐器的必要性",
+      "asset_types": "音乐会场景图、问题驱动文字"
+    },
+    {
+      "page": 3,
+      "section": "新授·古今乐器",
+      "content_points": "欣赏《伎乐图》（含互动故事和动画）→ 现代乐器对比",
+      "asset_types": "壁画高清图、故事、动画"
+    },
+    {
+      "page": 4,
+      "section": "艺术实践·任务布置",
+      "content_points": "用生活材料设计制作小乐器,玩节奏游戏",
+      "asset_types": "任务文字、节奏型谱例"
+    },
+    {
+      "page": 5,
+      "section": "艺术实践·步骤示范",
+      "content_points": "选材 → 制作 → 装饰",
+      "asset_types": "步骤图或示范视频"
+    },
+    {
+      "page": 6,
+      "section": "作品转化（B类）",
+      "content_points": "学生半成品乐器照片上传 + 3 种成品风格预览",
+      "asset_types": "风格示例"
+    },
+    {
+      "page": 7,
+      "section": "评价·合奏小乐队",
+      "content_points": "学生介绍乐器名称、材料,分组合奏",
+      "asset_types": "介绍句式、合奏指挥手势"
+    }
+  ],
+  "textbook_artworks": [
+    {
+      "artwork_id": "G2V2-U5-L2-art01",
+      "title_zh": "伎乐图",
+      "subtitle_zh": "敦煌莫高窟第112窟南壁东侧（局部）",
+      "artist_zh": "佚名",
+      "year_period": "唐代",
+      "medium_zh": "壁画",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U5-L2/art01-jiyuetu.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。来源:敦煌研究院公开高清扫描",
+      "textbook_position": "page 52",
+      "visual_description_zh": "唐代壁画局部,描绘几位身着华丽服饰的乐伎,跪坐或盘坐演奏不同乐器。可见琵琶、横笛、陶鼓等。色彩以土黄、赭石、青绿为主,有典型敦煌风格。",
+      "teacher_guide_notes_zh": "古代乐器：陶鼓、横笛、拍板、箜篌、阮咸、琵琶等。引导学生观察古人是如何制作和演奏乐器的。",
+      "executor_b_prompt_hint_zh": "POV: 一个唐代小学徒在乐坊里跟着师傅学做乐器。基调是好奇与传承,可以描写敦煌洞窟、丝绸服饰、古乐器的细节。明天有音乐会要开,小学徒要解决'材料不够、乐器不全'的问题——这与本课课堂任务自然衔接。避免战乱、苦难等沉重历史背景。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "medium",
+      "story_topic_zh": "一位古代乐伎或工匠如何用自然材料制作乐器、演奏音乐"
+    }
+  ],
+  "default_executor_b_artwork_id": "G2V2-U5-L2-art01",
+  "animation_default_mood": "mysterious",
+  "executor_d_styles": {
+    "branch": "B",
+    "branch_note": "B-class lesson: input is a photo of a 3D physical work-in-progress (e.g., empty bottles being arranged, a box with rubber bands stretched, materials laid out). Output should show the same physical materials BUT FINISHED — not an aesthetic style transfer.",
+    "styles": [
+      {
+        "style_id": 1,
+        "style_name_zh": "完成成品效果",
+        "style_description_zh": "把孩子的半成品乐器渲染成完全装饰好、可演奏的样子",
+        "linked_learning_objective": "理解材料 → 设计 → 装饰的完整制作流程",
+        "image_gen_prompt_template_en": "The image shows a child's in-progress handmade musical instrument made from everyday materials. Render what this exact instrument would look like once FULLY FINISHED: same shape, same materials, same arrangement, but with all decoration, painting, and finishing touches completed. Show the instrument as a polished final product. Studio photography lighting on a neutral wooden table. Photorealistic. Do NOT replace any of the materials — only complete the decoration and assembly. Image-to-image strength: 0.65.",
+        "model_recommendation": "gpt-image-1"
+      },
+      {
+        "style_id": 2,
+        "style_name_zh": "装饰得更华丽",
+        "style_description_zh": "在原有材料基础上添加更丰富的彩绘、贴纸、丝带等装饰",
+        "linked_learning_objective": "感受材料组合 + 创意装饰",
+        "image_gen_prompt_template_en": "The image shows a child's in-progress handmade musical instrument made from everyday materials. Render the same instrument with RICH ornate decoration added: colorful painted patterns, ribbons tied around it, small stickers and gems, hand-drawn motifs. The materials remain identical to the original photo — only the surface decoration is enhanced. Photorealistic, vivid colors. Image-to-image strength: 0.55.",
+        "model_recommendation": "gpt-image-1"
+      },
+      {
+        "style_id": 3,
+        "style_name_zh": "演奏使用场景",
+        "style_description_zh": "把孩子的成品乐器渲染到一个被使用、被演奏的场景中",
+        "linked_learning_objective": "理解乐器最终的功能和情境意义",
+        "image_gen_prompt_template_en": "The image shows a child's handmade musical instrument made from everyday materials. Render the same exact instrument now being played by a pair of children's hands in a classroom setting, with motion blur on the playing action (hands tapping/shaking/strumming). The instrument itself remains identical to the original photo — only context is added. Warm classroom lighting. Photorealistic. Image-to-image strength: 0.6.",
+        "model_recommendation": "gpt-image-1"
+      }
+    ]
+  },
+  "executor_a_part_prompts": {
+    "part1": "你是一位资深小学美术教师助手。本节课是《自制乐器》,学习任务:感受材料与声音的关系,自制小乐器。现在老师正在备 Part 1(封面与开场)。请帮老师设计能引发学生兴趣、呼应本课主题的封面要点(标题字体、视觉风格、开场提问)。回复简洁、可执行,2-4 段。",
+    "part2": "你是一位资深小学美术教师助手。本节课是《自制乐器》,关键概念:材料与声音的关系, 四种演奏方式（弹拨/吹/拉弦/敲击）, 古今乐器对比。现在老师正在备 Part 2(导入与注意力引导)。请帮老师设计能在 2-3 分钟内激发学生兴趣并自然过渡到本课核心概念的导入活动。建议形式可以是儿歌、提问、悬念、生活场景等。",
+    "part4": "你是一位资深小学美术教师助手。本节课是《自制乐器》,学习任务:感受材料与声音的关系,自制小乐器。现在老师正在备 Part 4(制作任务布置)。请帮老师把任务说明设计得清晰、具体、有挑战但可达成。包含:任务目标、关键约束、时间预期、安全提示。",
+    "part5": "你是一位资深小学美术教师助手。本节课是《自制乐器》。现在老师正在备 Part 5(示范环节)。请帮老师准备示范要点:哪些步骤需要演示、哪些细节需要强调、如何让全班看清。如有 example 视频,请帮老师设计如何引导学生观看。",
+    "part7": {
+      "system_prompt": "你是一位温暖、专业的小学美术教师。本节课是《自制乐器》,学习任务:感受材料与声音的关系,自制小乐器。请基于学生提交的作品照片,给出 100-120 字的鼓励性反馈。评论应:(1)首先肯定一个具体的亮点(不能空洞);(2)对照本课的学习目标和评价维度,指出一个可改进的方向;(3)结尾用一句温暖的话鼓励学生继续创作。语气应温暖、像跟孩子面对面说话,避免使用过于专业的术语。",
+      "feedback_word_count": [
+        100,
+        120
+      ],
+      "feedback_dimensions": [
+        "主题表现",
+        "色彩运用",
+        "构图",
+        "创意"
+      ],
+      "encouragement_tone": "warm"
+    }
+  },
+  "example_video_url": "r2://artbloom-pilot/textbook/G2V2-U5-L2/example.mp4",
+  "example_video_notes_zh": "Part 5(Making Example)示范视频。研究员负责提供真实老师/工匠/孩子的示范录像,60-90 秒,详见 handoff §13.3b。",
+  "tts_voice_recommendation": "ancient_storyteller",
+  "classroom_activity": {
+    "task_zh": "用瓶子、沙子、豆子、筷子等生活中的材料设计制作小乐器,玩一玩、演一演节奏游戏",
+    "task_en": "Design and make a small instrument using everyday materials, then play rhythm games with it.",
+    "duration_minutes": 20,
+    "materials_zh": [
+      "矿泉水瓶/玻璃瓶",
+      "沙子/豆子",
+      "纸盒",
+      "橡皮筋",
+      "彩纸",
+      "贴纸",
+      "彩笔",
+      "剪刀",
+      "胶水"
+    ],
+    "safety_notes_zh": [
+      "使用剪刀注意安全",
+      "保持教室卫生",
+      "玻璃瓶轻拿轻放"
+    ],
+    "expected_outcome_zh": "一件功能性的自制小乐器（能发出声音）,经过装饰,可以与同学合奏"
+  },
+  "suggested_ai_support_zh": "Buildable concept sketches, assembly steps, material-to-sound matching",
+  "special_note_for_system": "This is a B-class lesson — Executor D will go through the physical-construction branch. Students upload photos of work-in-progress 3D objects (bottles, boxes with materials taped on them) rather than 2D drawings. The 3 style transformations should show ALTERNATIVE FINISHED states of the same instrument, not aesthetic style transfer.",
+  "instrument_playing_methods_from_teacher_guide_zh": [
+    {
+      "method_zh": "弹拨",
+      "method_en": "plucking",
+      "ancient_examples": [
+        "阮咸",
+        "琵琶",
+        "箜篌"
+      ],
+      "modern_examples": [
+        "吉他",
+        "古筝"
+      ]
+    },
+    {
+      "method_zh": "吹",
+      "method_en": "blowing",
+      "ancient_examples": [
+        "横笛"
+      ],
+      "modern_examples": [
+        "笛子",
+        "口哨"
+      ]
+    },
+    {
+      "method_zh": "拉弦",
+      "method_en": "bowing",
+      "ancient_examples": [],
+      "modern_examples": [
+        "二胡",
+        "小提琴"
+      ]
+    },
+    {
+      "method_zh": "敲击",
+      "method_en": "striking",
+      "ancient_examples": [
+        "陶鼓",
+        "拍板"
+      ],
+      "modern_examples": [
+        "手鼓",
+        "响板"
+      ]
+    }
+  ],
+  "supplementary_modern_instruments_in_textbook": [
+    {
+      "name_zh": "琵琶",
+      "playing_method": "弹拨"
+    },
+    {
+      "name_zh": "手鼓",
+      "playing_method": "敲击"
+    },
+    {
+      "name_zh": "古筝",
+      "playing_method": "弹拨"
+    },
+    {
+      "name_zh": "吉他",
+      "playing_method": "弹拨"
+    }
+  ],
+  "everyday_materials_for_diy_instruments": [
+    "瓶子（玻璃瓶/塑料瓶,装水量不同音调不同）",
+    "沙子、豆子（装在容器里摇晃,做沙球类）",
+    "筷子、木棍（敲击或当鼓槌）",
+    "纸盒（做鼓体）",
+    "橡皮筋（绷在盒子上做弹拨）",
+    "吸管（吹奏类）"
+  ],
+  "construction_steps_zh": [
+    "1. 选材（根据想做的乐器类型选择材料）",
+    "2. 制作（画形 → 剪形 → 组合 → 调整音调）",
+    "3. 装饰（彩绘、贴纸、丝带等）"
+  ]
+}

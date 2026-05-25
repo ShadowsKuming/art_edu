@@ -1,0 +1,219 @@
+{
+  "lesson_id": "g2v2-u4-l4",
+  "lesson_title_zh": "好长好长……",
+  "lesson_title_en": "So Long, So Long...",
+  "unit_id": "g2v2-u4",
+  "unit_title_zh": "我的图画书",
+  "unit_title_en": "My Picture Book",
+  "unit_big_idea_zh": "艺术家用图画书讲故事，表达所思所想",
+  "grade": 2,
+  "volume": 2,
+  "publisher": "湖南美术出版社",
+  "textbook_page_range": [
+    44,
+    45
+  ],
+  "teacher_guide_page_range": [
+    79,
+    82
+  ],
+  "category": "A",
+  "category_reason": "2D sequential drawing/layout on long paper",
+  "learning_task_zh": "欣赏艺术家作品，依形创编故事",
+  "learning_objectives": {
+    "know": "图画书可以是丰富多样的，艺术家可以根据主题需要选择纸的形状",
+    "understand": "根据主题，思考创作内容，选择合适的纸张形状夸张地表现主题，能让画面故事更生动有趣",
+    "do": "联系生活展开联想，创作有趣的长形画面故事"
+  },
+  "key_art_concepts": [
+    "夸张",
+    "联想",
+    "形式与内容的关系",
+    "构图（横构图/竖构图/蜿蜒构图）",
+    "主体与背景",
+    "细节表现"
+  ],
+  "teaching_focus_zh": "根据主题联系生活经验，思考创作内容，选择合适的纸张形状夸张地表现主题故事，让画面故事更生动有趣",
+  "teaching_difficulty_zh": [
+    "大胆、夸张地表现主题故事，突出主体",
+    "依据画面需要添画背景，让画面看起来更有趣"
+  ],
+  "driving_question_zh": "观察身边的事物，有哪些好长好长的事物可以表现在画面中呢？",
+  "guiding_questions_zh": [
+    "想一想，生活中有哪些事物可以画成好长好长的画？它能带给你哪些灵感？",
+    "你会怎样表现，让画面看起来更有趣呢？",
+    "你长长的画中会讲述怎样的故事呢？"
+  ],
+  "assessment_criteria": [
+    "能根据主题，运用联想、添画在长纸上创作",
+    "能大胆、夸张地表现主体",
+    "能讲述画中的故事，并参与互评"
+  ],
+  "slide_framework": [
+    {
+      "page": 1,
+      "section": "封面",
+      "content_points": "课题《好长好长……》、年级、出版社",
+      "asset_types": "背景图（长卷风格）、标题艺术字"
+    },
+    {
+      "page": 2,
+      "section": "导入·儿歌激趣",
+      "content_points": "播放拍手歌或朗诵\"好长好长\"童谣，引出\"长\"的意境",
+      "asset_types": "童谣文字、配图（长纸展开的动画效果）"
+    },
+    {
+      "page": 3,
+      "section": "新授·欣赏大师作品",
+      "content_points": "展示蔡皋《桃花源的故事》，分析画面中长长的河道、桃花林",
+      "asset_types": "作品高清图、互动故事、动画"
+    },
+    {
+      "page": 4,
+      "section": "艺术实践·任务布置",
+      "content_points": "任务：打开长纸，画一画\"好长好长\"的故事，尝试夸张表现",
+      "asset_types": "任务文字说明、安全提示"
+    },
+    {
+      "page": 5,
+      "section": "艺术实践·步骤提示",
+      "content_points": "提示步骤：画主体→添细节→加背景→夸张表现",
+      "asset_types": "步骤图示或视频"
+    },
+    {
+      "page": 6,
+      "section": "作品转化",
+      "content_points": "学生半成品上传 + 3 种风格转换",
+      "asset_types": "风格示例图"
+    },
+    {
+      "page": 7,
+      "section": "评价·故事分享会",
+      "content_points": "组织学生上台讲述画中的故事，师生共评",
+      "asset_types": "评价句式提示"
+    }
+  ],
+  "textbook_artworks": [
+    {
+      "artwork_id": "G2V2-U4-L4-art01",
+      "title_zh": "桃花源的故事 1",
+      "artist_zh": "蔡皋",
+      "year": 2009,
+      "medium_zh": "图画书",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U4-L4/art01-taohuayuan1.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。来源:《桃花源的故事》绘本, 21世纪出版社, 2009",
+      "textbook_position": "page 44",
+      "visual_description_zh": "横幅长卷画风,呈现桃花源中粉色桃花林,白色溪流蜿蜒穿过,远山如黛,前景有渔人独舟。色彩以粉、绿、灰为主,意境梦幻悠远。",
+      "teacher_guide_notes_zh": "艺术家为了表现主题中长长的河道,让画面看起来更开阔,选择了长长的纸。引导学生观察:艺术家为什么选择长长的纸来表现这个故事?",
+      "executor_b_prompt_hint_zh": "POV: 一位陌生的小访客顺着溪水进入桃花源,从外部世界踏入这个隐秘之地。叙述风格可以略带古风但仍要 7-8 岁儿童能懂。重点描写'蜿蜒'的视觉感与'好长好长'的延伸感。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "high"
+    },
+    {
+      "artwork_id": "G2V2-U4-L4-art02",
+      "title_zh": "桃花源的故事 2",
+      "artist_zh": "蔡皋",
+      "year": 2009,
+      "medium_zh": "图画书",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U4-L4/art02-taohuayuan2.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。来源:《桃花源的故事》绘本, 21世纪出版社, 2009(另一跨页)",
+      "textbook_position": "page 44(同一书的另一跨页,具体页码待研究员核实)",
+      "visual_description_zh": "(待研究员补充:同一本《桃花源的故事》中的另一跨页,可能呈现桃花源内部村落生活,或渔人继续深入桃林。色彩与画风延续 art01,但场景不同)",
+      "teacher_guide_notes_zh": "(待研究员补充)与 art01 同一艺术家、同一作品系列,教学时可作为对照——同一长形纸张如何承载不同的叙事段落。",
+      "executor_b_prompt_hint_zh": "POV: 延续 art01 的小访客视角,讲述他/她进入桃花源后看到的另一个场景。基调依然是宁静悠远的古风,但具体细节(村民生活/桃林深处/小溪源头等)依本图实际画面而定。叙事可与 art01 形成上下篇关系,但每篇独立成段。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "high",
+      "_researcher_note": "本作品由研究员后追加,visual_description_zh / teacher_guide_notes_zh / executor_b_prompt_hint_zh 需研究员根据实际选用的跨页画面细化"
+    },
+    {
+      "artwork_id": "G2V2-U4-L4-art03",
+      "title_zh": "小真的长头发",
+      "artist_zh": "高楼方子",
+      "artist_origin_zh": "日本",
+      "year": 2020,
+      "medium_zh": "图画书",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U4-L4/art03-changtoufa.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。来源:《小真的长头发》绘本中文版, 2020",
+      "textbook_position": "page 44",
+      "visual_description_zh": "横幅长画,主角小女孩坐在椅子上,身边一群女孩协助拉起她超长的黑色头发,头发上挂满了各色衣物,如同一条晾衣绳。色彩明快,人物表情夸张可爱。",
+      "teacher_guide_notes_zh": "通过夸张手法,把头发画得特别长,让人印象深刻。引导学生发现夸张、联想的表现手法在作品中的运用。",
+      "executor_b_prompt_hint_zh": "POV: 锁定女童视角(小真本人或她的同伴),围绕'我的头发能变得多长'展开想象。重点是'夸张'与'功能性联想'(头发变成晾衣绳/秋千/绳索…)。语气活泼俏皮,适合女孩为主的小学班级共鸣。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "high"
+    }
+  ],
+  "default_executor_b_artwork_id": "G2V2-U4-L4-art01",
+  "animation_default_mood": "wondrous",
+  "executor_d_styles": {
+    "branch": "A",
+    "styles": [
+      {
+        "style_id": 1,
+        "style_name_zh": "更夸张",
+        "style_description_zh": "把孩子画的'长'元素拉得更长更夸张,让主体延伸到画面之外",
+        "linked_learning_objective": "大胆、夸张地表现主体",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every line, character, and composition the child drew. Now exaggerate the defining 'long' feature of the main subject far beyond normal proportions — make the long element wind, stretch, and extend dramatically across the composition, even off the edges of the paper. Keep all original colors and shapes intact, but make the 'long' element 3x more elongated. Bright, cheerful, 7-year-old's sketchbook aesthetic. Simple background. Image-to-image strength: 0.55.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      },
+      {
+        "style_id": 2,
+        "style_name_zh": "更有故事性",
+        "style_description_zh": "在孩子画的主体周围添加更多场景细节、角色和情节元素,让画面像在讲故事",
+        "linked_learning_objective": "依据画面需要添画背景,让画面看起来更有趣",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve the main subject the child drew exactly. Now add a rich narrative scene around it: small companion characters along the 'long' element (people, animals, or whimsical creatures interacting with it), background scenery that gives the long element context (a path, a sky, a river, a sequence of small events). Keep child-drawing aesthetic — colorful but simple. Image-to-image strength: 0.5.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      },
+      {
+        "style_id": 3,
+        "style_name_zh": "色彩更鲜艳",
+        "style_description_zh": "把孩子未完成的画填上更鲜艳、更有层次的色彩,让画面更生动",
+        "linked_learning_objective": "让画面看起来更有趣、更丰富",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every line and shape the child drew. Now fill in vibrant, saturated colors with playful color combinations (rainbow palette, bright pastels, or bold primary colors). Add subtle gradient shading and small color accents (dots, stripes) on the long element to make it visually engaging. Keep child-drawing aesthetic. Image-to-image strength: 0.45.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      }
+    ]
+  },
+  "executor_a_part_prompts": {
+    "part1": "你是一位资深小学美术教师助手。本节课是《好长好长……》,学习任务:欣赏艺术家作品，依形创编故事。现在老师正在备 Part 1(封面与开场)。请帮老师设计能引发学生兴趣、呼应本课主题的封面要点(标题字体、视觉风格、开场提问)。回复简洁、可执行,2-4 段。",
+    "part2": "你是一位资深小学美术教师助手。本节课是《好长好长……》,关键概念:夸张, 联想, 形式与内容的关系。现在老师正在备 Part 2(导入与注意力引导)。请帮老师设计能在 2-3 分钟内激发学生兴趣并自然过渡到本课核心概念的导入活动。建议形式可以是儿歌、提问、悬念、生活场景等。",
+    "part4": "你是一位资深小学美术教师助手。本节课是《好长好长……》,学习任务:欣赏艺术家作品，依形创编故事。现在老师正在备 Part 4(制作任务布置)。请帮老师把任务说明设计得清晰、具体、有挑战但可达成。包含:任务目标、关键约束、时间预期、安全提示。",
+    "part5": "你是一位资深小学美术教师助手。本节课是《好长好长……》。现在老师正在备 Part 5(示范环节)。请帮老师准备示范要点:哪些步骤需要演示、哪些细节需要强调、如何让全班看清。如有 example 视频,请帮老师设计如何引导学生观看。",
+    "part7": {
+      "system_prompt": "你是一位温暖、专业的小学美术教师。本节课是《好长好长……》,学习任务:欣赏艺术家作品，依形创编故事。请基于学生提交的作品照片,给出 100-120 字的鼓励性反馈。评论应:(1)首先肯定一个具体的亮点(不能空洞);(2)对照本课的学习目标和评价维度,指出一个可改进的方向;(3)结尾用一句温暖的话鼓励学生继续创作。语气应温暖、像跟孩子面对面说话,避免使用过于专业的术语。",
+      "feedback_word_count": [
+        100,
+        120
+      ],
+      "feedback_dimensions": [
+        "主题表现",
+        "色彩运用",
+        "构图",
+        "创意"
+      ],
+      "encouragement_tone": "warm"
+    }
+  },
+  "example_video_url": "r2://artbloom-pilot/textbook/G2V2-U4-L4/example.mp4",
+  "example_video_notes_zh": "Part 5(Making Example)示范视频。研究员负责提供真实老师/工匠/孩子的示范录像,60-90 秒,详见 handoff §13.3b。",
+  "tts_voice_recommendation": "elf_guide",
+  "classroom_activity": {
+    "task_zh": "打开长长的纸,想想哪些东西可以变得好长好长,又会发生哪些有趣的故事,试着画下来",
+    "task_en": "Open the long paper, imagine what could become very long, and what interesting stories could happen, then draw them out.",
+    "duration_minutes": 20,
+    "materials_zh": [
+      "长卷纸",
+      "彩色笔",
+      "水彩颜料",
+      "蜡笔"
+    ],
+    "safety_notes_zh": [
+      "注意彩色笔不要弄到衣服上",
+      "颜料用完及时收拾"
+    ],
+    "expected_outcome_zh": "一幅在长形纸上的故事画,主体经过夸张处理,有背景细节,能讲出故事内容"
+  },
+  "suggested_ai_support_zh": "Scroll layout support, scene-sequence prompts, exaggeration nudges"
+}

@@ -4,9 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run sync-lessons && vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync-lessons": "node scripts/sync-lessons.js",
+    "prebuild": "npm run sync-lessons"
   },
   "dependencies": {
     "pinia": "^3.0.4",

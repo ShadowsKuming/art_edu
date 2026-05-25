@@ -1,0 +1,260 @@
+{
+  "lesson_id": "g2v2-u5-l1",
+  "lesson_title_zh": "听听画画",
+  "lesson_title_en": "Listen and Draw",
+  "unit_id": "g2v2-u5",
+  "unit_title_zh": "音乐入画来",
+  "unit_title_en": "Music Meets Art",
+  "unit_big_idea_zh": "视觉艺术能表现音乐之美",
+  "grade": 2,
+  "volume": 2,
+  "publisher": "湖南美术出版社",
+  "textbook_page_range": [
+    50,
+    51
+  ],
+  "teacher_guide_page_range": [
+    92,
+    95
+  ],
+  "category": "A",
+  "category_reason": "2D expressive response to music using lines, shapes, colors",
+  "learning_task_zh": "聆听音乐,用绘画表现音乐",
+  "learning_objectives": {
+    "know": "绘画可以表现音乐,音乐能够表达绘画",
+    "understand": "视觉语言与听觉语言之间的联系与相互转换",
+    "do": "选择合适的线条、形状、色彩表现音乐,大胆表达自己的感受"
+  },
+  "key_art_concepts": [
+    "线条（粗细/直曲/起伏）→节奏与旋律",
+    "形状（圆/方/三角/大小/疏密）→声音强弱与节拍",
+    "色彩（暖/冷/明/暗）→情绪与音色",
+    "听觉与视觉的通感（synesthesia）"
+  ],
+  "teaching_focus_zh": "用线条、形状、色彩等元素大胆、自由地表现对声音的感受",
+  "teaching_difficulty_zh": [
+    "展开联想和思考,习得将听觉语言转换为视觉语言的方法和能力",
+    "在艺术实践中找到个人化的表现方式,形成独特的音乐视觉表达"
+  ],
+  "driving_question_zh": "我们可以用什么样的线条、形状、色彩来表达对音乐的感受?",
+  "guiding_questions_zh": [
+    "你能用拍手和唱'啊'的方式将不同的形状和线条变成音乐吗?",
+    "艺术家是怎么用绘画表现音乐的呢?",
+    "教材中的这两首曲子分别对应哪幅画?教材中的两幅画分别对应对音乐的哪种感受?"
+  ],
+  "assessment_criteria": [
+    "能用线条、形状、色彩表达对音乐的感受",
+    "能解释自己的视觉表现与音乐感受的联系",
+    "能感知音画相通"
+  ],
+  "slide_framework": [
+    {
+      "page": 1,
+      "section": "封面",
+      "content_points": "课题《听听画画》",
+      "asset_types": "抽象音乐绘画风格背景图"
+    },
+    {
+      "page": 2,
+      "section": "导入·声音游戏",
+      "content_points": "用拍手表现圆形的大小疏密,用声音模仿线条变化",
+      "asset_types": "形状/线条变化图"
+    },
+    {
+      "page": 3,
+      "section": "新授·欣赏大师作品",
+      "content_points": "展示刘迅《2000交响曲》,生成互动故事和动画",
+      "asset_types": "高清图、故事、动画"
+    },
+    {
+      "page": 4,
+      "section": "艺术实践·任务布置",
+      "content_points": "选择音乐,用线条、形状、色彩画下感受",
+      "asset_types": "3段不同风格音乐片段"
+    },
+    {
+      "page": 5,
+      "section": "艺术实践·方法提示",
+      "content_points": "粗线强音/细线弱音,大形快/小形慢",
+      "asset_types": "对比范画"
+    },
+    {
+      "page": 6,
+      "section": "作品转化",
+      "content_points": "学生半成品上传 + 3 种风格转换",
+      "asset_types": "风格示例"
+    },
+    {
+      "page": 7,
+      "section": "评价·我的画唱什么",
+      "content_points": "学生介绍：我的画在听____,因为有____的线条和____的颜色",
+      "asset_types": "分享句式模板"
+    }
+  ],
+  "textbook_artworks": [
+    {
+      "artwork_id": "G2V2-U5-L1-art01",
+      "title_zh": "2000交响曲",
+      "artist_zh": "刘迅",
+      "year": 2000,
+      "medium_zh": "油画",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U5-L1/art01-2000jiaoxiang.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。来源:中国美术馆藏品高清图",
+      "textbook_position": "page 50",
+      "visual_description_zh": "完全抽象油画。底色以绿色和黄绿色为主,中央偏右有大片明亮的黄色和红色色块,如同鼓点节奏。背景能感受到细密的笔触起伏,像旋律的延展。",
+      "teacher_guide_notes_zh": "引导学生观察画中形状、色彩和音乐的关系。红色圆块像鼓,蓝色线条像长音。",
+      "executor_b_prompt_hint_zh": "POV: 一个孩子坐在画前听音乐,突然画里的色彩和形状跳了出来变成可以触摸的'声音'。中国当代抽象画背景,可以用东方音乐意象（古筝、笛声、雨声）作为通感锚点。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "low (abstract — needs imaginative narrative)",
+      "story_topic_zh": "画家如何'听见'音乐并把它'画'出来；或一个孩子走进抽象画的色彩与节奏世界"
+    },
+    {
+      "artwork_id": "G2V2-U5-L1-art02",
+      "title_zh": "构成第8号",
+      "title_en": "Composition VIII",
+      "artist_zh": "瓦西里·康定斯基",
+      "artist_en": "Wassily Kandinsky",
+      "artist_origin_zh": "俄罗斯/法国",
+      "year": 1923,
+      "medium_zh": "布面油画",
+      "image_url": "r2://artbloom-pilot/textbook/G2V2-U5-L1/art02-kandinsky-composition8.jpg",
+      "license_status": "Pilot study 内部使用,不公开分发。原作藏于纽约古根海姆美术馆,公共领域参考图",
+      "textbook_position": "教参补充(教参 §3.1 探索新知环节)",
+      "visual_description_zh": "几何抽象油画,140×201cm,大型横构图。米黄色底色,带有局部淡蓝色块。画面布满几何元素:大小不一的同心圆(其中一个左上角的大黑圆带粉红色光晕特别醒目)、三角形、网格状色块、直线和曲线。色彩有红、黄、蓝、绿、紫等纯色,均匀分布。整体动感而有节奏。",
+      "teacher_guide_notes_zh": "康定斯基是西方抽象艺术的开创者,他将色彩和形状视为'可见的音乐'。在他的'声音色彩理论'中:暖色(黄、红、橙)对应高音和响亮声音,冷色(蓝、绿、紫)对应低音和柔和声音;网格状色块对应钢琴声,圆形和三角形对应铜管乐器,斜线像弦乐拨奏,曲线像长笛等管乐。这与本课'用线条、形状、色彩表达音乐'的核心高度契合,且与《2000交响曲》形成中西方抽象音画对比。",
+      "executor_b_prompt_hint_zh": "POV: 一个孩子凑近这幅画,发现每个几何形状都在'唱歌'。圆形敲鼓声、三角形吹小号、波浪线拉小提琴、网格色块弹钢琴。叙事核心是西方乐器与几何形的对应关系,可以让孩子'指挥'这场画里的小乐队。语言要简单,7-8 岁能懂西方乐器名(钢琴/小号/小提琴/长笛即可,不要古典作曲家或乐理术语)。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "low (abstract — needs imaginative narrative)",
+      "story_topic_zh": "用康定斯基的几何形对应乐器声音的通感故事;一个孩子'指挥'画里的小乐队",
+      "supplementary_note_zh": "本作品由教参补充,不在教材主图中。老师可在 UI 上手动切换到这幅作为主图,系统会重新生成对应的故事和动画。"
+    }
+  ],
+  "default_executor_b_artwork_id": "G2V2-U5-L1-art01",
+  "animation_default_mood": "wondrous",
+  "executor_d_styles": {
+    "branch": "A",
+    "styles": [
+      {
+        "style_id": 1,
+        "style_name_zh": "节奏感更强",
+        "style_description_zh": "强化孩子画中的节奏元素——让线条更粗细分明,形状大小对比更强烈",
+        "linked_learning_objective": "粗细线条的变化",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every shape and line. Now enhance the RHYTHMIC quality: thicken some lines dramatically, thin others to whispers; enlarge some shapes 2x while shrinking others to dots. Create a clear visual 'beat' across the composition. Keep the child's color palette. Image-to-image strength: 0.5.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      },
+      {
+        "style_id": 2,
+        "style_name_zh": "色彩更情绪化",
+        "style_description_zh": "把孩子的色彩推向更强烈的情绪——开心的更暖更鲜艳,安静的更冷更柔和",
+        "linked_learning_objective": "色彩与情绪的对应",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every shape and line. Now push the colors toward stronger emotion: if the piece feels happy/energetic, intensify warm hues (oranges, reds, yellows) with high saturation; if it feels calm/dreamy, deepen cool hues (blues, greens, lavenders) with soft gradients; if it feels tense, add high-contrast clashing pairs. Image-to-image strength: 0.45.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      },
+      {
+        "style_id": 3,
+        "style_name_zh": "形状更抽象",
+        "style_description_zh": "把孩子画的具象形状推向更纯粹的抽象造型,接近大师作品的语言",
+        "linked_learning_objective": "用形状、线条表达对音乐的感受",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve the COMPOSITION (where things are placed) but simplify each element into a pure abstract form: blobs become geometric shapes, scribbled lines become elegant curves, recognizable objects dissolve into color fields and form. Echo the language of Wassily Kandinsky or Liu Xun's abstract music paintings. Image-to-image strength: 0.65.",
+        "model_recommendation": "gemini-2.5-flash-image"
+      }
+    ]
+  },
+  "executor_a_part_prompts": {
+    "part1": "你是一位资深小学美术教师助手。本节课是《听听画画》,学习任务:聆听音乐,用绘画表现音乐。现在老师正在备 Part 1(封面与开场)。请帮老师设计能引发学生兴趣、呼应本课主题的封面要点(标题字体、视觉风格、开场提问)。回复简洁、可执行,2-4 段。",
+    "part2": "你是一位资深小学美术教师助手。本节课是《听听画画》,关键概念:线条（粗细/直曲/起伏）→节奏与旋律, 形状（圆/方/三角/大小/疏密）→声音强弱与节拍, 色彩（暖/冷/明/暗）→情绪与音色。现在老师正在备 Part 2(导入与注意力引导)。请帮老师设计能在 2-3 分钟内激发学生兴趣并自然过渡到本课核心概念的导入活动。建议形式可以是儿歌、提问、悬念、生活场景等。",
+    "part4": "你是一位资深小学美术教师助手。本节课是《听听画画》,学习任务:聆听音乐,用绘画表现音乐。现在老师正在备 Part 4(制作任务布置)。请帮老师把任务说明设计得清晰、具体、有挑战但可达成。包含:任务目标、关键约束、时间预期、安全提示。",
+    "part5": "你是一位资深小学美术教师助手。本节课是《听听画画》。现在老师正在备 Part 5(示范环节)。请帮老师准备示范要点:哪些步骤需要演示、哪些细节需要强调、如何让全班看清。如有 example 视频,请帮老师设计如何引导学生观看。",
+    "part7": {
+      "system_prompt": "你是一位温暖、专业的小学美术教师。本节课是《听听画画》,学习任务:聆听音乐,用绘画表现音乐。请基于学生提交的作品照片,给出 100-120 字的鼓励性反馈。评论应:(1)首先肯定一个具体的亮点(不能空洞);(2)对照本课的学习目标和评价维度,指出一个可改进的方向;(3)结尾用一句温暖的话鼓励学生继续创作。语气应温暖、像跟孩子面对面说话,避免使用过于专业的术语。",
+      "feedback_word_count": [
+        100,
+        120
+      ],
+      "feedback_dimensions": [
+        "主题表现",
+        "色彩运用",
+        "构图",
+        "创意"
+      ],
+      "encouragement_tone": "warm"
+    }
+  },
+  "example_video_url": "r2://artbloom-pilot/textbook/G2V2-U5-L1/example.mp4",
+  "example_video_notes_zh": "Part 5(Making Example)示范视频。研究员负责提供真实老师/工匠/孩子的示范录像,60-90 秒,详见 handoff §13.3b。",
+  "tts_voice_recommendation": "warm_storyteller",
+  "classroom_activity": {
+    "task_zh": "选择并聆听一首自己喜欢的乐曲,尝试用适合的线条、色彩画下自己的感受",
+    "task_en": "Choose and listen to a favorite music piece, then use appropriate lines and colors to draw your feelings.",
+    "duration_minutes": 20,
+    "materials_zh": [
+      "白纸",
+      "彩色笔",
+      "蜡笔",
+      "水彩"
+    ],
+    "safety_notes_zh": [],
+    "expected_outcome_zh": "一幅用线条、形状、色彩表达对某段音乐感受的抽象画"
+  },
+  "suggested_ai_support_zh": "Mood-line-colour exemplars, music-to-image prompts, abstraction push",
+  "special_note_for_system": "Master artwork 《2000交响曲》 is ABSTRACT — no narrative figures. Executor B should generate a story about a curious child entering the painting and 'hearing' colors and shapes, OR about the artist Liu Xun and how he 'painted music'. The story embeds art concepts (线条/形状/色彩) as direct sensory translations of sound. Animation is critical here — the abstract painting must come alive with movement matching the music's rhythm.",
+  "synesthesia_mappings_from_teacher_guide_zh": {
+    "形状疏密": "音乐节奏的快慢",
+    "形状大小": "音乐声音的强弱",
+    "线条粗细": "音强（粗=强,细=弱）",
+    "线条起伏": "旋律变化",
+    "暖色": "热情、欢快",
+    "冷色": "安静、忧郁",
+    "高饱和度": "情绪强烈"
+  },
+  "associated_music_pieces_zh": [
+    {
+      "music_id": "music01",
+      "title_zh": "火车开啦",
+      "origin_zh": "匈牙利儿歌",
+      "mood": "energetic, rhythmic",
+      "tempo": "fast",
+      "suggested_visual_elements": [
+        "大色块",
+        "短促线条",
+        "暖色（红黄）",
+        "对比强烈"
+      ],
+      "audio_url": "r2://artbloom-pilot/textbook/G2V2-U5-L1/music01-huochekaila.mp3",
+      "duration_seconds": null,
+      "license_status": "Pilot study 内部使用,不公开分发。公版匈牙利儿歌《火车开啦》,演奏版本由研究员/学校提供。"
+    },
+    {
+      "music_id": "music02",
+      "title_zh": "小小的船",
+      "composer_zh": "胡汉娟",
+      "mood": "gentle, calm",
+      "tempo": "slow",
+      "suggested_visual_elements": [
+        "流畅曲线",
+        "蓝色调",
+        "圆形",
+        "柔和"
+      ],
+      "audio_url": "r2://artbloom-pilot/textbook/G2V2-U5-L1/music02-xiaoxiaodechuan.mp3",
+      "duration_seconds": null,
+      "license_status": "Pilot study 内部使用,不公开分发。胡汉娟作曲《小小的船》,儿童教学用授权由研究员协调。"
+    },
+    {
+      "music_id": "music03",
+      "title_zh": "春之歌",
+      "composer_zh": "门德尔松（Mendelssohn）",
+      "mood": "bright, lyrical, hopeful",
+      "tempo": "moderate",
+      "suggested_visual_elements": [
+        "波浪线",
+        "暖绿+粉",
+        "渐变"
+      ],
+      "audio_url": null,
+      "license_status": "(可选)pilot 阶段不内置,老师可在课堂自行选播"
+    }
+  ]
+}

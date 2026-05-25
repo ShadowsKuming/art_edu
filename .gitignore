@@ -32,3 +32,13 @@ frontend/.vite/
 *.log
 npm-debug.log*
 .claude/
+
+# Textbook source assets — large binaries (videos, PPTX, audio) that
+# exceed GitHub's 100 MB push limit. The design-image PNGs derived
+# from these (under each lesson's `design/` subfolder) are committed
+# so the LKP URLs resolve in the backend's static mount; the raw
+# sources stay on the researcher's machine.
+frontend/src/assets/textbook-assets/**/*.mp4
+frontend/src/assets/textbook-assets/**/*.pptx
+frontend/src/assets/textbook-assets/**/*.mp3
+

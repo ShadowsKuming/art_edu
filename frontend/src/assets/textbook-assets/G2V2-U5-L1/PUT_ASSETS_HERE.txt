@@ -1,0 +1,6 @@
+本目录应放 2 张 JPG + 2 段 MP3 + 1 段 MP4:
+  art01-2000jiaoxiang.jpg              2000交响曲(刘迅, 2000)
+  art02-kandinsky-composition8.jpg     构成第8号(康定斯基, 1923,教参补充)
+  music01-huochekaila.mp3              教学音频:儿童歌曲《火车开啦》(匈牙利儿歌)
+  music02-xiaoxiaodechuan.mp3          教学音频:儿童歌曲《小小的船》(胡汉娟)
+  example.mp4                          Part 5 示范视频(听音乐画线条/色彩, 60-90s)
