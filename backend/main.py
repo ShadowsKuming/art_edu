@@ -627,6 +627,7 @@ class StyleGenerateRequest(BaseModel):
     image_base64: str
     image_mime: str = "image/jpeg"
     lesson_context: str = ""
+    language: str = "en"
     # 🆕 LKP wiring — when present we skip the LLM and return the
     # lesson's predefined 3 styles directly (Branch A), or an empty
     # array marked Branch B for the "no Part-6" case.
@@ -667,7 +668,7 @@ async def generate_styles(req: StyleGenerateRequest):
     payload = {
         "model": STORY_MODEL,
         "messages": [
-            {"role": "system", "content": STYLE_GEN_SYSTEM},
+            {"role": "system", "content": STYLE_GEN_SYSTEM + _lang_suffix(req.language)},
             {
                 "role": "user",
                 "content": [

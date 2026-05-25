@@ -46,7 +46,7 @@ export const usePart6Store = defineStore('part6', () => {
     conversionError.value = null
   }
 
-  async function generateStyles(lessonContext: string) {
+  async function generateStyles(lessonContext: string, language = 'en') {
     if (!sketchBase64.value) return
     generatingStyles.value = true
     stylesError.value = null
@@ -64,6 +64,7 @@ export const usePart6Store = defineStore('part6', () => {
           image_mime: sketchMime.value,
           lesson_context: lessonContext,
           lesson_id: lessonId ?? undefined,
+          language,
         }),
       })
 

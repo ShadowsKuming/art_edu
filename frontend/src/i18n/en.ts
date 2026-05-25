@@ -400,5 +400,15 @@ export default {
     convertAgain: 'Convert again',
     save: 'Save',
     saveNext: 'Save & Next',
+    bot: {
+      greeting: "Hi! I'm ArtBloom. Upload a student sketch in Step 1, then tell me about your lesson theme or learning objective — I'll generate 3 personalised style transfer options for you.",
+      sketchUploaded: "Sketch uploaded! Now describe your lesson context and I'll generate the style options. For example: \"Students are learning to exaggerate proportions in animal drawings.\"",
+      stylesReady: 'Here are 3 style transfer options based on your lesson:',
+      stylesReadySuffix: 'Here are the 3 recommended style options:',
+      selectedStyleLabel: 'Selected style prompt:',
+      selectedStyleNote: "Please review the style prompts for each option. If you'd like any adjustments, just let me know.",
+      errorStyles: "Sorry, I couldn't generate style options:",
+      errorChat: 'Sorry, something went wrong. Please try again.',
+    },
   },
 }

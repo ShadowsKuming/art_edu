@@ -397,5 +397,15 @@ export default {
     convertAgain: '再次转换',
     save: '保存',
     saveNext: '保存并继续',
+    bot: {
+      greeting: '你好！我是 ArtBloom。请在第一步上传学生草稿，然后告诉我你的课程主题或学习目标——我将为你生成 3 个个性化的风格迁移方案。',
+      sketchUploaded: '草稿已上传！现在请描述你的课程背景，我将生成风格选项。例如："学生正在学习夸大动物绘画中的比例关系。"',
+      stylesReady: '根据你的课程，这里有 3 个风格迁移方案：',
+      stylesReadySuffix: '以下是 3 个推荐的风格方案：',
+      selectedStyleLabel: '已选风格提示词：',
+      selectedStyleNote: '请检查每个选项的风格提示词。如需调整，请随时告诉我。',
+      errorStyles: '抱歉，无法生成风格选项：',
+      errorChat: '抱歉，出了些问题，请重试。',
+    },
   },
 }

@@ -32,24 +32,32 @@ export interface UploadedArtwork {
   imageMime: string
 }
 
+/** Persistent story/animation state saved per artwork when the user switches away. */
+export interface SavedArtworkState {
+  storyData: StoryData | null
+  animationVersions: AnimationVersion[]
+  remainingAttempts: number
+  chosenVideoUrl: string | null
+  selectedChoiceId: number | null
+  generatedContinuations: Record<number, string>
+}
+
 export interface Part3Pair {
   id: string   // = slide ID
   imageDataUrl: string | null  // data URL for uploaded files; plain URL for curated artworks
   imageUrl: string | null      // original URL for curated artworks (used for lazy base64 fetch)
   imageBase64: string | null
   imageMime: string
-  /**
-   * When the image came from an LKP curated artwork picker, this is
-   * the `artwork_id` (e.g. `G2V2-U4-L4-art01`) — used to inject the
-   * artwork-specific story hint via the LessonContextManager.
-   */
-  selectedArtworkId: string | null
+  selectedArtworkId: string | null   // curated artwork_id currently active, or null
   uploadedArtworks: UploadedArtwork[]
-  selectedUploadedId: string | null
+  selectedUploadedId: string | null  // uploaded artwork id currently active, or null
+  /** Saved story/animation state keyed by artwork_id or uploaded id. */
+  artworkStates: Record<string, SavedArtworkState>
+  activeArtworkKey: string | null    // current key in artworkStates
   storyData: StoryData | null
   storyLoading: boolean
   storyError: string | null
-  storyStreamText: string       // live tokens while streaming
+  storyStreamText: string
   animationVersions: AnimationVersion[]
   animationLoading: boolean
   animationError: string | null
@@ -59,7 +67,7 @@ export interface Part3Pair {
   generatedContinuations: Record<number, string>
   continuationLoading: boolean
   continuationError: string | null
-  continuationStreamText: string  // live tokens while streaming
+  continuationStreamText: string
 }
 
 
@@ -70,6 +78,7 @@ function makePair(id: string): Part3Pair {
     id,
     imageDataUrl: null, imageUrl: null, imageBase64: null, imageMime: 'image/jpeg',
     selectedArtworkId: null, uploadedArtworks: [], selectedUploadedId: null,
+    artworkStates: {}, activeArtworkKey: null,
     storyData: null, storyLoading: false, storyError: null, storyStreamText: '',
     animationVersions: [], animationLoading: false, animationError: null,
     remainingAttempts: 3, chosenVideoUrl: null,
@@ -167,6 +176,50 @@ export const usePart3Store = defineStore('part3', () => {
     activePairId.value = id
   }
 
+  /** Snapshot current story/animation state into artworkStates before switching. */
+  function _saveArtworkState(pair: Part3Pair) {
+    const key = pair.activeArtworkKey
+    if (!key) return
+    pair.artworkStates[key] = {
+      storyData: pair.storyData,
+      animationVersions: JSON.parse(JSON.stringify(pair.animationVersions)),
+      remainingAttempts: pair.remainingAttempts,
+      chosenVideoUrl: pair.chosenVideoUrl,
+      selectedChoiceId: pair.selectedChoiceId,
+      generatedContinuations: { ...pair.generatedContinuations },
+    }
+  }
+
+  /** Restore saved story/animation state for a key, or start fresh if first visit. */
+  function _restoreArtworkState(pair: Part3Pair, key: string) {
+    pair.activeArtworkKey = key
+    // Always reset transient loading states
+    pair.storyLoading = false
+    pair.storyError = null
+    pair.storyStreamText = ''
+    pair.animationLoading = false
+    pair.animationError = null
+    pair.continuationLoading = false
+    pair.continuationError = null
+    pair.continuationStreamText = ''
+    const saved = pair.artworkStates[key]
+    if (saved) {
+      pair.storyData = saved.storyData
+      pair.animationVersions = saved.animationVersions
+      pair.remainingAttempts = saved.remainingAttempts
+      pair.chosenVideoUrl = saved.chosenVideoUrl
+      pair.selectedChoiceId = saved.selectedChoiceId
+      pair.generatedContinuations = saved.generatedContinuations
+    } else {
+      pair.storyData = null
+      pair.animationVersions = []
+      pair.remainingAttempts = 3
+      pair.chosenVideoUrl = null
+      pair.selectedChoiceId = null
+      pair.generatedContinuations = {}
+    }
+  }
+
   function addUploadedArtwork(dataUrl: string) {
     const pair = activePair.value
     if (!pair) return
@@ -174,69 +227,74 @@ export const usePart3Store = defineStore('part3', () => {
     const [meta, b64] = dataUrl.split(',')
     const mime = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
     pair.uploadedArtworks.push({ id, imageDataUrl: dataUrl, imageBase64: b64, imageMime: mime })
-    _selectUploaded(pair, id)
+    _saveArtworkState(pair)
+    pair.selectedUploadedId = id
+    pair.selectedArtworkId = null
+    pair.imageDataUrl = dataUrl
+    pair.imageUrl = null
+    pair.imageBase64 = b64
+    pair.imageMime = mime
+    _restoreArtworkState(pair, id)
   }
 
   function selectUploadedArtwork(id: string) {
     const pair = activePair.value
     if (!pair) return
-    _selectUploaded(pair, id)
-  }
-
-  function removeUploadedArtwork(id: string) {
-    const pair = activePair.value
-    if (!pair) return
-    pair.uploadedArtworks = pair.uploadedArtworks.filter(a => a.id !== id)
-    if (pair.selectedUploadedId === id) {
-      const next = pair.uploadedArtworks[0]
-      if (next) {
-        _selectUploaded(pair, next.id)
-      } else {
-        pair.selectedUploadedId = null
-        pair.imageDataUrl = null
-        pair.imageBase64 = null
-        pair.imageUrl = null
-        pair.storyData = null
-        pair.storyStreamText = ''
-        pair.animationVersions = []
-        pair.remainingAttempts = 3
-      }
-    }
-  }
-
-  function _selectUploaded(pair: Part3Pair, id: string) {
     const art = pair.uploadedArtworks.find(a => a.id === id)
     if (!art) return
+    _saveArtworkState(pair)
     pair.selectedUploadedId = id
     pair.selectedArtworkId = null
     pair.imageDataUrl = art.imageDataUrl
     pair.imageUrl = null
     pair.imageBase64 = art.imageBase64
     pair.imageMime = art.imageMime
-    pair.storyData = null
-    pair.storyStreamText = ''
-    pair.animationVersions = []
-    pair.remainingAttempts = 3
+    _restoreArtworkState(pair, id)
+  }
+
+  function removeUploadedArtwork(id: string) {
+    const pair = activePair.value
+    if (!pair) return
+    delete pair.artworkStates[id]
+    pair.uploadedArtworks = pair.uploadedArtworks.filter(a => a.id !== id)
+    if (pair.selectedUploadedId === id) {
+      const next = pair.uploadedArtworks[0]
+      if (next) {
+        pair.selectedUploadedId = next.id
+        pair.imageDataUrl = next.imageDataUrl
+        pair.imageUrl = null
+        pair.imageBase64 = next.imageBase64
+        pair.imageMime = next.imageMime
+        _restoreArtworkState(pair, next.id)
+      } else {
+        pair.selectedUploadedId = null
+        pair.activeArtworkKey = null
+        pair.imageDataUrl = null
+        pair.imageBase64 = null
+        pair.imageUrl = null
+        pair.storyData = null
+        pair.animationVersions = []
+        pair.remainingAttempts = 3
+      }
+    }
   }
 
   /**
-   * Pick one of the LKP's curated artworks (Pilot demo flow).
-   * Stores the URL immediately for display — no async fetch here.
-   * Base64 is populated lazily by `_ensureBase64` before any LLM call.
+   * Pick one of the LKP's curated artworks. Saves the current artwork's
+   * story/animation state before switching, and restores the target's
+   * saved state (or starts fresh if it's the first visit).
    */
   function setArtworkFromUrl(url: string, artworkId: string) {
     const pair = activePair.value
     if (!pair) return
+    _saveArtworkState(pair)
+    pair.selectedArtworkId = artworkId
+    pair.selectedUploadedId = null
     pair.imageDataUrl = url
     pair.imageUrl = url
     pair.imageBase64 = null
     pair.imageMime = 'image/jpeg'
-    pair.selectedArtworkId = artworkId
-    pair.selectedUploadedId = null
-    pair.storyData = null
-    pair.storyStreamText = ''
-    pair.animationVersions = []
-    pair.remainingAttempts = 3
+    _restoreArtworkState(pair, artworkId)
   }
 
   /**

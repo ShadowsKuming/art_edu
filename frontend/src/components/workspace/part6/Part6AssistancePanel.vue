@@ -1,17 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { usePart6Store } from '@/stores/part6'
+import { useI18n } from 'vue-i18n'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 const store = usePart6Store()
+const { t, locale } = useI18n()
 
-/**
- * Currently selected style, or `null` when nothing is selected.
- * Centralises the `selectedStyleIdx` null-check so we can use this
- * directly in template/script without TypeScript flagging `null`
- * as an array index.
- */
 const selectedStyle = computed(() =>
   store.selectedStyleIdx !== null ? store.styles[store.selectedStyleIdx] : null,
 )
@@ -19,14 +15,11 @@ const selectedStyle = computed(() =>
 interface Message {
   role: 'assistant' | 'user'
   text: string
-  styleChips?: string[]   // chip labels shown after styles are generated
+  styleChips?: string[]
 }
 
 const messages = ref<Message[]>([
-  {
-    role: 'assistant',
-    text: 'Hi! I\'m ArtBloom. Upload a student sketch in Step 1, then tell me about your lesson theme or learning objective — I\'ll generate 3 personalised style transfer options for you.',
-  },
+  { role: 'assistant', text: t('part6.bot.greeting') },
 ])
 
 const input    = ref('')
@@ -37,13 +30,9 @@ function scrollBottom() {
   nextTick(() => scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight, behavior: 'smooth' }))
 }
 
-// When sketch is uploaded for the first time, nudge the teacher
 watch(() => store.sketchDataUrl, (val, old) => {
   if (val && !old) {
-    messages.value.push({
-      role: 'assistant',
-      text: 'Sketch uploaded! Now describe your lesson context and I\'ll generate the style options. For example: "Students are learning to exaggerate proportions in animal drawings."',
-    })
+    messages.value.push({ role: 'assistant', text: t('part6.bot.sketchUploaded') })
     scrollBottom()
   }
 })
@@ -57,16 +46,15 @@ async function send(text?: string) {
   scrollBottom()
   loading.value = true
 
-  // First generate styles if we have a sketch and styles haven't been generated yet
   if (store.sketchDataUrl && !store.styles.length) {
-    await store.generateStyles(content)
+    await store.generateStyles(content, locale.value)
 
     if (store.stylesError) {
-      messages.value.push({ role: 'assistant', text: `Sorry, I couldn't generate style options: ${store.stylesError}` })
+      messages.value.push({ role: 'assistant', text: `${t('part6.bot.errorStyles')} ${store.stylesError}` })
     } else {
       const summaryText = store.lessonSummary
-        ? `${store.lessonSummary}\n\nHere are the 3 recommended style options:`
-        : 'Here are 3 style transfer options based on your lesson:'
+        ? `${store.lessonSummary}\n\n${t('part6.bot.stylesReadySuffix')}`
+        : t('part6.bot.stylesReady')
 
       messages.value.push({
         role: 'assistant',
@@ -74,12 +62,11 @@ async function send(text?: string) {
         styleChips: store.styles.map(s => s.label),
       })
 
-      // Show the prompt for the selected style
       const selected = selectedStyle.value
       if (selected) {
         messages.value.push({
           role: 'assistant',
-          text: `Selected style prompt:\n"${selected.prompt}"\n\nPlease review the style prompts for each option. If you'd like any adjustments, just let me know.`,
+          text: `${t('part6.bot.selectedStyleLabel')}\n"${selected.prompt}"\n\n${t('part6.bot.selectedStyleNote')}`,
         })
       }
     }
@@ -88,13 +75,11 @@ async function send(text?: string) {
     return
   }
 
-  // Otherwise, use regular chat (with styles context injected)
   try {
     const contextMessages = messages.value
       .filter(m => !m.styleChips)
       .map(m => ({ role: m.role, text: m.text }))
 
-    // Inject current style info as context
     const stylesContext = store.styles.length
       ? `\n\nCurrent style options: ${store.styles.map((s, i) => `${i + 1}. ${s.label}: ${s.prompt}`).join(' | ')}\nSelected: ${selectedStyle.value?.label}`
       : ''
@@ -106,13 +91,13 @@ async function send(text?: string) {
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: [...systemHint, ...contextMessages] }),
+      body: JSON.stringify({ messages: [...systemHint, ...contextMessages], language: locale.value }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     messages.value.push({ role: 'assistant', text: data.reply })
   } catch {
-    messages.value.push({ role: 'assistant', text: 'Sorry, something went wrong. Please try again.' })
+    messages.value.push({ role: 'assistant', text: t('part6.bot.errorChat') })
   } finally {
     loading.value = false
     scrollBottom()
@@ -133,28 +118,29 @@ function onKeydown(e: KeyboardEvent) {
   <div class="ap-panel">
 
     <div class="ap-header">
-      <h2 class="ap-title">Assistance</h2>
+      <span class="ap-title">{{ t('chatbot.title') }}</span>
     </div>
 
     <div class="ap-identity">
-      <div class="ap-avatar">
-        <svg viewBox="0 0 32 32" fill="none">
-          <circle cx="16" cy="16" r="16" fill="#7FEC8F"/>
-          <path d="M10 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-          <circle cx="16" cy="11" r="3" fill="#000"/>
-        </svg>
-      </div>
-      <div>
-        <p class="ap-bot-name">ArtBloom</p>
-        <p class="ap-bot-role">Creative Assistant</p>
+      <img src="/LOGO.png" alt="ArtBloom" class="ap-avatar" />
+      <div class="ap-bot-info">
+        <span class="ap-bot-name">ArtBloom</span>
+        <span class="ap-bot-role">{{ t('chatbot.subtitle') }}</span>
       </div>
     </div>
 
     <div ref="scrollEl" class="ap-body">
-      <template v-for="(msg, i) in messages" :key="i">
-
-        <div v-if="msg.role === 'assistant'" class="ap-assistant-msg">
-          <p class="ap-msg-text" style="white-space: pre-line;">{{ msg.text }}</p>
+      <div
+        v-for="(msg, i) in messages"
+        :key="i"
+        class="message-row"
+        :class="msg.role === 'user' ? 'message-row--user' : 'message-row--assistant'"
+      >
+        <div
+          class="message-bubble"
+          :class="msg.role === 'user' ? 'bubble--user' : 'bubble--assistant'"
+        >
+          <p class="bubble-text" style="white-space: pre-line;">{{ msg.text }}</p>
 
           <!-- Style chips -->
           <div v-if="msg.styleChips?.length" class="ap-chips">
@@ -169,25 +155,20 @@ function onKeydown(e: KeyboardEvent) {
             </button>
           </div>
         </div>
-
-        <div v-else class="ap-user-msg">
-          <p class="ap-msg-text">{{ msg.text }}</p>
-        </div>
-
-      </template>
-
-      <!-- Typing indicator -->
-      <div v-if="loading" class="ap-typing">
-        <span /><span /><span />
       </div>
+    </div>
+
+    <!-- Typing indicator -->
+    <div v-if="loading" class="typing-indicator">
+      <span /><span /><span />
     </div>
 
     <div class="ap-input-area">
       <textarea
         v-model="input"
         class="ap-input"
-        placeholder="Ask questions about the work transformation......"
-        rows="3"
+        :placeholder="t('chatbot.placeholder')"
+        rows="2"
         :disabled="loading"
         @keydown="onKeydown"
       />
@@ -196,8 +177,8 @@ function onKeydown(e: KeyboardEvent) {
         :disabled="!input.trim() || loading"
         @click="send()"
       >
-        <svg viewBox="0 0 20 20" fill="none">
-          <path d="M10 15V5M10 5l-4 4M10 5l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg viewBox="0 0 20 20" fill="none" class="send-icon">
+          <path d="M10 15V5M10 5L6 9M10 5l4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
     </div>
@@ -215,59 +196,68 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .ap-header {
-  padding: 18px 20px 10px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 20px 20px 12px;
   flex-shrink: 0;
 }
 
-.ap-title { margin: 0; font-size: 17px; font-weight: 700; color: #111827; }
+.ap-title { margin: 0; font-size: 20px; font-weight: 700; color: #111827; }
 
 .ap-identity {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 20px 10px;
+  padding: 0 20px 16px;
   flex-shrink: 0;
 }
 
 .ap-avatar {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  overflow: hidden;
+  object-fit: cover;
   flex-shrink: 0;
-  border: 2px solid #7FEC8F;
 }
 
-.ap-avatar svg { width: 40px; height: 40px; display: block; }
-
-.ap-bot-name  { margin: 0; font-size: 14px; font-weight: 700; color: #111827; }
-.ap-bot-role  { margin: 0; font-size: 12px; color: #6b7280; }
+.ap-bot-info  { display: flex; flex-direction: column; gap: 2px; }
+.ap-bot-name  { font-size: 15px; font-weight: 600; color: #111827; }
+.ap-bot-role  { font-size: 12px; color: #9ca3af; }
 
 .ap-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 20px 16px;
+  padding: 8px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: #f0fdf4;
 }
 
-.ap-assistant-msg { display: flex; flex-direction: column; gap: 8px; }
+.message-row { display: flex; }
+.message-row--user      { justify-content: flex-end; }
+.message-row--assistant { justify-content: flex-start; }
 
-.ap-user-msg {
-  align-self: flex-end;
-  background: #7FEC8F;
-  border-radius: 12px 12px 2px 12px;
-  padding: 10px 14px;
-  max-width: 85%;
+.message-bubble {
+  max-width: 80%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
-.ap-msg-text { margin: 0; font-size: 13px; color: #374151; line-height: 1.6; }
-.ap-user-msg .ap-msg-text { color: #000; }
+.bubble--assistant {
+  background: #B2F4BC;
+  color: #111827;
+  border-bottom-left-radius: 4px;
+}
 
-.ap-chips { display: flex; flex-direction: column; gap: 7px; align-items: flex-start; }
+.bubble--user {
+  background: #f3f4f6;
+  color: #111827;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble-text { margin: 0; }
+
+.ap-chips { display: flex; flex-direction: column; gap: 7px; align-items: flex-start; margin-top: 10px; }
 
 .ap-chip {
   display: inline-flex;
@@ -284,36 +274,37 @@ function onKeydown(e: KeyboardEvent) {
   text-align: left;
 }
 
-.ap-chip:hover        { background: #f0fdf4; border-color: #7FEC8F; }
-.ap-chip--active      { background: #7FEC8F; border-color: #7FEC8F; font-weight: 600; }
+.ap-chip:hover   { background: #f0fdf4; border-color: #7FEC8F; }
+.ap-chip--active { background: #7FEC8F; border-color: #7FEC8F; font-weight: 600; }
 
 .ap-chip-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #7FEC8F;
+  background: #22c55e;
   flex-shrink: 0;
 }
 
 .ap-chip--active .ap-chip-dot { background: #16a34a; }
 
-.ap-typing {
+.typing-indicator {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 0;
+  padding: 0 20px 10px;
 }
 
-.ap-typing span {
+.typing-indicator span {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #7FEC8F;
+  background: #22c55e;
   animation: bounce 1.2s infinite ease-in-out;
 }
 
-.ap-typing span:nth-child(2) { animation-delay: 0.2s; }
-.ap-typing span:nth-child(3) { animation-delay: 0.4s; }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
 
 @keyframes bounce {
   0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
@@ -321,46 +312,44 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .ap-input-area {
-  padding: 12px 16px;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
   flex-shrink: 0;
-  background: #fff;
+  padding: 12px 16px 16px;
+  position: relative;
 }
 
 .ap-input {
-  flex: 1;
-  resize: none;
-  border: 1.5px solid #e6e6e6;
+  width: 100%;
+  background: #f3f4f6;
+  border: none;
   border-radius: 12px;
-  padding: 10px 14px;
-  font-size: 13px;
+  padding: 12px 14px 36px 14px;
+  font-size: 14px;
   font-family: inherit;
   color: #111827;
+  resize: none;
   outline: none;
   line-height: 1.5;
+  box-sizing: border-box;
 }
 
-.ap-input:focus   { border-color: #7FEC8F; }
-.ap-input:disabled { opacity: 0.5; }
+.ap-input::placeholder { color: #9ca3af; }
 
 .ap-send-btn {
-  width: 36px;
-  height: 36px;
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #7FEC8F;
+  background: #22c55e;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  color: #000;
-  padding: 8px;
 }
 
-.ap-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.ap-send-btn:not(:disabled):hover { transform: scale(1.05); }
+.ap-send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+
+.send-icon { width: 16px; height: 16px; }
 </style>
