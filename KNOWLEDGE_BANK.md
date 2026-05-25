@@ -1416,223 +1416,154 @@ Editing a community-saved lesson is *already* wired — `MyLessons.vue`
 
 ---
 
-
----
-
-## 19. Production deployment — Pages + Alibaba ECS HK + R2 (2026-05-25, revised)
-
-> **History:** an earlier revision of this section described a Render-hosted backend. Render was dropped in favour of Alibaba Cloud ECS to use the 3-month free trial. The Pages + R2 halves are unchanged.
+## 19. Production deployment — Pages + Render + R2 (2026-05-25)
 
 ### Architecture
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│  Cloudflare Pages           Alibaba ECS Hong Kong         R2       │
-│  ───────────────────        ──────────────────────        ──       │
-│  artbloomedu.com    ──API──► api.artbloomedu.com                   │
-│  www.artbloomedu.com         (Caddy ► uvicorn 127.0.0.1:8001)      │
-│                                       ▲                            │
-│  Vue/Vite SPA                         │ git pull every 5 min       │
-│  Cloudflare-managed DNS               │ (cron polls origin/main)   │
-│  auto-deploy on push                  ▼                            │
-│                              /opt/artbloom (Ubuntu 22.04)          │
+│  Cloudflare Pages              Render Free                R2       │
+│  ───────────────────           ──────────────             ───      │
+│  artbloom.pages.dev   ──API──► artbloom-api.onrender.com           │
+│         │                              │                           │
+│         └─────────── assets ───────────┴──► pub-<hash>.r2.dev      │
 │                                                                    │
-│         └──────── textbook assets ──────► pub-f7d0...r2.dev        │
+│  Vue/Vite SPA                  FastAPI 0.115             Static    │
+│  auto-deploy from main         auto-deploy from main     PNG/JPG   │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-| Layer    | Host                          | HTTPS                                 | Cost                                            |
-|----------|-------------------------------|---------------------------------------|-------------------------------------------------|
-| Frontend | Cloudflare Pages              | Cloudflare-managed automatically      | Free (unlimited builds)                         |
-| Backend  | Alibaba Cloud ECS (HK)        | Caddy + Let's Encrypt (auto-renew)    | Free for 3 months (ECS trial), then ~$5-10/mo   |
-| Assets   | Cloudflare R2 (public bucket) | Cloudflare-managed                    | Free up to 10 GB + 1 M class-A ops/mo           |
-| DNS      | Cloudflare (registrar = CF)   | n/a                                   | Free                                            |
+Three independent surfaces, each deploys on `git push origin main`:
 
-DNS topology:
+| Layer    | Host                 | Trigger              | Cost                  |
+|----------|----------------------|----------------------|-----------------------|
+| Frontend | Cloudflare Pages     | GitHub push          | Free (unlimited builds) |
+| Backend  | Render               | GitHub push          | Free (750 hrs/mo, sleeps after 15 min idle) |
+| Assets   | Cloudflare R2 bucket | `npm run r2:sync`    | Free up to 10 GB + 1 M class-A ops/mo |
 
-| Hostname                | Type   | Target                                           | Proxy   |
-|-------------------------|--------|--------------------------------------------------|---------|
-| `artbloomedu.com`       | CNAME  | `<project>.pages.dev`                            | Proxied ✓ |
-| `www.artbloomedu.com`   | CNAME  | `<project>.pages.dev`                            | Proxied ✓ |
-| `api.artbloomedu.com`   | A      | `<your ECS public IP>`                           | **DNS-only** ✗ |
+The backend is **stateless** — Render's sleep cycle is fine; first
+request after sleep cold-starts in ~50 s, subsequent requests are sub-second.
 
-⚠️ `api.artbloomedu.com` **must be DNS-only** (grey cloud, not orange). Cloudflare's HTTPS proxy intercepts port 443, breaking Caddy's Let's Encrypt HTTP-01 challenge. After the cert is issued, you *can* flip it back to proxied (Caddy keeps using its existing cert), but for the pilot leave it grey.
+### Files added for deployment
 
-### Files in repo
-
-| File                                      | Role                                                                                                                       |
-|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `deploy/ecs/bootstrap.sh`                 | Idempotent one-shot installer — apt, Python venv, Caddy, systemd, cron. Re-runnable to repair a broken host.               |
-| `deploy/ecs/deploy.sh`                    | Cron-polled updater. Installed by bootstrap into root's crontab as `*/5 * * * *`. Cheap no-op when origin/main is unchanged. |
-| `deploy/ecs/Caddyfile`                    | Caddy reverse-proxy template. `__DOMAIN__` is `sed`-substituted at bootstrap.                                              |
-| `deploy/ecs/artbloom-api.service`         | systemd unit template (uvicorn 2 workers, runs as `artbloom`, hardened with `ProtectSystem=strict`).                       |
-| `deploy/ecs/README.md`                    | In-repo crib sheet; this KB section is the canonical doc.                                                                  |
-| `backend/.env.example`                    | Documents all backend env vars.                                                                                            |
-| `backend/main.py`                         | `CORS_ALLOW_ORIGINS` + `TEXTBOOK_ASSETS_URL` env-driven (StaticFiles mount skipped in prod).                               |
-| `backend/requirements.txt`                | Includes `edge-tts==7.0.0`.                                                                                                |
-| `frontend/.env.example`                   | Documents `VITE_API_BASE` + `VITE_ASSETS_BASE`.                                                                            |
-| `frontend/public/_redirects`              | `/* /index.html 200` — SPA fallback for Pages.                                                                             |
-| `frontend/src/data/lessons/index.ts`      | `rewriteAssetUrls()` rewrites LKP asset URLs to R2 at module load.                                                         |
-| `frontend/scripts/sync-r2-assets.js`      | `npm run r2:sync` → uploads `textbook-assets/` to R2 via wrangler.                                                         |
+| File                                      | Role                                                                                                                                   |
+|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `render.yaml`                             | Render Blueprint — declares the `artbloom-api` web service, build/start commands, env-var slots (`sync: false` for secrets).           |
+| `backend/.env.example`                    | Documents all backend env vars (ARK_*, CORS_ALLOW_ORIGINS, TEXTBOOK_ASSETS_URL, future Volcengine Speech keys).                        |
+| `backend/main.py` (patched)               | CORS origins now env-driven; StaticFiles mount skipped when `TEXTBOOK_ASSETS_URL` is set; defensive when `frontend/` dir missing (Render slug only ships `backend/`). |
+| `backend/requirements.txt`                | Adds missing `edge-tts==7.0.0` (was imported but absent).                                                                              |
+| `frontend/.env.example`                   | Documents `VITE_API_BASE` + `VITE_ASSETS_BASE`.                                                                                        |
+| `frontend/public/_redirects`              | `/* /index.html 200` — SPA fallback so Vue Router history mode works on Pages.                                                         |
+| `frontend/src/data/lessons/index.ts` (patched) | `rewriteAssetUrls()` walks each LKP at module load and swaps `http://localhost:8001/textbook-assets/` → `VITE_ASSETS_BASE` when set. |
+| `frontend/scripts/sync-r2-assets.js`      | One-shot uploader for `textbook-assets/` → R2 via `wrangler r2 object put`.                                                            |
+| `frontend/package.json`                   | New `r2:sync` script + `wrangler@^4` devDep.                                                                                           |
 
 ### Env var matrix
 
-| Variable                | Where set                       | Dev                                 | Production                                                          |
-|-------------------------|---------------------------------|-------------------------------------|---------------------------------------------------------------------|
-| `ARK_API_KEY`           | `/opt/artbloom/backend/.env`    | local `backend/.env`                | Written by bootstrap from `ARK_API_KEY` env var passed to script    |
-| `ARK_*_MODEL`           | `/opt/artbloom/backend/.env`    | unset → defaults in `main.py`       | Same — only set if you override                                     |
-| `CORS_ALLOW_ORIGINS`    | `/opt/artbloom/backend/.env`    | unset (localhost dev ports)         | `*` for dev pilot, then `https://artbloomedu.com,https://www.artbloomedu.com` |
-| `TEXTBOOK_ASSETS_URL`   | `/opt/artbloom/backend/.env`    | unset (StaticFiles mount)           | `https://pub-f7d0ce9b502b4622869a73beb2084a84.r2.dev`               |
-| `VITE_API_BASE`         | Pages env vars (Production)     | `http://localhost:8001`             | `https://api.artbloomedu.com`                                       |
-| `VITE_ASSETS_BASE`      | Pages env vars (Production)     | unset                               | `https://pub-f7d0ce9b502b4622869a73beb2084a84.r2.dev`               |
-| `NODE_VERSION`          | Pages env vars (Production)     | n/a                                 | `20`                                                                |
+| Variable                | Where set                  | Dev value                          | Prod value                                |
+|-------------------------|----------------------------|------------------------------------|-------------------------------------------|
+| `ARK_API_KEY`           | Render → Environment       | local `backend/.env`               | (pasted in Render UI, `sync: false`)      |
+| `ARK_STORY_MODEL`       | Render → Environment       | unset → default                    | unset → default, or custom ID             |
+| `ARK_CHAT_MODEL`        | Render → Environment       | unset → default                    | unset → default, or custom ID             |
+| `ARK_VIDEO_MODEL`       | Render → Environment       | unset → default                    | unset → default, or custom ID             |
+| `ARK_IMAGE_MODEL`       | Render → Environment       | unset → default                    | unset → default, or custom ID             |
+| `CORS_ALLOW_ORIGINS`    | Render → Environment       | unset (localhost dev ports)        | `*` (dev pilot) or `https://artbloom.pages.dev` |
+| `TEXTBOOK_ASSETS_URL`   | Render → Environment       | unset (uses StaticFiles mount)     | `https://pub-<hash>.r2.dev`               |
+| `VITE_API_BASE`         | Pages → Env Vars (prod)    | `http://localhost:8001`            | `https://artbloom-api.onrender.com`       |
+| `VITE_ASSETS_BASE`      | Pages → Env Vars (prod)    | unset (LKP uses localhost URLs)    | `https://pub-<hash>.r2.dev`               |
+| `NODE_VERSION`          | Pages → Env Vars (prod)    | n/a                                | `20`                                      |
 
 ### One-time setup runbook
 
-#### Step 1 — Cloudflare Wrangler login + R2 upload *(you, local machine)*
+**Step 1 — Cloudflare Wrangler login (interactive, you click)**
 
 ```bash
 cd frontend
-npx wrangler login                  # opens browser → authorise
-npm run r2:sync                     # uploads 13 PNG/JPG to artbloom-textbook-assets
+npx wrangler login            # opens browser → authorise → "Allow"
+npx wrangler whoami           # should print your Cloudflare email
 ```
 
-Verify in browser: `https://pub-f7d0ce9b502b4622869a73beb2084a84.r2.dev/G2V2-U4-L4/design/p1-s1-cover.png` should display.
-
-#### Step 2 — Provision Alibaba ECS *(you, Alibaba console, ~10 min)*
-
-1. **Region:** Hong Kong (`cn-hongkong`)
-2. **Instance type:** smallest eligible for free trial (1 vCPU / 1-2 GB RAM is plenty for 2 users)
-3. **OS image:** Ubuntu 22.04 LTS (64-bit)
-4. **Storage:** 40 GB cloud-essd (default)
-5. **Public IP:** assign one — note it down (e.g. `47.123.45.67`)
-6. **Security group inbound rules:** open `22/tcp` (SSH), `80/tcp` (Let's Encrypt HTTP-01), `443/tcp` (HTTPS) from `0.0.0.0/0`
-7. **SSH key:** upload your laptop's public key or download Alibaba's generated keypair
-
-#### Step 3 — DNS record *(you, Cloudflare dash, ~2 min)*
-
-dash.cloudflare.com → `artbloomedu.com` → **DNS** → **Add record**:
-- Type: **A**
-- Name: **api**
-- IPv4 address: **`<your ECS public IP>`**
-- Proxy status: **DNS only** (grey cloud)
-- TTL: Auto
-
-Verify from your laptop:
-```bash
-dig +short api.artbloomedu.com    # should return your ECS IP
-```
-
-#### Step 4 — Bootstrap the ECS *(you, SSH, ~5 min)*
+**Step 2 — Create R2 bucket + enable public access**
 
 ```bash
-ssh -i ~/.ssh/<your-key> root@<your-ecs-ip>
-
-# On the VM, run a single line — replace the API key with yours.
-# bash reads stdin from curl, env vars come from the same shell:
-curl -fsSL https://raw.githubusercontent.com/ShadowsKuming/art_edu/main/deploy/ecs/bootstrap.sh \
-  | ARK_API_KEY="ark-aef3e5ea-8d60-4114-a010-5e923869529d-725ba" \
-    DOMAIN="api.artbloomedu.com" \
-    TEXTBOOK_ASSETS_URL="https://pub-f7d0ce9b502b4622869a73beb2084a84.r2.dev" \
-    VOLCENGINE_SPEECH_API_KEY="9587563d-bed9-48d7-aa87-4c79d62b0ca0" \
-    bash
+npx wrangler r2 bucket create artbloom-textbook-assets
 ```
 
-What it does:
-- Installs Python 3.10, git, curl, Caddy
-- Creates user `artbloom` and clones the repo to `/opt/artbloom`
-- Builds a venv, `pip install -r backend/requirements.txt`
-- Writes `/opt/artbloom/backend/.env` (mode 600, owner `artbloom`)
-- Renders `/etc/systemd/system/artbloom-api.service` + `/etc/caddy/Caddyfile` from the in-repo templates
-- Enables + starts both services
-- Adds `*/5 * * * * /opt/artbloom/deploy/ecs/deploy.sh` to root's crontab
+Then in the dashboard:
+1. https://dash.cloudflare.com → **R2** → `artbloom-textbook-assets`
+2. **Settings** → **Public access** → **Allow Access** → **r2.dev subdomain**
+3. Copy the resulting URL — e.g. `https://pub-abc123def456.r2.dev`
 
-After ~30 s Caddy will have fetched the Let's Encrypt cert. Smoke test:
+**Step 3 — Upload textbook assets**
+
 ```bash
-curl -s https://api.artbloomedu.com/health | jq .
-# → { "ok": true, "api_key_set": true, "tts_voices": 6, ... }
+npm run r2:sync
 ```
 
-#### Step 5 — Cloudflare Pages *(you, CF dash, ~5 min)*
+13 files (~5 MB total) — should take under a minute. Verify one URL works in a browser:
+`https://pub-<hash>.r2.dev/G2V2-U4-L4/design/p1-s1-cover.png` → should display the cover image.
 
-1. dash.cloudflare.com → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+**Step 4 — Deploy backend on Render**
+
+1. https://dashboard.render.com → **New** → **Blueprint**
+2. Connect `ShadowsKuming/art_edu`; Render auto-detects `render.yaml`
+3. **Apply** → wait ~3 min for first build
+4. Service → **Environment** → paste:
+   ```
+   ARK_API_KEY               = <your Volcengine Ark key>
+   TEXTBOOK_ASSETS_URL       = https://pub-<hash>.r2.dev
+   CORS_ALLOW_ORIGINS        = *
+   ```
+   (Skip `ARK_*_MODEL` rows — defaults in `main.py` are fine.)
+5. Render redeploys; wait ~1 min
+6. Smoke test: `curl https://artbloom-api.onrender.com/health`
+   → expect `{"ok":true,"api_key_set":true,"tts_voices":6,...}`
+
+**Step 5 — Deploy frontend on Cloudflare Pages**
+
+1. https://dash.cloudflare.com → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
 2. Authorise the Cloudflare GitHub app on `ShadowsKuming/art_edu`
-3. Project name: `artbloom` (or anything — the `*.pages.dev` URL derives from it)
-4. **Production branch:** `main`
-5. **Build settings:**
+3. Select repo → **Begin setup** → branch `main`
+4. **Build settings:**
    - Framework preset: **Vue**
    - Build command: `cd frontend && npm ci && npm run build`
    - Build output directory: `frontend/dist`
    - Root directory: *(blank)*
-6. **Environment variables → Production:**
+5. **Environment variables** (Production):
    ```
-   VITE_API_BASE      = https://api.artbloomedu.com
-   VITE_ASSETS_BASE   = https://pub-f7d0ce9b502b4622869a73beb2084a84.r2.dev
-   NODE_VERSION       = 20
+   VITE_API_BASE       = https://artbloom-api.onrender.com
+   VITE_ASSETS_BASE    = https://pub-<hash>.r2.dev
+   NODE_VERSION        = 20
    ```
-7. **Save and Deploy** — first build ~2 min, then Pages gives you `https://artbloom.pages.dev`
+6. **Save and Deploy** — first build ~2 min
+7. Open `https://<project-name>.pages.dev`
 
-#### Step 6 — Custom domain on Pages *(you, CF dash, ~3 min)*
+### Deploy after first-time setup
 
-Pages project → **Custom domains** → **Set up a custom domain**:
-1. Add **`artbloomedu.com`** — Cloudflare auto-creates the CNAME (proxied) since DNS is on the same account
-2. Add **`www.artbloomedu.com`** — same
-3. Wait ~1 min for Cloudflare to issue the SSL cert
+Both Render + Pages auto-deploy on `git push origin main`. No manual steps.
 
-Open `https://artbloomedu.com` — the Vue SPA loads, calls go to `https://api.artbloomedu.com`, assets come from R2. Done.
-
-### Subsequent deploys
-
-Just `git push origin main`. Both halves auto-deploy:
-
-| Surface       | Mechanism                        | Latency           |
-|---------------|----------------------------------|-------------------|
-| Frontend      | Cloudflare GitHub integration    | ~2 min build → live |
-| Backend       | cron on ECS polls every 5 min    | ≤ 5 min lag       |
-
-Force an immediate backend deploy without waiting for the cron tick:
-```bash
-ssh root@<ecs-ip> '/opt/artbloom/deploy/ecs/deploy.sh'
-```
-
-### Re-syncing R2 assets
-
-After editing PNG/JPG locally:
+To refresh R2 assets after editing PNG/JPG:
 ```bash
 cd frontend && npm run r2:sync
 ```
-Cloudflare's edge cache holds R2 objects for 1 h by default. Either wait, or in dash.cloudflare.com → R2 → bucket → **Settings** → **Purge cache**.
+Existing keys are overwritten — Cloudflare caches for 1 h by default; either wait or purge the bucket cache in the dashboard.
 
 ### Rollback
 
-- **Frontend (Pages):** Workers & Pages → project → **Deployments** → previous build → **Rollback to this deployment**
-- **Backend (ECS):**
-  ```bash
-  ssh root@<ecs-ip>
-  cd /opt/artbloom
-  sudo -u artbloom git reset --hard <previous-commit-sha>
-  systemctl restart artbloom-api
-  ```
-  *(Note: deploy.sh will fast-forward back to origin/main within 5 min unless you also revert the GitHub commit. For a true rollback, `git revert` the bad commit on main.)*
-- **R2 assets:** no built-in versioning on free tier — canonical PNG/JPG live in git under `frontend/src/assets/textbook-assets/`, so `npm run r2:sync` recreates the known-good state.
+- **Pages:** Workers & Pages → project → **Deployments** → previous deployment → **Rollback to this deployment**.
+- **Render:** service → **Events** tab → click any prior deploy → **Rollback**.
+- **R2 assets:** no built-in versioning on the free tier; keep the canonical PNG/JPG in git under `frontend/src/assets/textbook-assets/` so a re-sync recreates the working set.
 
-### Why ECS over Render
+### Cold-start caveat
 
-| Dimension                | Render Free                                          | Alibaba ECS HK Free Trial                          |
-|--------------------------|------------------------------------------------------|----------------------------------------------------|
-| Cold start               | ~50 s after 15 min idle                              | None — always on                                   |
-| Latency to Doubao        | 200-300 ms (Oregon → Beijing)                        | 50-100 ms (HK → Beijing)                           |
-| Auto-deploy              | GitHub push, ~2 min                                  | cron polls every 5 min                             |
-| Setup time               | ~5 min (Blueprint)                                   | ~25 min (provision + DNS + bootstrap)              |
-| Free-trial duration      | 750 hrs/month, indefinite                            | 3 months, then ~$5-10/mo                           |
-| Vendor lock-in           | Render Blueprint                                     | Generic Ubuntu — easy to migrate anywhere          |
+Render free tier spins the dyno down after 15 min of zero traffic. First request after sleep:
+- `GET /health` → ~50 s
+- `POST /api/story/stream` → adds normal Doubao latency on top
 
-For a 2-user pilot in China the ECS path's lower Doubao latency and no-cold-start UX win, even though the setup is heavier.
+A simple cron-style ping every 10 min would defeat the free tier's purpose; for a 2-user pilot the cold start is acceptable. Upgrade to Render's $7/mo Starter plan to keep the dyno always-on.
 
 ### Where to lock down later
 
-- **CORS:** edit `/opt/artbloom/backend/.env` → `CORS_ALLOW_ORIGINS=https://artbloomedu.com,https://www.artbloomedu.com` → `systemctl restart artbloom-api`
-- **Cloudflare proxy on API:** flip `api.artbloomedu.com` to proxied (orange cloud) — adds DDoS protection + WAF, hides ECS IP. Caddy keeps using its existing cert.
-- **Secrets:** rotate `ARK_API_KEY` quarterly; `ssh` in, edit `.env`, restart.
-- **fail2ban for SSH:** `apt install fail2ban` once a real production user count exists.
-- **R2 hot-link prevention:** if `pub-*.r2.dev` URLs get scraped, swap to a custom domain (`cdn.artbloomedu.com`) gated by a Cloudflare Worker checking `Referer`.
+- Set `CORS_ALLOW_ORIGINS` on Render to the exact Pages URL once a custom domain is wired.
+- Restrict R2 bucket public access to specific paths via Worker proxy if asset hotlinking becomes a concern.
+- Move `ARK_API_KEY` from Render env to Cloudflare Secrets Store + Worker proxy once the backend is rewritten in TS (Option B from the original plan) — keeps the key off Render entirely.
