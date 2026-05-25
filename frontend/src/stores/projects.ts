@@ -74,6 +74,20 @@ export const useProjectsStore = defineStore('projects', () => {
   )
 
   /**
+   * Convenience accessor — the active project's LKP id, if it was
+   * created from a Community/curriculum lesson. Every store that
+   * calls a backend AI endpoint reads this and passes it through as
+   * `lesson_id` so the backend's LessonContextManager can inject
+   * Part-specific prompts.
+   *
+   * Returns `null` for legacy / freeform projects.
+   */
+  const activeLessonId = computed<string | null>(
+    () => activeProject.value?.meta?.lessonId ?? null,
+  )
+
+
+  /**
    * Create a project. The `meta` argument is optional so the legacy
    * MyLessons "+ New Lesson" prompt (which only collects a name) keeps
    * working unchanged. The Dashboard "Create Lesson" flow always
@@ -123,7 +137,8 @@ export const useProjectsStore = defineStore('projects', () => {
   watch(activeProjectId, val => localStorage.setItem(`${STORAGE_KEY}-active`, JSON.stringify(val)))
 
   return {
-    projects, activeProjectId, activeProject,
+    projects, activeProjectId, activeProject, activeLessonId,
     createProject, saveCurrentProject, deleteProject, setActiveProject,
   }
 })
+

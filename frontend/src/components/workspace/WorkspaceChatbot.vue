@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useProjectsStore } from '@/stores/projects'
+import { useSlideStore } from '@/stores/slides'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -11,6 +13,9 @@ interface Message {
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
 
 const { t, tm, locale } = useI18n()
+const projectsStore = useProjectsStore()
+const slideStore = useSlideStore()
+
 
 function makeWelcome(): Message {
   return {
@@ -48,11 +53,21 @@ async function send(text?: string) {
       .filter(m => !m.suggestions)
       .map(m => ({ role: m.role, text: m.text }))
 
+    const lessonId = projectsStore.activeLessonId
+    const partId = slideStore.activePart
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: history, language: locale.value }),
+      body: JSON.stringify({
+        messages: history,
+        language: locale.value,
+        // LKP wiring — when both are set, backend injects the
+        // Part-specific prompt fragment from the seed.
+        lesson_id: lessonId ?? undefined,
+        part_id: partId ?? undefined,
+      }),
     })
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     messages.value.push({ role: 'assistant', text: data.reply })

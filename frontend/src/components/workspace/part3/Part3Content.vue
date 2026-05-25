@@ -2,14 +2,43 @@
 import { ref, computed, watch } from 'vue'
 import { usePart3Store } from '@/stores/part3'
 import { useSlideStore } from '@/stores/slides'
+import { useProjectsStore } from '@/stores/projects'
 import { useI18n } from 'vue-i18n'
+import { getLesson } from '@/data/lessons'
 
-const props = defineProps<{ mode: 'story' | 'animation' }>()
+defineProps<{ mode: 'story' | 'animation' }>()
 const emit  = defineEmits<{ 'update:mode': [mode: 'story' | 'animation'] }>()
 
 const store      = usePart3Store()
 const slideStore = useSlideStore()
+const projectsStore = useProjectsStore()
 const { t, locale } = useI18n()
+
+// LKP artwork picker — when the active project came from a Community
+// lesson, surface the curated artworks above the upload affordance.
+const lessonSeed = computed(() => {
+  const id = projectsStore.activeLessonId
+  return id ? getLesson(id) : null
+})
+const artworks = computed(() => lessonSeed.value?.textbook_artworks ?? [])
+const artworkPickerLoading = ref(false)
+
+async function pickArtwork(artworkId: string, url: string) {
+  if (artworkPickerLoading.value) return
+  artworkPickerLoading.value = true
+  try {
+    await store.setArtworkFromUrl(url, artworkId)
+    if (slideStore.activeSlideId && store.imageDataUrl) {
+      slideStore.setSlideBackground(slideStore.activeSlideId, store.imageDataUrl)
+    }
+    selectedVersionIdx.value = null
+  } catch (e) {
+    console.error('[Part3] pickArtwork failed:', e)
+  } finally {
+    artworkPickerLoading.value = false
+  }
+}
+
 
 const selectedVersionIdx = ref<number | null>(null)
 
@@ -106,6 +135,26 @@ function saveAndNext() {
     <template v-else>
     <div class="p3-canvas-area">
 
+      <!-- Curated-artwork picker (LKP only) -->
+      <div v-if="artworks.length && !store.imageDataUrl" class="p3-artworks">
+        <p class="p3-artworks-label">{{ t('part3.pickArtworkLabel') }}</p>
+        <ul class="p3-artworks-grid">
+          <li
+            v-for="art in artworks"
+            :key="art.artwork_id"
+            class="p3-artwork-tile"
+            :class="{ 'p3-artwork-tile--loading': artworkPickerLoading }"
+            @click="pickArtwork(art.artwork_id, art.image_url)"
+          >
+            <img :src="art.image_url" :alt="art.title_zh" />
+            <div class="p3-artwork-overlay">
+              <span class="p3-artwork-title">{{ art.title_zh }}</span>
+              <span class="p3-artwork-artist">{{ art.artist_zh }}</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+
       <!-- Image display -->
       <div class="p3-image-wrap">
         <div v-if="!store.imageDataUrl" class="p3-upload-placeholder" @click="openFilePicker">
@@ -114,8 +163,11 @@ function saveAndNext() {
             <circle cx="17" cy="21" r="4" stroke="#9ca3af" stroke-width="2"/>
             <path d="M4 34l10-10 8 8 6-6 16 12" stroke="#9ca3af" stroke-width="2" stroke-linejoin="round"/>
           </svg>
-          <p class="p3-upload-label">{{ t('part3.uploadLabel') }}</p>
+          <p class="p3-upload-label">
+            {{ artworks.length ? t('part3.uploadOrPick') : t('part3.uploadLabel') }}
+          </p>
         </div>
+
 
         <template v-else>
           <!-- Show video player when a completed animation is selected -->
@@ -272,6 +324,77 @@ function saveAndNext() {
 .p3-upload-icon { width: 48px; height: 48px; }
 
 .p3-upload-label { font-size: 14px; color: #9ca3af; margin: 0; }
+
+/* ── Artwork picker (LKP) ───────────────────────────────────── */
+.p3-artworks {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.p3-artworks-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+.p3-artworks-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.p3-artwork-tile {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid #e5e7eb;
+  cursor: pointer;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.p3-artwork-tile:hover {
+  border-color: #7FEC8F;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.p3-artwork-tile--loading {
+  opacity: 0.5;
+  cursor: progress;
+}
+.p3-artwork-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.p3-artwork-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.65));
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+.p3-artwork-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.p3-artwork-artist {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
 
 .p3-image { width: 100%; height: 100%; object-fit: cover; display: block; }
 

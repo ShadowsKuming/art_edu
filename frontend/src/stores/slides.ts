@@ -15,6 +15,24 @@ export interface SlideElement {
   height: number
   // text
   content: string
+  /**
+   * Optional bilingual text variants. When at least one of these is
+   * populated, `content` is treated as a *projection* of the active
+   * locale's variant: `useSlideStore.setLocale('zh')` will rewrite
+   * `content` from `contentZh` (and vice-versa for `en`).
+   *
+   * Elements created by hand (Add Text button) leave both undefined
+   * and behave exactly as before — `content` is the only source.
+   *
+   * Elements seeded from an LKP `default_elements[]` row carrying
+   * `content_en` / `content_zh` get both populated at hydration time,
+   * so a locale toggle in the workspace header swaps both sides
+   * non-destructively. Teacher edits write to whichever side matches
+   * the current locale; the other survives untouched until the
+   * teacher opens it in that locale.
+   */
+  contentEn?: string
+  contentZh?: string
   fontSize: number
   fontWeight: string
   fontFamily: string
@@ -31,6 +49,7 @@ export interface SlideElement {
   cropL?: number
 }
 
+
 export interface Slide {
   id: string
   partId: number
@@ -42,12 +61,24 @@ export interface Slide {
 
 let elCounter = 0
 
+export type Locale = 'en' | 'zh'
+
 export const useSlideStore = defineStore('slides', () => {
   const slides = ref<Slide[]>([])
   const activeSlideId = ref<string | null>(null)
   const selectedElementId = ref<string | null>(null)
   const activePart = ref<number>(1)
   const maxUnlockedPart = ref<number>(1)
+
+  /**
+   * Active locale for bilingual text projection. Synced from
+   * `i18n.global.locale.value` by a watcher in `App.vue`. We hold
+   * our own copy (rather than reading i18n in every method) so the
+   * store stays decoupled from the i18n plugin and snapshots can be
+   * deserialised in tests without bootstrapping vue-i18n.
+   */
+  const locale = ref<Locale>('en')
+
 
   // Global theme — set implicitly by Part 1 background changes
   const globalBackground = ref<string | undefined>(undefined)
@@ -118,12 +149,56 @@ export const useSlideStore = defineStore('slides', () => {
     selectedElementId.value = id
   }
 
+  /**
+   * Update an element. When `patch.content` is present and the
+   * element has any bilingual variant set (so it came from an LKP
+   * seed), the new text is *also* mirrored into the variant matching
+   * the active locale — preserving the other language's edits.
+   *
+   * Hand-created text elements (no `contentEn`/`contentZh`) keep
+   * the simple single-string semantics: `content` is the only field
+   * we write.
+   */
   function updateElement(slideId: string, id: string, patch: Partial<SlideElement>) {
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
     const el = slide.elements.find(e => e.id === id)
-    if (el) Object.assign(el, patch)
+    if (!el) return
+    Object.assign(el, patch)
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'content')) {
+      const isBilingual = el.contentEn !== undefined || el.contentZh !== undefined
+      if (isBilingual) {
+        if (locale.value === 'zh') el.contentZh = patch.content ?? ''
+        else el.contentEn = patch.content ?? ''
+      }
+    }
   }
+
+  /**
+   * Switch the active locale and re-project every bilingual element's
+   * `content` from its `contentEn` / `contentZh` variant. Idempotent
+   * and safe to call from a watcher on every locale change.
+   *
+   * Elements with no bilingual variants are left untouched so hand-
+   * created text doesn't get wiped on a locale toggle.
+   */
+  function setLocale(next: Locale) {
+    locale.value = next
+    for (const slide of slides.value) {
+      for (const el of slide.elements) {
+        if (el.type !== 'text') continue
+        const en = el.contentEn
+        const zh = el.contentZh
+        if (en === undefined && zh === undefined) continue
+        // Prefer the requested language, fall back to the other one
+        // when only a single side was authored (e.g. mid-translation).
+        if (next === 'zh') el.content = zh ?? en ?? ''
+        else el.content = en ?? zh ?? ''
+      }
+    }
+  }
+
 
   function removeElement(slideId: string, id: string) {
     const slide = slides.value.find(s => s.id === slideId)
@@ -247,6 +322,7 @@ export const useSlideStore = defineStore('slides', () => {
   return {
     slides, activeSlideId, selectedElementId, activePart, maxUnlockedPart,
     globalBackground, globalBgColor,
+    locale, setLocale,
     activeSlide, selectedElement,
     slidesForPart, addSlide, selectSlide,
     addElement, addImageElement, updateElement, removeElement, selectElement,
@@ -254,4 +330,5 @@ export const useSlideStore = defineStore('slides', () => {
     navigateToNextPart, navigateToPart,
     removeSlide, getSnapshot, loadSnapshot, reset,
   }
+
 })

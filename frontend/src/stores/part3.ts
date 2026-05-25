@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useProjectsStore } from './projects'
 
 export interface StoryChoice {
+
   id: number
   label: string
   desc: string
@@ -28,6 +30,12 @@ export interface Part3Pair {
   imageDataUrl: string | null
   imageBase64: string | null
   imageMime: string
+  /**
+   * When the image came from an LKP curated artwork picker, this is
+   * the `artwork_id` (e.g. `G2V2-U4-L4-art01`) — used to inject the
+   * artwork-specific story hint via the LessonContextManager.
+   */
+  selectedArtworkId: string | null
   storyData: StoryData | null
   storyLoading: boolean
   storyError: string | null
@@ -44,12 +52,14 @@ export interface Part3Pair {
   continuationStreamText: string  // live tokens while streaming
 }
 
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
 
 function makePair(id: string): Part3Pair {
   return {
     id,
     imageDataUrl: null, imageBase64: null, imageMime: 'image/jpeg',
+    selectedArtworkId: null,
     storyData: null, storyLoading: false, storyError: null, storyStreamText: '',
     animationVersions: [], animationLoading: false, animationError: null,
     remainingAttempts: 3, chosenVideoUrl: null,
@@ -57,6 +67,26 @@ function makePair(id: string): Part3Pair {
     continuationLoading: false, continuationError: null, continuationStreamText: '',
   }
 }
+
+/**
+ * Fetch an image at `url` (a same-origin or CORS-enabled URL served
+ * by the backend's `/textbook-assets` mount) and convert it to a base64
+ * data URL so the Doubao Vision LLM can ingest it inline. We do this
+ * client-side so the existing endpoint contract (base64 in body) stays
+ * intact — keeps the change surface small.
+ */
+async function fetchImageAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Failed to fetch artwork: ${res.status}`)
+  const blob = await res.blob()
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
 
 export const usePart3Store = defineStore('part3', () => {
   const pairs = ref<Part3Pair[]>([])
@@ -67,21 +97,21 @@ export const usePart3Store = defineStore('part3', () => {
   )
 
   // Flat computed getters — panels read these unchanged
-  const imageDataUrl     = computed(() => activePair.value?.imageDataUrl ?? null)
-  const storyData        = computed(() => activePair.value?.storyData ?? null)
-  const storyLoading     = computed(() => activePair.value?.storyLoading ?? false)
-  const storyError       = computed(() => activePair.value?.storyError ?? null)
-  const animationVersions    = computed(() => activePair.value?.animationVersions ?? [])
-  const animationLoading     = computed(() => activePair.value?.animationLoading ?? false)
-  const animationError       = computed(() => activePair.value?.animationError ?? null)
-  const remainingAttempts    = computed(() => activePair.value?.remainingAttempts ?? 0)
-  const chosenVideoUrl       = computed(() => activePair.value?.chosenVideoUrl ?? null)
-  const storyStreamText      = computed(() => activePair.value?.storyStreamText ?? '')
-  const selectedChoiceId     = computed(() => activePair.value?.selectedChoiceId ?? null)
-  const continuationLoading  = computed(() => activePair.value?.continuationLoading ?? false)
-  const continuationError    = computed(() => activePair.value?.continuationError ?? null)
+  const imageDataUrl = computed(() => activePair.value?.imageDataUrl ?? null)
+  const storyData = computed(() => activePair.value?.storyData ?? null)
+  const storyLoading = computed(() => activePair.value?.storyLoading ?? false)
+  const storyError = computed(() => activePair.value?.storyError ?? null)
+  const animationVersions = computed(() => activePair.value?.animationVersions ?? [])
+  const animationLoading = computed(() => activePair.value?.animationLoading ?? false)
+  const animationError = computed(() => activePair.value?.animationError ?? null)
+  const remainingAttempts = computed(() => activePair.value?.remainingAttempts ?? 0)
+  const chosenVideoUrl = computed(() => activePair.value?.chosenVideoUrl ?? null)
+  const storyStreamText = computed(() => activePair.value?.storyStreamText ?? '')
+  const selectedChoiceId = computed(() => activePair.value?.selectedChoiceId ?? null)
+  const continuationLoading = computed(() => activePair.value?.continuationLoading ?? false)
+  const continuationError = computed(() => activePair.value?.continuationError ?? null)
   const continuationStreamText = computed(() => activePair.value?.continuationStreamText ?? '')
-  const activeContinuation   = computed(() => {
+  const activeContinuation = computed(() => {
     const pair = activePair.value
     if (!pair) return null
     if (pair.selectedChoiceId !== null) {
@@ -91,10 +121,10 @@ export const usePart3Store = defineStore('part3', () => {
   })
 
   async function _readSSE(res: Response, onChunk: (accumulated: string) => void): Promise<string> {
-    const reader  = res.body!.getReader()
+    const reader = res.body!.getReader()
     const decoder = new TextDecoder()
     let accumulated = ''
-    let buffer      = ''
+    let buffer = ''
 
     while (true) {
       const { done, value } = await reader.read()
@@ -109,7 +139,7 @@ export const usePart3Store = defineStore('part3', () => {
         if (payload === '[DONE]') continue
         try {
           const parsed = JSON.parse(payload)
-          const delta  = parsed.choices?.[0]?.delta?.content
+          const delta = parsed.choices?.[0]?.delta?.content
           if (delta) {
             accumulated += delta
             onChunk(accumulated)
@@ -132,23 +162,60 @@ export const usePart3Store = defineStore('part3', () => {
     if (!pair) return
     pair.imageDataUrl = dataUrl
     const [meta, b64] = dataUrl.split(',')
-    pair.imageBase64  = b64
-    pair.imageMime    = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+    pair.imageBase64 = b64
+    pair.imageMime = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+    // User-uploaded image — clear any prior curated-artwork selection.
+    pair.selectedArtworkId = null
+    // Re-uploading invalidates anything generated against the previous image.
+    pair.storyData = null
+    pair.storyStreamText = ''
+    pair.animationVersions = []
+    pair.remainingAttempts = 3
   }
+
+  /**
+   * Pick one of the LKP's curated artworks (Pilot demo flow).
+   * Fetches the image, base64-encodes it, and remembers `artworkId`
+   * so subsequent /api/story and /api/animation calls include it.
+   */
+  async function setArtworkFromUrl(url: string, artworkId: string) {
+    const pair = activePair.value
+    if (!pair) return
+    const dataUrl = await fetchImageAsDataUrl(url)
+    pair.imageDataUrl = dataUrl
+    const [meta, b64] = dataUrl.split(',')
+    pair.imageBase64 = b64
+    pair.imageMime = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+    pair.selectedArtworkId = artworkId
+    pair.storyData = null
+    pair.storyStreamText = ''
+    pair.animationVersions = []
+    pair.remainingAttempts = 3
+  }
+
 
   async function generateStory(language = 'en') {
     const pair = activePair.value
     if (!pair?.imageBase64) return
-    pair.storyLoading   = true
-    pair.storyError     = null
+    pair.storyLoading = true
+    pair.storyError = null
     pair.storyStreamText = ''
+
+    const lessonId = useProjectsStore().activeLessonId
 
     try {
       const res = await fetch(`${API_BASE}/api/story/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: pair.imageBase64, image_mime: pair.imageMime, language }),
+        body: JSON.stringify({
+          image_base64: pair.imageBase64,
+          image_mime: pair.imageMime,
+          language,
+          lesson_id: lessonId ?? undefined,
+          artwork_id: pair.selectedArtworkId ?? undefined,
+        }),
       })
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }))
         throw new Error(err.detail ?? 'Story generation failed')
@@ -171,7 +238,7 @@ export const usePart3Store = defineStore('part3', () => {
     } catch (e: any) {
       pair.storyError = e.message
     } finally {
-      pair.storyLoading    = false
+      pair.storyLoading = false
       pair.storyStreamText = ''
     }
   }
@@ -189,24 +256,29 @@ export const usePart3Store = defineStore('part3', () => {
     const choice = pair.storyData.choices.find(c => c.id === choiceId)
     if (!choice) return
 
-    pair.selectedChoiceId        = choiceId
-    pair.continuationLoading     = true
-    pair.continuationError       = null
-    pair.continuationStreamText  = ''
+    pair.selectedChoiceId = choiceId
+    pair.continuationLoading = true
+    pair.continuationError = null
+    pair.continuationStreamText = ''
+
+    const lessonId = useProjectsStore().activeLessonId
 
     try {
       const res = await fetch(`${API_BASE}/api/story/continue/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          image_base64:  pair.imageBase64,
-          image_mime:    pair.imageMime,
-          part1:         pair.storyData.part1,
-          choice_label:  choice.label,
-          choice_desc:   choice.desc,
+          image_base64: pair.imageBase64,
+          image_mime: pair.imageMime,
+          part1: pair.storyData.part1,
+          choice_label: choice.label,
+          choice_desc: choice.desc,
           language,
+          lesson_id: lessonId ?? undefined,
+          artwork_id: pair.selectedArtworkId ?? undefined,
         }),
       })
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }))
         throw new Error(err.detail ?? 'Continuation generation failed')
@@ -219,7 +291,7 @@ export const usePart3Store = defineStore('part3', () => {
     } catch (e: any) {
       pair.continuationError = e.message
     } finally {
-      pair.continuationLoading    = false
+      pair.continuationLoading = false
       pair.continuationStreamText = ''
     }
   }
@@ -228,8 +300,10 @@ export const usePart3Store = defineStore('part3', () => {
     const pair = activePair.value
     if (!pair?.imageBase64 || pair.remainingAttempts <= 0) return
     pair.animationLoading = true
-    pair.animationError   = null
+    pair.animationError = null
     pair.remainingAttempts--
+
+    const lessonId = useProjectsStore().activeLessonId
 
     try {
       const res = await fetch(`${API_BASE}/api/animation/submit`, {
@@ -237,10 +311,13 @@ export const usePart3Store = defineStore('part3', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image_base64: pair.imageBase64,
-          image_mime:   pair.imageMime,
-          prompt:       customPrompt,
+          image_mime: pair.imageMime,
+          prompt: customPrompt,
+          lesson_id: lessonId ?? undefined,
+          artwork_id: pair.selectedArtworkId ?? undefined,
         }),
       })
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }))
         throw new Error(err.detail ?? 'Animation submission failed')
@@ -250,7 +327,7 @@ export const usePart3Store = defineStore('part3', () => {
       pair.animationVersions.push({ taskId: task_id, videoUrl: null, status: 'pending' })
       _pollAnimation(pair.id, task_id, idx)
     } catch (e: any) {
-      pair.animationError   = e.message
+      pair.animationError = e.message
       pair.animationLoading = false
     }
   }
@@ -269,15 +346,15 @@ export const usePart3Store = defineStore('part3', () => {
       }
       attempts++
       try {
-        const res  = await fetch(`${API_BASE}/api/animation/status/${taskId}`)
+        const res = await fetch(`${API_BASE}/api/animation/status/${taskId}`)
         const data = await res.json()
         if (data.status === 'succeeded' && data.video_url) {
           pair.animationVersions[index].videoUrl = data.video_url
-          pair.animationVersions[index].status   = 'done'
+          pair.animationVersions[index].status = 'done'
           pair.animationLoading = false
         } else if (data.status === 'failed') {
           pair.animationVersions[index].status = 'failed'
-          pair.animationError   = data.error ?? 'Generation failed'
+          pair.animationError = data.error ?? 'Generation failed'
           pair.animationLoading = false
         } else {
           setTimeout(tick, 3000)
@@ -301,13 +378,16 @@ export const usePart3Store = defineStore('part3', () => {
     if (pair) pair.chosenVideoUrl = url
   }
 
+  const selectedArtworkId = computed(() => activePair.value?.selectedArtworkId ?? null)
+
   return {
     pairs, activePairId, activePair,
     imageDataUrl, storyData, storyLoading, storyError,
     animationVersions, animationLoading, animationError, remainingAttempts, chosenVideoUrl,
     selectedChoiceId, continuationLoading, continuationError, activeContinuation,
-    storyStreamText, continuationStreamText,
-    ensurePair, removePair, setImage, generateStory, generateAnimation, saveChosenVideo,
-    generateContinuation,
+    storyStreamText, continuationStreamText, selectedArtworkId,
+    ensurePair, removePair, setImage, setArtworkFromUrl,
+    generateStory, generateAnimation, saveChosenVideo, generateContinuation,
   }
 })
+

@@ -10,7 +10,8 @@ import Part3AnimationPanel from '@/components/workspace/part3/Part3AnimationPane
 import Part5Content from '@/components/workspace/part5/Part5Content.vue'
 import Part6Content from '@/components/workspace/part6/Part6Content.vue'
 import Part6AssistancePanel from '@/components/workspace/part6/Part6AssistancePanel.vue'
-import Part7Placeholder from '@/components/workspace/part7/Part7Placeholder.vue'
+import Part7Content from '@/components/workspace/part7/Part7Content.vue'
+
 import { useSlideStore } from '@/stores/slides'
 
 const slideStore = useSlideStore()
@@ -95,10 +96,11 @@ function stopResize() {
         </div>
       </template>
 
-      <!-- Part 7: placeholder -->
+      <!-- Part 7: student-work commenter (LKP-driven) -->
       <template v-else-if="isPart7">
-        <Part7Placeholder />
+        <Part7Content />
       </template>
+
 
       <!-- All other parts: normal layout -->
       <template v-else>
