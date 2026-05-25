@@ -1,0 +1,40 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# When you click "New → Blueprint" in the Render dashboard and select
+# this repo, Render reads this file, proposes the FastAPI service, and
+# (on Apply) provisions it. You then paste the secrets under
+# Environment in the Render UI — they're marked `sync: false` so they
+# never leave your browser.
+#
+# Free tier notes:
+#   • 750 instance-hours/month (one always-on service fits comfortably).
+#   • Sleeps after 15 min idle; cold-start ~50 s on first request.
+#   • Public URL: https://<name>.onrender.com
+services:
+  - type: web
+    name: artbloom-api
+    runtime: python
+    plan: free
+    region: oregon          # change to "frankfurt" or "singapore" if latency matters
+    rootDir: backend
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true        # redeploy on push to main
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: CORS_ALLOW_ORIGINS
+        value: "*"          # dev pilot — lock down later (comma-separated origins)
+      - key: TEXTBOOK_ASSETS_URL
+        sync: false         # paste the R2 public bucket URL after Phase 3
+      - key: ARK_API_KEY
+        sync: false         # paste in Render dashboard (Volcengine Ark)
+      - key: ARK_STORY_MODEL
+        sync: false
+      - key: ARK_CHAT_MODEL
+        sync: false
+      - key: ARK_VIDEO_MODEL
+        sync: false
+      - key: ARK_IMAGE_MODEL
+        sync: false
