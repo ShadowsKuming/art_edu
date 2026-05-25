@@ -1413,3 +1413,157 @@ Editing a community-saved lesson is *already* wired — `MyLessons.vue`
   wants page numbers instead, just swap the computed in
   `SlidePreviewModal.vue` — it's a single Map<partId, count> walker.
 - `vue-tsc --noEmit` ✓.
+
+---
+
+## 19. Production deployment — Pages + Render + R2 (2026-05-25)
+
+### Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Cloudflare Pages              Render Free                R2       │
+│  ───────────────────           ──────────────             ───      │
+│  artbloom.pages.dev   ──API──► artbloom-api.onrender.com           │
+│         │                              │                           │
+│         └─────────── assets ───────────┴──► pub-<hash>.r2.dev      │
+│                                                                    │
+│  Vue/Vite SPA                  FastAPI 0.115             Static    │
+│  auto-deploy from main         auto-deploy from main     PNG/JPG   │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+Three independent surfaces, each deploys on `git push origin main`:
+
+| Layer    | Host                 | Trigger              | Cost                  |
+|----------|----------------------|----------------------|-----------------------|
+| Frontend | Cloudflare Pages     | GitHub push          | Free (unlimited builds) |
+| Backend  | Render               | GitHub push          | Free (750 hrs/mo, sleeps after 15 min idle) |
+| Assets   | Cloudflare R2 bucket | `npm run r2:sync`    | Free up to 10 GB + 1 M class-A ops/mo |
+
+The backend is **stateless** — Render's sleep cycle is fine; first
+request after sleep cold-starts in ~50 s, subsequent requests are sub-second.
+
+### Files added for deployment
+
+| File                                      | Role                                                                                                                                   |
+|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `render.yaml`                             | Render Blueprint — declares the `artbloom-api` web service, build/start commands, env-var slots (`sync: false` for secrets).           |
+| `backend/.env.example`                    | Documents all backend env vars (ARK_*, CORS_ALLOW_ORIGINS, TEXTBOOK_ASSETS_URL, future Volcengine Speech keys).                        |
+| `backend/main.py` (patched)               | CORS origins now env-driven; StaticFiles mount skipped when `TEXTBOOK_ASSETS_URL` is set; defensive when `frontend/` dir missing (Render slug only ships `backend/`). |
+| `backend/requirements.txt`                | Adds missing `edge-tts==7.0.0` (was imported but absent).                                                                              |
+| `frontend/.env.example`                   | Documents `VITE_API_BASE` + `VITE_ASSETS_BASE`.                                                                                        |
+| `frontend/public/_redirects`              | `/* /index.html 200` — SPA fallback so Vue Router history mode works on Pages.                                                         |
+| `frontend/src/data/lessons/index.ts` (patched) | `rewriteAssetUrls()` walks each LKP at module load and swaps `http://localhost:8001/textbook-assets/` → `VITE_ASSETS_BASE` when set. |
+| `frontend/scripts/sync-r2-assets.js`      | One-shot uploader for `textbook-assets/` → R2 via `wrangler r2 object put`.                                                            |
+| `frontend/package.json`                   | New `r2:sync` script + `wrangler@^4` devDep.                                                                                           |
+
+### Env var matrix
+
+| Variable                | Where set                  | Dev value                          | Prod value                                |
+|-------------------------|----------------------------|------------------------------------|-------------------------------------------|
+| `ARK_API_KEY`           | Render → Environment       | local `backend/.env`               | (pasted in Render UI, `sync: false`)      |
+| `ARK_STORY_MODEL`       | Render → Environment       | unset → default                    | unset → default, or custom ID             |
+| `ARK_CHAT_MODEL`        | Render → Environment       | unset → default                    | unset → default, or custom ID             |
+| `ARK_VIDEO_MODEL`       | Render → Environment       | unset → default                    | unset → default, or custom ID             |
+| `ARK_IMAGE_MODEL`       | Render → Environment       | unset → default                    | unset → default, or custom ID             |
+| `CORS_ALLOW_ORIGINS`    | Render → Environment       | unset (localhost dev ports)        | `*` (dev pilot) or `https://artbloom.pages.dev` |
+| `TEXTBOOK_ASSETS_URL`   | Render → Environment       | unset (uses StaticFiles mount)     | `https://pub-<hash>.r2.dev`               |
+| `VITE_API_BASE`         | Pages → Env Vars (prod)    | `http://localhost:8001`            | `https://artbloom-api.onrender.com`       |
+| `VITE_ASSETS_BASE`      | Pages → Env Vars (prod)    | unset (LKP uses localhost URLs)    | `https://pub-<hash>.r2.dev`               |
+| `NODE_VERSION`          | Pages → Env Vars (prod)    | n/a                                | `20`                                      |
+
+### One-time setup runbook
+
+**Step 1 — Cloudflare Wrangler login (interactive, you click)**
+
+```bash
+cd frontend
+npx wrangler login            # opens browser → authorise → "Allow"
+npx wrangler whoami           # should print your Cloudflare email
+```
+
+**Step 2 — Create R2 bucket + enable public access**
+
+```bash
+npx wrangler r2 bucket create artbloom-textbook-assets
+```
+
+Then in the dashboard:
+1. https://dash.cloudflare.com → **R2** → `artbloom-textbook-assets`
+2. **Settings** → **Public access** → **Allow Access** → **r2.dev subdomain**
+3. Copy the resulting URL — e.g. `https://pub-abc123def456.r2.dev`
+
+**Step 3 — Upload textbook assets**
+
+```bash
+npm run r2:sync
+```
+
+13 files (~5 MB total) — should take under a minute. Verify one URL works in a browser:
+`https://pub-<hash>.r2.dev/G2V2-U4-L4/design/p1-s1-cover.png` → should display the cover image.
+
+**Step 4 — Deploy backend on Render**
+
+1. https://dashboard.render.com → **New** → **Blueprint**
+2. Connect `ShadowsKuming/art_edu`; Render auto-detects `render.yaml`
+3. **Apply** → wait ~3 min for first build
+4. Service → **Environment** → paste:
+   ```
+   ARK_API_KEY               = <your Volcengine Ark key>
+   TEXTBOOK_ASSETS_URL       = https://pub-<hash>.r2.dev
+   CORS_ALLOW_ORIGINS        = *
+   ```
+   (Skip `ARK_*_MODEL` rows — defaults in `main.py` are fine.)
+5. Render redeploys; wait ~1 min
+6. Smoke test: `curl https://artbloom-api.onrender.com/health`
+   → expect `{"ok":true,"api_key_set":true,"tts_voices":6,...}`
+
+**Step 5 — Deploy frontend on Cloudflare Pages**
+
+1. https://dash.cloudflare.com → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+2. Authorise the Cloudflare GitHub app on `ShadowsKuming/art_edu`
+3. Select repo → **Begin setup** → branch `main`
+4. **Build settings:**
+   - Framework preset: **Vue**
+   - Build command: `cd frontend && npm ci && npm run build`
+   - Build output directory: `frontend/dist`
+   - Root directory: *(blank)*
+5. **Environment variables** (Production):
+   ```
+   VITE_API_BASE       = https://artbloom-api.onrender.com
+   VITE_ASSETS_BASE    = https://pub-<hash>.r2.dev
+   NODE_VERSION        = 20
+   ```
+6. **Save and Deploy** — first build ~2 min
+7. Open `https://<project-name>.pages.dev`
+
+### Deploy after first-time setup
+
+Both Render + Pages auto-deploy on `git push origin main`. No manual steps.
+
+To refresh R2 assets after editing PNG/JPG:
+```bash
+cd frontend && npm run r2:sync
+```
+Existing keys are overwritten — Cloudflare caches for 1 h by default; either wait or purge the bucket cache in the dashboard.
+
+### Rollback
+
+- **Pages:** Workers & Pages → project → **Deployments** → previous deployment → **Rollback to this deployment**.
+- **Render:** service → **Events** tab → click any prior deploy → **Rollback**.
+- **R2 assets:** no built-in versioning on the free tier; keep the canonical PNG/JPG in git under `frontend/src/assets/textbook-assets/` so a re-sync recreates the working set.
+
+### Cold-start caveat
+
+Render free tier spins the dyno down after 15 min of zero traffic. First request after sleep:
+- `GET /health` → ~50 s
+- `POST /api/story/stream` → adds normal Doubao latency on top
+
+A simple cron-style ping every 10 min would defeat the free tier's purpose; for a 2-user pilot the cold start is acceptable. Upgrade to Render's $7/mo Starter plan to keep the dyno always-on.
+
+### Where to lock down later
+
+- Set `CORS_ALLOW_ORIGINS` on Render to the exact Pages URL once a custom domain is wired.
+- Restrict R2 bucket public access to specific paths via Worker proxy if asset hotlinking becomes a concern.
+- Move `ARK_API_KEY` from Render env to Cloudflare Secrets Store + Worker proxy once the backend is rewritten in TS (Option B from the original plan) — keeps the key off Render entirely.
