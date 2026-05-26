@@ -142,8 +142,8 @@ export default {
       empty: '本课暂时没有幻灯片。',
     },
     save: {
-      savedToMyLessons: '已添加到我的课程',
-      alreadySaved: '已在我的课程中',
+      savedToMyLessons: '已添加到我的课件',
+      alreadySaved: '已在我的课件中',
     },
     pagination: {
       aria: '分页',
@@ -165,11 +165,11 @@ export default {
     entryAriaLabel: '打开 {title}',
     cards: {
       createLesson: {
-        title: '新建课程',
+        title: '新建课件',
         description: '从教材课文出发，创建结构化的全新幻灯片课件。',
       },
       myLessons: {
-        title: '我的课程',
+        title: '我的课件',
         description: '查看、编辑和管理你已创建、保存或正在使用的幻灯片课件。',
       },
       community: {
@@ -217,16 +217,16 @@ export default {
     },
   },
   dashboard: {
-    myLessons: '我的课程',
-    subtitle: '查看、编辑、管理并开始教授你创建、保存或正在使用的幻灯片课程。',
-    createLesson: '新建课程',
-    newLesson: '+ 新建课程',
-    noLessons: '暂无课程',
+    myLessons: '我的课件',
+    subtitle: '查看、编辑、管理并开始教授你创建、保存或正在使用的幻灯片课件。',
+    createLesson: '新建课件',
+    newLesson: '+ 新建课件',
+    noLessons: '暂无课件',
     noLessonsDesc: '创建你的第一堂美术课吧。',
     partProgress: '第 {n} 部分，共 7 部分',
     resume: '继续编辑',
-    deleteLesson: '删除课程',
-    untitled: '未命名课程',
+    deleteLesson: '删除课件',
+    untitled: '未命名课件',
     slides: '张幻灯片',
     created: '创建于',
     stats: {
@@ -240,7 +240,7 @@ export default {
       sharedDesc: '与他人共享',
     },
     tabs: {
-      all: '全部课程',
+      all: '全部课件',
       completed: '已完成',
       drafts: '草稿',
       saved: '已保存',
@@ -260,11 +260,11 @@ export default {
       delete: '删除',
     },
     modal: {
-      newTitle: '新建课程',
-      namePlaceholder: '课程名称',
+      newTitle: '新建课件',
+      namePlaceholder: '课件名称',
       cancel: '取消',
       create: '创建',
-      deleteTitle: '删除课程？',
+      deleteTitle: '删除课件？',
       deleteDesc: '此操作不可撤销。',
       delete: '删除',
     },
