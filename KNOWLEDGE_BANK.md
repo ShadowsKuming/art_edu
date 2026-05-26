@@ -1567,3 +1567,187 @@ A simple cron-style ping every 10 min would defeat the free tier's purpose; for 
 - Set `CORS_ALLOW_ORIGINS` on Render to the exact Pages URL once a custom domain is wired.
 - Restrict R2 bucket public access to specific paths via Worker proxy if asset hotlinking becomes a concern.
 - Move `ARK_API_KEY` from Render env to Cloudflare Secrets Store + Worker proxy once the backend is rewritten in TS (Option B from the original plan) — keeps the key off Render entirely.
+
+
+---
+
+## 20. Production deployment — pilot is live (v1.0)
+
+> **Status: shipped.** Cloudflare Pages serves the Vue SPA + static textbook assets; Render Free serves the FastAPI backend. R2 was provisioned but is **not in the request path** — the team simplified the architecture mid-deploy.
+
+### 20.1 Final architecture (what shipped vs. what was originally planned)
+
+```
+                                ┌──────────────────────────┐
+       Browser  ────────────►   │  Cloudflare Pages         │
+                                │  *.pages.dev              │
+                                │  (project in ShadowsKuming │
+                                │   or kevinalyst account)   │
+                                │                           │
+                                │  • Vue 3 SPA              │
+                                │  • Static textbook-assets │  ← key change
+                                │    (served from /public/) │
+                                └────────────┬──────────────┘
+                                             │  fetch(API_BASE/...)
+                                             ▼
+                                ┌──────────────────────────┐
+                                │  Render Free (Oregon)     │
+                                │  artbloom-api.onrender.com│
+                                │                           │
+                                │  • FastAPI / uvicorn      │
+                                │  • Volcengine Ark proxy   │
+                                │  • edge-tts               │
+                                │  • LKP loader             │
+                                │  • Sleeps after 15min idle│
+                                └───────────────────────────┘
+
+      Cloudflare R2  ❌  unused — bucket still exists but no traffic
+      pub-f7d0ce9b…r2.dev   (kept as cold backup; safe to delete)
+```
+
+| Component | Plan (KB §19) | Actual (shipped) |
+|---|---|---|
+| Frontend host | Cloudflare Pages | ✅ Cloudflare Pages |
+| Backend host | Render Free Blueprint | ✅ Render Free (Oregon, plan=free, autoDeploy=on push) |
+| Textbook assets | Cloudflare R2 via runtime URL rewriting | ❌ **Moved to `frontend/public/textbook-assets/`** — served by Pages |
+| Runtime URL rewriter (`rewriteAssetUrls`) | Module-load transform | ❌ **Removed** in commit `1bacb41` |
+| `VITE_ASSETS_BASE` env var | Required | ❌ Removed — no longer needed |
+| Backend `TEXTBOOK_ASSETS_URL` toggle | R2 prod / StaticFiles dev | Still in code; defaults to local StaticFiles |
+| Saved-project URL migration | Not needed | ✅ Added in `b2a397e` — strips `http://localhost:8001/` prefixes |
+| Lesson JSON ↔ frontend sync | `npm run sync-lessons` (prebuild) | ✅ Same — wired as `prebuild` in `package.json` |
+
+### 20.2 Why the team pivoted away from R2 (mid-deploy decision)
+
+The original §19 plan had:
+1. Upload `textbook-assets/*` to R2 → `pub-f7d0ce9b…r2.dev`.
+2. Frontend module-load hook (`rewriteAssetUrls` in `data/lessons/index.ts`) swaps every `http://localhost:8001/textbook-assets/…` URL inside lesson JSON to the R2 public URL.
+
+This worked, but had four cost-of-complexity issues that emerged once the Pages deploy was live:
+
+| Issue | Symptom | Pivot solution |
+|---|---|---|
+| **Cross-origin asset fetches** | R2's `*.r2.dev` is a separate origin → preflight CORS for non-GET requests (e.g. fetching audio blob to feed `MediaSource`); occasional cache-miss waterfalls | Co-locate assets on Pages → same origin → zero CORS, browser caches share session |
+| **URL rewriting was a runtime side-effect** | `rewriteAssetUrls` mutated module-scope `LESSONS` object on import → if Pages env var was wrong/missing, app silently shipped broken URLs | Move assets to `public/`, ship root-relative URLs in JSON → no env var means no failure mode |
+| **Two egress allowances to monitor** | R2 free is 10 GB/mo egress; Pages free is unlimited bandwidth → single-account-on-Pages = single quota | Single source of truth: Pages unlimited |
+| **Saved-project snapshots had absolute URLs** | Projects saved during dev had `http://localhost:8001/textbook-assets/p1-s1-cover.png` literally embedded in slide elements → broke in prod | `projects.ts` migration on store init replaces any `http://localhost:8001/` prefix with `/` |
+
+**Net effect:** Pages bundle is ~50–80 MB larger (the textbook PNGs/JPGs), but Cloudflare's edge cache + Pages' build artefact storage is unlimited on Free tier, so this is a non-cost. **R2 bucket stays as cold backup**; can be safely deleted, or kept for the day a single lesson asset exceeds Pages' 25 MB per-file limit.
+
+### 20.3 Cross-account collaboration friction (and how it got resolved)
+
+Recap of what happened (KB §19 didn't anticipate this):
+
+1. **Domain & R2 on `kevinalyst` Cloudflare account.** Repo `ShadowsKuming/art_edu` on GitHub. Kevin and Shadows are different humans collaborating.
+2. **Cloudflare Pages GitHub App scoping**: when Kevin logged in to his Cloudflare account, the Pages "Connect to Git" repo picker only listed repos owned by `kevinalyst`. `ShadowsKuming/art_edu` was invisible because the App can't see collaborator-only repos through someone else's installation.
+3. **Failed workaround 1** — Try to install the App as `ShadowsKuming` from kevin's Cloudflare → uncaught error *"Could not find selected Git installation"* (the GitHub-account dropdown was empty because the App handshake didn't fully register).
+4. **Failed workaround 2** — Try Cloudflare's "Add a site" zone-transfer flow → would have moved DNS from kevin's account to shadows', destroying R2 custom domain potential. Aborted.
+5. **What shipped**: ShadowsKuming deployed the Pages project from **his own** Cloudflare account, against the repo he owns. Kevin owns the domain and R2. The fully-resolved cross-account dance is parked until a custom domain is wired up. For now the pilot runs on `*.pages.dev` (no custom domain).
+
+**Lesson learned for future projects with shared GitHub repos:** decide where Pages will live *before* setting up the GitHub repo, ideally with the Pages-account holder owning the repo. If not possible, plan for one of:
+- **Cloudflare account membership** — invite the other person to your CF account.
+- **Direct Upload via wrangler** — skip GitHub integration entirely.
+- **Fork the repo** to the same GitHub account that owns Pages.
+
+### 20.4 Deployment commit timeline
+
+```
+69389d4  downsizing five assets                          (Shadows; perf polish)
+b2a397e  fix(migration): strip legacy localhost:8001     ← saved-project URL fix
+1bacb41  fix(assets): remove runtime URL rewriting       ← R2 → public/ pivot
+1286ada  change the path                                 (Shadows; path fix)
+47bd6d3  frontend                                        (Shadows; CF Pages deploy)
+5b7cd20  update chatbot history                          (chatbot store extracted)
+24c6f15  api update
+010417e  deployment                                       ← Render backend live
+fb7e8d8  Update README.md
+6db7c70  Merge branch 'main'
+cd49c0f  some update update
+─────────────────────────────────────────────────────────────────
+2c7329c  Revert Alibaba ECS                              ← previous KB §19 head
+7091b8f  docs(kb): §19 — production deployment runbook
+```
+
+Eleven commits from "infra in place" to "pilot is live", mostly across May 25–26 2026.
+
+### 20.5 New plumbing introduced post-§19
+
+| Surface | What changed | Why it matters |
+|---|---|---|
+| `frontend/src/stores/chatbot.ts` | **New** dedicated Pinia store for chatbot history (`messages[]`, `setMessages`, `push`) | Decouples chat from `slides`/`projects` so save/restore works without crowding the project snapshot schema |
+| `frontend/src/stores/projects.ts` | URL migration on store init (commit `b2a397e`) | Old projects render in prod without manual user action |
+| `frontend/src/data/lessons/index.ts` | `rewriteAssetUrls` removed (commit `1bacb41`); typed `LessonSeedData` cast retained | Smaller, safer; one fewer module-load side-effect |
+| `frontend/.env.example` | `VITE_ASSETS_BASE` removed; only `VITE_API_BASE` documented | Reflects single env-var contract |
+| `frontend/public/textbook-assets/` | New directory; mirrors the canonical `src/assets/textbook-assets/` shape but is what Vite/Pages actually serves | Drop a new asset here AND in the LKP JSON → it ships |
+| `frontend/public/textbook-assets/G2V2-U4-L4/design/p*.png` | 5 new "design reference" PNGs (cover, paper-roll, caterpillar, landscape, playground) | Slide-template hero imagery for the Hairy Pose lesson |
+| `backend/main.py` | Minor tweak in commit `010417e` to align with Render's `$PORT` and CORS env-var defaults | Already pre-baked from §19 but verified live |
+| `package.json` (frontend) | `r2:sync` script retained but **unused in shipping path** | Kept for the day assets exceed Pages limits |
+
+### 20.6 Production URLs & env-var contract
+
+```
+Backend (Render)
+   URL:        https://artbloom-api.onrender.com
+   Health:     https://artbloom-api.onrender.com/health
+   Region:     Oregon
+   Plan:       Free  (sleeps after 15 min idle, ~50 s cold start)
+   Env vars:   ARK_API_KEY              <pasted in Render dashboard>
+               CORS_ALLOW_ORIGINS        *
+               (TEXTBOOK_ASSETS_URL — set but ignored; assets served from Pages)
+   Auto-deploy: enabled on push to main
+
+Frontend (Cloudflare Pages)
+   URL:        https://<project-slug>.pages.dev   (project in ShadowsKuming or kevinalyst CF account)
+   Build:      cd frontend && npm ci && npm run build
+   Output:     frontend/dist
+   Env vars:   VITE_API_BASE     https://artbloom-api.onrender.com
+               NODE_VERSION      20
+   Auto-deploy: enabled on push to main
+
+Assets (Cloudflare Pages — same origin as frontend)
+   Path:       /textbook-assets/G2V2-U4-L4/...
+   Source:     frontend/public/textbook-assets/
+
+Cloudflare R2 (provisioned but unused)
+   Bucket:     artbloom-textbook-assets
+   Public URL: https://pub-f7d0ce9b502b4622869a73beb2084a84.r2.dev
+   Status:     cold backup; safe to delete
+   Cost:       $0 (well under free-tier limits with zero traffic)
+
+DNS zone (kevin's CF account)
+   Domain:     artbloomedu.com
+   Pages:      not yet attached — pending cross-account resolution
+   R2:         not yet attached — would only matter if R2 comes back into use
+```
+
+### 20.7 Known limitations / "find out it's broken" cheat-sheet
+
+1. **Render cold start (~50 s):** first request to a sleeping `artbloom-api` blocks the UI. Mitigations available, none implemented for the pilot:
+   - Free uptime monitor (UptimeRobot / Cron-job.org) pinging `/health` every 10 min.
+   - Render Starter plan ($7/mo) — service stays warm.
+   - Spinner / "warming up" message in frontend during first AI call.
+
+2. **No custom domain.** Until `artbloomedu.com` is wired up: pilot uses `*.pages.dev` + `*.onrender.com`. Custom domain decision parked (see §20.3).
+
+3. **Single lesson live.** Only `g2v2-u4-l4` is in `LESSON_REGISTRY`. To add a lesson:
+   1. Add LKP JSON to `backend/data/lessons/<id>.json`
+   2. Drop assets under `frontend/public/textbook-assets/<UPPER_ID>/`
+   3. Add `import x from './x.json'` + entry in `LESSON_REGISTRY` in `frontend/src/data/lessons/index.ts`
+   4. Commit → Render + Pages both auto-deploy
+
+4. **Bilingual content drift risk.** EN/中 strings live in `frontend/src/i18n/{en,zh}.ts`; LKP JSONs have their own `{ zh, en }` content fields. Renaming a key requires updating both surfaces. No CI enforcement.
+
+5. **localStorage migration is permanent.** The `projects.ts` localhost-URL stripper runs on every store init. Could be retired in ~3 months once we're confident no pilot teacher still has pre-deploy snapshots.
+
+6. **Cloudflare Pages 25 MB per-file limit.** Currently safe (largest asset ~3 MB). If a single asset exceeds this — most likely a high-res masterpiece scan — switch to R2 for *that one file* and override the URL inline in the LKP JSON.
+
+7. **Render free's 750 hrs/mo cap.** With auto-sleep enabled, this is comfortable for a 2-user pilot. If user count grows, the second always-on service would push past the limit.
+
+### 20.8 Open items (post-pilot follow-ups)
+
+- [ ] Add custom domain `artbloomedu.com` to Pages (requires cross-account decision per §20.3; account-membership invite is the cleanest path).
+- [ ] Wire `api.artbloomedu.com` CNAME to Render service once custom domain lands.
+- [ ] Add UptimeRobot ping for `/health` to keep backend warm.
+- [ ] Decide whether to delete the unused R2 bucket or keep as cold backup.
+- [ ] Onboard remaining 24 lessons (LKP JSON authoring is the bottleneck, not code).
+- [ ] Tighten `CORS_ALLOW_ORIGINS` from `*` to the actual Pages domain once a custom domain is locked in.
+- [ ] Decide on a TTS migration story (current `edge-tts` is free but unofficial Microsoft endpoint; Volcengine TTS keys are already in `.env.example`).
