@@ -275,14 +275,17 @@ export default {
   sidebar: {
     pageList: 'Page List',
     deleteSlide: 'Delete slide',
+    // Sidebar part titles — copy provided by the curriculum team
+    // (2026-05). These supersede the earlier descriptive translations
+    // so both locales share the canonical curriculum phrasing.
     parts: [
-      'Part 1: Cover & Opening',
-      'Part 2: Hook & Guided Attention',
-      'Part 3: Interactive Story',
-      'Part 4: Making Task',
-      'Part 5: Making Example',
-      'Part 6: Work Transformation',
-      'Part 7: Share & Feedback',
+      'Part 1: Lesson Introduction',
+      'Part 2: New Knowledge',
+      'Part 3: Story Animation',
+      'Part 4: Classroom Practice',
+      'Part 5: Creative Demonstration',
+      'Part 6: Style Creation',
+      'Part 7: Showcase & Review',
     ],
   },
   content: {
@@ -396,6 +399,14 @@ export default {
     ],
     placeholder: 'Ask questions about the slide design…',
     error: 'Sorry, something went wrong. Please try again.',
+  },
+  // Part 5 — Making Example. Slide now embeds a curated Bilibili
+  // tutorial via iframe; the local-upload UI was retired during the
+  // pilot but the store still exists for legacy projects.
+  part5: {
+    // Slide H1 mirrors the sidebar label from `sidebar.parts[4]`
+    // (curriculum-team copy, 2026-05).
+    slideTitle: 'Creative Demonstration',
   },
   part7: {
     noLessonTitle: 'Part 7 needs a curriculum lesson',

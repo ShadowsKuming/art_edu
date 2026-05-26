@@ -272,14 +272,18 @@ export default {
   sidebar: {
     pageList: '页面列表',
     deleteSlide: '删除',
+    // Sidebar part titles — copy provided by the curriculum team
+    // (2026-05). These supersede the earlier literal translations of
+    // the EN counterparts; both languages now use the curriculum's
+    // canonical phrasing.
     parts: [
-      '第一部分：封面与开场',
-      '第二部分：钩子与引导关注',
-      '第三部分：互动故事',
-      '第四部分：制作任务',
-      '第五部分：制作示例',
-      '第六部分：作品转化',
-      '第七部分：分享与反馈',
+      '第一部分：课程导入',
+      '第二部分：新知讲授',
+      '第三部分：故事动画',
+      '第四部分：课堂实践',
+      '第五部分：创意示范',
+      '第六部分：风格创作',
+      '第七部分：展示评价',
     ],
   },
   content: {
@@ -389,6 +393,12 @@ export default {
     ],
     placeholder: '输入关于幻灯片设计的问题…',
     error: '抱歉，出现了错误，请重试。',
+  },
+  // 第五部分 — 制作示例。当前嵌入 Bilibili 示范视频（取消了
+  // 教师本地上传 UI），保留 store 以兼容旧课件。
+  part5: {
+    // 与侧栏 `sidebar.parts[4]` 保持一致（教学组 2026-05 提供）。
+    slideTitle: '创意示范',
   },
   part7: {
     noLessonTitle: '第七部分需要绑定教材课程',

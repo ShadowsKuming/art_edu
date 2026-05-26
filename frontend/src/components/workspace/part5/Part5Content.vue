@@ -1,10 +1,27 @@
 <script setup lang="ts">
+/**
+ * Part 5 — Making Example.
+ *
+ * Pilot update 2026-05: instead of asking the teacher to upload their
+ * own demo clip, the slide now embeds a curated Bilibili tutorial via
+ * iframe. The custom-upload affordance was removed for the pilot
+ * because every classroom in the trial uses the same teacher-facing
+ * demonstration; the existing `usePart5Store` is left untouched so
+ * any project that already has a user-uploaded video saved keeps
+ * working when re-opened, but no new uploads can be created from
+ * this surface.
+ *
+ * Source video:
+ *   https://www.bilibili.com/video/BV1VjVc6tEhK
+ * Bilibili embed reference:
+ *   https://player.bilibili.com/player.html?bvid=...&page=1
+ */
 import { computed } from 'vue'
-import { usePart5Store } from '@/stores/part5'
+import { useI18n } from 'vue-i18n'
 import { useSlideStore } from '@/stores/slides'
 
-const store = usePart5Store()
 const slideStore = useSlideStore()
+const { t } = useI18n()
 
 const slideStyle = computed(() => {
   if (slideStore.globalBackground) {
@@ -20,22 +37,18 @@ const slideStyle = computed(() => {
   return { backgroundColor: '#ffffff' }
 })
 
-function openVideoPicker() {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'video/*'
-  input.style.cssText = 'position:fixed;top:-999px;left:-999px;'
-  document.body.appendChild(input)
-  input.addEventListener('change', () => {
-    const file = input.files?.[0]
-    input.remove()
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => store.setVideo(reader.result as string, file.name)
-    reader.readAsDataURL(file)
-  })
-  input.click()
-}
+/**
+ * Bilibili embed URL — built once at module scope so we don't
+ * recompute on every render. Query params:
+ *   • `page=1`         — first segment (only one in this video)
+ *   • `high_quality=1` — request the highest available stream
+ *   • `danmaku=0`      — hide the floating-comment overlay in class
+ *   • `autoplay=0`     — never autoplay, teachers press play manually
+ */
+const BVID = 'BV1VjVc6tEhK'
+const videoEmbedUrl =
+  `https://player.bilibili.com/player.html?bvid=${BVID}` +
+  `&page=1&high_quality=1&danmaku=0&autoplay=0`
 
 function saveAndNext() {
   slideStore.navigateToNextPart()
@@ -48,37 +61,30 @@ function saveAndNext() {
 
       <!-- Slide preview with global theme background -->
       <div class="p5-slide-preview" :style="slideStyle">
-        <div class="p5-slide-title">Making Example</div>
+        <div class="p5-slide-title">{{ t('part5.slideTitle') }}</div>
 
-        <!-- Video area -->
+        <!-- Bilibili embed (replaces the former local-upload UI) -->
         <div class="p5-video-area">
-          <video
-            v-if="store.videoDataUrl"
-            :src="store.videoDataUrl"
-            class="p5-video"
-            controls
+          <iframe
+            class="p5-video-frame"
+            :src="videoEmbedUrl"
+            :title="t('part5.slideTitle')"
+            scrolling="no"
+            frameborder="0"
+            framespacing="0"
+            allowfullscreen
+            allow="autoplay; fullscreen; encrypted-media"
+            referrerpolicy="no-referrer"
+            loading="lazy"
           />
-          <div v-else class="p5-video-placeholder" @click="openVideoPicker">
-            <svg viewBox="0 0 48 48" fill="none" class="p5-upload-icon">
-              <rect x="4" y="10" width="30" height="22" rx="3" stroke="#9ca3af" stroke-width="2"/>
-              <path d="M34 18l10-5v18l-10-5V18z" stroke="#9ca3af" stroke-width="2" stroke-linejoin="round"/>
-            </svg>
-            <p class="p5-video-placeholder-label">Click to upload instruction video</p>
-          </div>
         </div>
-      </div>
-
-      <!-- Re-upload button below slide when video is present -->
-      <div v-if="store.videoDataUrl" class="p5-reupload-row">
-        <span class="p5-video-name">{{ store.videoName }}</span>
-        <button class="p5-reupload-btn" @click="openVideoPicker">Replace video</button>
       </div>
 
     </div>
 
     <div class="p5-footer">
-      <button class="p5-save-plain-btn" @click="() => {}">Save</button>
-      <button class="p5-save-btn" @click="saveAndNext">Save &amp; Next</button>
+      <button class="p5-save-plain-btn" @click="() => {}">{{ t('content.save') }}</button>
+      <button class="p5-save-btn" @click="saveAndNext">{{ t('content.saveNext') }}</button>
     </div>
   </section>
 </template>
@@ -133,74 +139,16 @@ function saveAndNext() {
   flex: 1;
   border-radius: 10px;
   overflow: hidden;
-  background: rgba(0,0,0,0.08);
+  background: #000;
   min-height: 0;
 }
 
-.p5-video {
+.p5-video-frame {
   width: 100%;
   height: 100%;
-  object-fit: contain;
   display: block;
-  background: #000;
+  border: 0;
 }
-
-.p5-video-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  cursor: pointer;
-  border: 2px dashed #d1d5db;
-  border-radius: 10px;
-  box-sizing: border-box;
-  min-height: 120px;
-}
-
-.p5-video-placeholder:hover { border-color: #7FEC8F; }
-
-.p5-upload-icon { width: 48px; height: 48px; }
-
-.p5-video-placeholder-label {
-  font-size: 13px;
-  color: #9ca3af;
-  margin: 0;
-}
-
-.p5-reupload-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: 760px;
-  width: 100%;
-}
-
-.p5-video-name {
-  font-size: 13px;
-  color: #6b7280;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.p5-reupload-btn {
-  height: 32px;
-  padding: 0 16px;
-  background: #e6e6e6;
-  border: none;
-  border-radius: 999px;
-  font-size: 13px;
-  font-family: inherit;
-  color: #374151;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.p5-reupload-btn:hover { background: #d8d8d8; }
 
 .p5-footer {
   padding: 16px 32px;
