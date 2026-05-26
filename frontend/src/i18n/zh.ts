@@ -15,8 +15,8 @@ export default {
       closeAria: '关闭访问弹窗',
     },
     hero: {
-      titleArt: 'Art',
-      titleBloom: 'Bloom',
+      titleArt: '艺',
+      titleBloom: '芽',
       description:
         '面向小学美术课堂的 AI 教学工作流，帮助老师在备课、授课、创作引导和反馈之间顺畅切换。',
       captionTopRight: '从教材出发，构建故事与互动。',

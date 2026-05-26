@@ -34,3 +34,11 @@
     font-display: swap;
     src: url('./fonts/WaitingfortheSunrise-Regular.ttf') format('truetype');
 }
+
+@font-face {
+    font-family: 'Chill K Sans';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url('./fonts/寒蝉宽黑体(Chill K Sans).otf') format('opentype');
+}

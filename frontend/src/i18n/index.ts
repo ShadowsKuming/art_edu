@@ -2,7 +2,7 @@ import { createI18n } from 'vue-i18n'
 import en from './en'
 import zh from './zh'
 
-const saved = localStorage.getItem('artbloom-locale') ?? 'en'
+const saved = localStorage.getItem('artbloom-locale') ?? 'zh'
 
 export const i18n = createI18n({
   legacy: false,

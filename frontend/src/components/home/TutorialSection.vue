@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import SectionHeading from './SectionHeading.vue'
 import TutorialCard from './TutorialCard.vue'
 import bannerUrl from '@/assets/images/tutorial-banner.png'
-import logoMarkUrl from '@/assets/images/logo-mark.png'
 import step1 from '@/assets/images/tutorial-step-1.png'
 import step2 from '@/assets/images/tutorial-step-2.png'
 import step3 from '@/assets/images/tutorial-step-3.png'
@@ -27,22 +26,6 @@ const steps = computed(() => {
     title: copy[i]?.title ?? '',
     body: copy[i]?.body ?? '',
   }))
-})
-
-/**
- * Renders the intro paragraph with `home.tutorial.introBold` portion in semibold.
- * Splits the i18n string the first time the bold token appears and reassembles it.
- */
-const introParts = computed(() => {
-  const full = t('home.tutorial.intro')
-  const bold = t('home.tutorial.introBold')
-  const idx = full.indexOf(bold)
-  if (idx === -1) return { before: full, bold: '', after: '' }
-  return {
-    before: full.slice(0, idx),
-    bold,
-    after: full.slice(idx + bold.length),
-  }
 })
 </script>
 
@@ -78,19 +61,6 @@ const introParts = computed(() => {
         </ol>
       </div>
 
-      <!-- Footer: small logo on the left, intro paragraph on the right -->
-      <div class="tutorial__footer">
-        <img
-          :src="logoMarkUrl"
-          alt="ArtBloom"
-          class="tutorial__logo-mark"
-        />
-        <p class="tutorial__intro">
-          <span>{{ introParts.before }}</span>
-          <strong v-if="introParts.bold">{{ introParts.bold }}</strong>
-          <span>{{ introParts.after }}</span>
-        </p>
-      </div>
     </div>
   </section>
 </template>
@@ -158,33 +128,6 @@ const introParts = computed(() => {
 
 .tutorial__cards-item > * {
   width: 100%;
-}
-
-.tutorial__footer {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  flex-wrap: wrap;
-}
-
-.tutorial__logo-mark {
-  height: 72px;
-  width: auto;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
-.tutorial__intro {
-  flex: 1;
-  min-width: 320px;
-  font-size: var(--fs-body);
-  line-height: 1.4;
-  color: var(--color-text-soft);
-}
-
-.tutorial__intro strong {
-  font-weight: 600;
-  color: var(--color-text-strong);
 }
 
 @media (max-width: 1200px) {

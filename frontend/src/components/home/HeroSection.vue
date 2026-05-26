@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import HeroPhotoCollage from './HeroPhotoCollage.vue'
 import heroMain from '@/assets/images/hero-main.png'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+const isZh = computed(() => locale.value === 'zh')
 </script>
+
 
 <template>
   <section id="home" class="hero" :aria-label="t('home.nav.home')">
@@ -17,7 +21,7 @@ const { t } = useI18n()
             :alt="t('home.hero.mainImageAlt')"
             class="hero__art"
           />
-          <h1 class="hero__title">
+          <h1 class="hero__title" :class="{ 'hero__title--zh': isZh }">
             <span class="hero__title-line">{{ t('home.hero.titleArt') }}</span>
             <span class="hero__title-line hero__title-line--light">
               {{ t('home.hero.titleBloom') }}
@@ -108,6 +112,23 @@ const { t } = useI18n()
 
 .hero__title-line--light {
   font-weight: 300;
+}
+
+/* Chinese wordmark — use the Chill K Sans font while keeping the same
+   visual size as the English version. Chinese glyphs have slightly less
+   inherent height than Latin caps, so we nudge the font-size up to match
+   the English wordmark's cap-height/x-height optical size. */
+.hero__title--zh {
+  font-family: 'Chill K Sans', var(--font-display);
+  letter-spacing: 0;
+}
+
+.hero__title--zh .hero__title-line {
+  font-weight: 700;
+}
+
+.hero__title--zh .hero__title-line--light {
+  font-weight: 400;
 }
 
 .hero__description {
