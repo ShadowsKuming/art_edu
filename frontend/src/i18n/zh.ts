@@ -174,7 +174,7 @@ export default {
       },
       community: {
         title: '课件社区',
-        description: '浏览社区共享的幻灯片课件，将有用的课程加入到你的教学流程中。',
+        description: '浏览社区共享的幻灯片课件，将有用的课件加入到你的教学流程中。',
       },
       startTeaching: {
         title: '开始上课',
