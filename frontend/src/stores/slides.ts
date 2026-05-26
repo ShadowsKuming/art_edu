@@ -279,6 +279,15 @@ export const useSlideStore = defineStore('slides', () => {
   function navigateToPart(partId: number) {
     if (partId >= 1 && partId <= maxUnlockedPart.value) {
       activePart.value = partId
+      // Auto-select the first slide of the destination part so the
+      // canvas always reflects the part the user just jumped to,
+      // rather than lingering on a slide that belongs to the
+      // previous part. If the part is empty (e.g. Part 3 before any
+      // artwork has been picked), clear the active slide instead so
+      // downstream components fall back to their empty state.
+      const first = slides.value.find(s => s.partId === partId)
+      activeSlideId.value = first?.id ?? null
+      selectedElementId.value = null
     }
   }
 

@@ -4,6 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { useProjectsStore } from '@/stores/projects'
 import { useSlideStore } from '@/stores/slides'
 import { useChatbotStore } from '@/stores/chatbot'
+// Bundled chatbot avatar (was `/LOGO.png` before — switched to the
+// purpose-built mascot art so the assistant has its own identity
+// distinct from the brand logo in the workspace header).
+import botAvatarUrl from '@/assets/images/avatar-artbloom.png'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
@@ -87,13 +91,11 @@ async function send(text?: string) {
       <span class="chatbot-title">{{ t('chatbot.title') }}</span>
     </div>
 
-    <!-- Bot identity -->
+    <!-- Bot identity. The bot name + subtitle were folded into the
+         header copy itself ("Creative Assistant") — only the avatar
+         remains here as a visual anchor before the message list. -->
     <div class="bot-identity">
-      <img src="/LOGO.png" :alt="t('brand.name')" class="bot-avatar" />
-      <div class="bot-info">
-        <span class="bot-name">{{ t('brand.name') }}</span>
-        <span class="bot-subtitle">{{ t('chatbot.subtitle') }}</span>
-      </div>
+      <img :src="botAvatarUrl" :alt="t('brand.name')" class="bot-avatar" />
     </div>
 
     <!-- Messages -->
@@ -191,23 +193,6 @@ async function send(text?: string) {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-}
-
-.bot-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.bot-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.bot-subtitle {
-  font-size: 12px;
-  color: #9ca3af;
 }
 
 /* Messages */

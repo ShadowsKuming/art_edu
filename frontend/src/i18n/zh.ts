@@ -356,7 +356,10 @@ export default {
     },
   },
   chatbot: {
-    title: '助手',
+    title: '创意助手',
+    // `subtitle` is no longer rendered in the workspace chatbot
+    // header (the title itself is now "创意助手"). Key kept for
+    // forward compatibility with any future surface.
     subtitle: '创意助手',
     greeting: '你好，我是 艺芽！有任何关于幻灯片设计的问题都可以问我，例如：',
     suggestions: [

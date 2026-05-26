@@ -359,7 +359,10 @@ export default {
     },
   },
   chatbot: {
-    title: 'Assistance',
+    title: 'Creative Assistant',
+    // `subtitle` is no longer rendered in WorkspaceChatbot (the title
+    // itself is now "Creative Assistant"), but the key is kept so any
+    // future surface that needs a secondary line still has a string.
     subtitle: 'Creative Assistant',
     greeting: 'Hi, I am ArtBloom! Ask me anything about the slide design. For example:',
     suggestions: [

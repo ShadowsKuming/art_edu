@@ -5,6 +5,10 @@ import { usePart5Store } from '@/stores/part5'
 import { useProjectsStore } from '@/stores/projects'
 import { useI18n } from 'vue-i18n'
 import { toggleLocale } from '@/i18n'
+// Bundled brand mark — keeps the workspace header consistent with
+// SiteHeader / DashboardHeader, which both import their logos through
+// Vite's hashed-asset pipeline rather than referencing /public.
+import logoMarkUrl from '@/assets/images/logo-mark.png'
 
 defineProps<{
   canStartTeaching?: boolean
@@ -30,7 +34,7 @@ function goBack() {
   <header class="header">
     <div class="header-inner">
       <div class="header-logo">
-        <img src="/LOGO.png" :alt="t('brand.name')" class="logo" />
+        <img :src="logoMarkUrl" :alt="t('brand.name')" class="logo" />
       </div>
 
       <div class="header-actions">
