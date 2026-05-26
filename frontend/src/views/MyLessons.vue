@@ -51,6 +51,11 @@ function cancelCreate() {
 }
 
 // ── Open / Resume ─────────────────────────────────────────────────────────────
+// ── Navigation ────────────────────────────────────────────────────────────────
+function backToDashboard() {
+  router.push('/dashboard')
+}
+
 function resumeProject(id: string) {
   const project = projectsStore.projects.find(p => p.id === id)
   if (!project) return
@@ -134,6 +139,15 @@ function statusLabel(status?: string) {
 
     <!-- Page body -->
     <main class="dash-main">
+
+      <!-- Back link (mirrors Community.vue's back affordance) -->
+      <button class="dash-back" type="button" @click="backToDashboard">
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M12 4l-6 6 6 6" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        {{ t('community.backToDashboard') }}
+      </button>
 
       <!-- Title row -->
       <div class="title-row">
@@ -266,10 +280,6 @@ function statusLabel(status?: string) {
               <svg viewBox="0 0 16 16" fill="none"><path d="M2 2.5l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 2.5l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               {{ t('dashboard.actions.edit') }}
             </button>
-            <button class="action-btn">
-              <svg viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/></svg>
-              {{ t('dashboard.actions.preview') }}
-            </button>
             <button class="action-btn action-btn--green" @click="resumeProject(project.id)">
               <svg viewBox="0 0 16 16" fill="none"><path d="M4 3l9 5-9 5V3z" fill="currentColor"/></svg>
               {{ t('dashboard.actions.startTeaching') }}
@@ -327,6 +337,32 @@ function statusLabel(status?: string) {
 }
 
 /* Header lives in <DashboardHeader> — its styles are scoped there. */
+
+/* ── Back link (mirrors Community.vue's `.community__back`). ── */
+.dash-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  margin-bottom: 16px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text, #111827);
+  cursor: pointer;
+}
+
+.dash-back svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dash-back:hover {
+  color: var(--color-primary, #7FEC8F);
+}
 
 /* ── Main ── */
 .dash-main {

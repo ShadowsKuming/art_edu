@@ -37,7 +37,9 @@ import { useToastStore } from '@/stores/toast'
 import type { Slide } from '@/stores/slides'
 
 import underlineUrl from '@/assets/images/Underline.svg'
-import dashboardHeroUrl from '@/assets/images/dashboard-hero.png'
+// Community page uses its own hero illustration — distinct from the
+// Dashboard hub's `dashboard-hero.png`.
+import communityHeroUrl from '@/assets/images/community-hero.png'
 
 const router = useRouter()
 const { t, locale } = useI18n()
@@ -240,7 +242,7 @@ function backToDashboard() {
                     </h1>
                     <p class="community__subtitle">{{ t('community.subtitle') }}</p>
                 </div>
-                <img :src="dashboardHeroUrl" :alt="t('community.heroAlt')"
+                <img :src="communityHeroUrl" :alt="t('community.heroAlt')"
                     class="community__hero" />
             </section>
 
