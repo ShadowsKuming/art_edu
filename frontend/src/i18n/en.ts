@@ -364,6 +364,23 @@ export default {
       ttsNatural: 'Natural',
       aiSuggestionsTitle: 'AI Sound Suggestions',
     },
+    // Right-side panel that lets the teacher iterate on the
+    // generated animation. Title intentionally reuses
+    // `chatbot.title` ("Creative Assistant") for brand consistency,
+    // so only the body / chips / placeholders live here.
+    animationPanel: {
+      greeting: 'Each image has three chances to generate an animation. Click Generate Animation to create the first version, or enter custom instructions below.',
+      suggestionsLabel: 'Would you like to modify and regenerate? For example:',
+      suggestions: [
+        'Make the atmosphere of the animation more cheerful',
+        'Add changes in light and shadow',
+        'Zoom in for a close-up of the main subject',
+      ],
+      acknowledge: 'Got it! Generating a new animation with your adjustments: "{prompt}". This may take a minute…',
+      generating: 'Generating animation…',
+      noAttempts: 'No animation attempts remaining for this image.',
+      inputPlaceholder: 'Enter any animation content you would like to adjust…',
+    },
   },
   chatbot: {
     title: 'Creative Assistant',

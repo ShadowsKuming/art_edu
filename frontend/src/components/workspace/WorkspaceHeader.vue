@@ -26,7 +26,11 @@ function goBack() {
     part5Store.videoDataUrl ?? undefined,
     part5Store.videoName || undefined,
   )
-  router.push('/dashboard')
+  // Back from the workspace should return to "My Lessons" (where the
+  // teacher most recently launched this deck from) rather than the
+  // top-level Dashboard hub — pilot feedback flagged the previous
+  // hop as disorienting after a long editing session.
+  router.push('/lessons')
 }
 </script>
 

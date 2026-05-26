@@ -1,9 +1,25 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+/**
+ * Part 3 — Animation Assistant panel (right column).
+ *
+ * Rebrand 2026-05: title now reuses `chatbot.title` ("Creative
+ * Assistant" / "创意助手") to stay coherent with the global workspace
+ * chatbot, and the avatar shows the bundled mascot PNG instead of the
+ * old inline SVG. The bot-name / bot-role lines were removed per
+ * pilot feedback (redundant given the panel title above).
+ *
+ * All copy now flows through vue-i18n; the seeded greeting is
+ * re-rendered when the user toggles the locale so a half-finished
+ * conversation gets a fresh assistant turn in the new language
+ * (without dropping the user's own messages).
+ */
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePart3Store } from '@/stores/part3'
+// Mascot avatar — same asset already in use across the app.
+import botAvatarUrl from '@/assets/images/avatar-artbloom.png'
 
-const { t } = useI18n()
+const { t, tm, rt, locale } = useI18n()
 
 interface Message {
   role: 'assistant' | 'user'
@@ -13,18 +29,37 @@ interface Message {
 const store     = usePart3Store()
 const inputText = ref('')
 
-const suggestions = [
-  'Make the atmosphere of the animation more cheerful',
-  'Add changes in light and shadow',
-  'Zoom in for a close-up of the main subject',
-]
+/**
+ * Suggestion chips — re-computed from the active locale so toggling
+ * EN ↔ 中文 updates the chip labels live. `tm` returns the raw array;
+ * `rt` resolves each entry into the locale string.
+ */
+const suggestions = computed<string[]>(() => {
+  const raw = tm('part3.animationPanel.suggestions') as unknown[]
+  return Array.isArray(raw) ? raw.map((entry) => rt(entry as string)) : []
+})
 
 const messages = ref<Message[]>([
   {
     role: 'assistant',
-    text: 'Each image has three chances to generate an animation. Click Generate Animation to create the first version, or enter custom instructions below.',
+    text: t('part3.animationPanel.greeting'),
   },
 ])
+
+/**
+ * When the locale flips, refresh the *seeded* assistant greeting so
+ * the very first turn always matches the current language. We don't
+ * touch user-authored turns or later assistant ack lines — those
+ * remain in whatever language they were generated in.
+ */
+watch(locale, () => {
+  if (messages.value.length > 0 && messages.value[0].role === 'assistant') {
+    messages.value[0] = {
+      role: 'assistant',
+      text: t('part3.animationPanel.greeting'),
+    }
+  }
+})
 
 function applySuggestion(s: string) {
   inputText.value = s
@@ -38,7 +73,7 @@ async function send() {
 
   messages.value.push({
     role: 'assistant',
-    text: `Got it! Generating a new animation with your adjustments: "${text}". This may take a minute…`,
+    text: t('part3.animationPanel.acknowledge', { prompt: text }),
   })
 
   await store.generateAnimation(text)
@@ -53,22 +88,18 @@ function onKeydown(e: KeyboardEvent) {
   <div class="ap-panel">
 
     <div class="ap-header">
-      <h2 class="ap-title">Animation Assistant</h2>
+      <!-- Title reuses the workspace chatbot key so both panels read
+           "Creative Assistant" / "创意助手" in lock-step. -->
+      <h2 class="ap-title">{{ t('chatbot.title') }}</h2>
     </div>
 
     <div class="ap-body">
-      <!-- Identity -->
+      <!-- Identity: just the mascot avatar now. Bot name & role
+           lines were dropped — the panel header above already
+           establishes "Creative Assistant" branding. -->
       <div class="ap-identity">
         <div class="ap-avatar">
-          <svg viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="16" fill="#7FEC8F"/>
-            <path d="M10 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-            <circle cx="16" cy="11" r="3" fill="#000"/>
-          </svg>
-        </div>
-        <div>
-          <p class="ap-bot-name">{{ t('brand.name') }}</p>
-          <p class="ap-bot-role">Creative Assistant</p>
+          <img :src="botAvatarUrl" :alt="t('brand.name')" />
         </div>
       </div>
 
@@ -84,18 +115,18 @@ function onKeydown(e: KeyboardEvent) {
 
       <!-- Remaining attempts notice -->
       <div v-if="store.remainingAttempts <= 0" class="ap-notice">
-        No animation attempts remaining for this image.
+        {{ t('part3.animationPanel.noAttempts') }}
       </div>
 
       <!-- Loading indicator -->
       <div v-if="store.animationLoading" class="ap-generating">
         <div class="ap-spinner" />
-        <span>Generating animation…</span>
+        <span>{{ t('part3.animationPanel.generating') }}</span>
       </div>
 
       <!-- Suggestion chips (show when there are attempts left) -->
       <div v-if="store.remainingAttempts > 0 && !store.animationLoading" class="ap-suggestions">
-        <p class="ap-suggest-label">Would you like to modify and regenerate? For example:</p>
+        <p class="ap-suggest-label">{{ t('part3.animationPanel.suggestionsLabel') }}</p>
         <div class="ap-chips">
           <button
             v-for="s in suggestions"
@@ -114,7 +145,7 @@ function onKeydown(e: KeyboardEvent) {
       <textarea
         v-model="inputText"
         class="ap-input"
-        placeholder="Enter any animation content you would like to adjust......"
+        :placeholder="t('part3.animationPanel.inputPlaceholder')"
         rows="3"
         :disabled="store.remainingAttempts <= 0 || store.animationLoading"
         @keydown="onKeydown"
@@ -169,12 +200,15 @@ function onKeydown(e: KeyboardEvent) {
   overflow: hidden;
   flex-shrink: 0;
   border: 2px solid #7FEC8F;
+  background: #fff;
 }
 
-.ap-avatar svg { width: 40px; height: 40px; display: block; }
-
-.ap-bot-name  { margin: 0; font-size: 14px; font-weight: 700; color: #111827; }
-.ap-bot-role  { margin: 0; font-size: 12px; color: #6b7280; }
+.ap-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 
 .ap-assistant-msg { display: flex; flex-direction: column; gap: 8px; }
 

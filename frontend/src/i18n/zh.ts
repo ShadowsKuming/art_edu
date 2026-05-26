@@ -358,6 +358,22 @@ export default {
       ttsNatural: '自然',
       aiSuggestionsTitle: 'AI 音效建议',
     },
+    // 第三部分右侧动画助手面板。标题复用
+    // `chatbot.title`（创意助手）以保持品牌一致，所以这里只放
+    // 问候语、建议词条与输入区文案。
+    animationPanel: {
+      greeting: '每张图片有 3 次生成动画的机会。点击「生成动画」可创建第一个版本，或在下方输入自定义指令。',
+      suggestionsLabel: '想要修改并重新生成吗？例如：',
+      suggestions: [
+        '让动画整体氛围更明亮欢快',
+        '增加光影变化',
+        '推近主体特写',
+      ],
+      acknowledge: '收到！正在根据你的调整生成新动画：「{prompt}」，可能需要一分钟…',
+      generating: '正在生成动画…',
+      noAttempts: '该图片已用完所有动画生成次数。',
+      inputPlaceholder: '请输入想要调整的动画内容…',
+    },
   },
   chatbot: {
     title: '创意助手',

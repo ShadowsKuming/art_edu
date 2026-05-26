@@ -141,9 +141,12 @@ async function generate() {
 
             <!-- Right: feedback for the selected work -->
             <section class="p7-right">
-                <div v-if="!store.activeWork" class="p7-placeholder">
-                    <p>{{ t('part7.selectWork') }}</p>
-                </div>
+                <!-- Placeholder text removed per pilot feedback —
+                     the left column already prompts the teacher to
+                     upload / pick a work, so the duplicate hint here
+                     felt noisy. The wrapper div is kept so the right
+                     column still reserves layout before a selection. -->
+                <div v-if="!store.activeWork" class="p7-placeholder" />
 
                 <template v-else>
                     <div class="p7-work-preview">

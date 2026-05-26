@@ -144,6 +144,22 @@ function onLessonSelect(payload: {
         <main class="dashboard__main">
             <section class="dashboard__intro">
                 <div class="dashboard__title-block">
+                    <!-- Back button — pilot feedback wanted a quick
+                         escape hatch from the dashboard hub back to
+                         the public homepage. Reuses `nav.back` so the
+                         label auto-translates with the locale toggle. -->
+                    <button
+                        type="button"
+                        class="dashboard__back"
+                        :aria-label="t('nav.back')"
+                        @click="router.push('/')"
+                    >
+                        <svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true">
+                            <path d="M12 4l-6 6 6 6" stroke="currentColor" stroke-width="2"
+                                  stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        {{ t('nav.back') }}
+                    </button>
                     <h1 class="dashboard__title">
                         {{ t('dashboardHub.title') }}
                         <img :src="underlineUrl" alt="" aria-hidden="true" class="dashboard__title-underline" />
@@ -201,6 +217,35 @@ function onLessonSelect(payload: {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
+}
+
+/* Back-to-homepage pill — sits above the dashboard title, same
+   visual language as the back buttons used in MyLessons / Community
+   (pill, transparent default, soft-green hover). */
+.dashboard__back {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1.5px solid #111827;
+    background: #fff;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    color: #111827;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.dashboard__back:hover {
+    background: #B2F4BC;
+    border-color: transparent;
+}
+
+.dashboard__back svg {
+    flex-shrink: 0;
 }
 
 .dashboard__title {
