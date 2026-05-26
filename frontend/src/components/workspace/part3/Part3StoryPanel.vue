@@ -162,10 +162,12 @@ onUnmounted(_cleanupAudio)
       <p>{{ store.storyError }}</p>
     </div>
 
-    <!-- Empty state -->
-    <div v-else-if="!store.storyData" class="sp-empty">
-      <p>{{ t('part3.storyPanel.uploadHint') }}</p>
-    </div>
+    <!-- Empty state — intentionally blank. Per pilot feedback the
+         "Upload an artwork…" hint duplicated the canvas placeholder
+         and cluttered the panel. The container is kept so the
+         flex column still reserves the right side of the layout
+         before the story payload arrives. -->
+    <div v-else-if="!store.storyData" class="sp-empty" />
 
     <!-- Story Preview tab -->
     <div v-else-if="activeTab === 'story'" class="sp-body">

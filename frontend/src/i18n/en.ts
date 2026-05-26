@@ -310,7 +310,11 @@ export default {
   part3: {
     emptyState: 'Click + in the sidebar to add your first artwork',
     uploadLabel: 'Click to upload artwork image',
-    uploadOrPick: 'Click to upload — or pick a curated artwork above',
+    // Canvas placeholder when the user has not yet picked an
+    // artwork. Copy was reworded to point at the *left sidebar*
+    // (where the curated thumbnails live) rather than "above",
+    // which was misleading after the layout settled.
+    uploadOrPick: 'Pick a textbook illustration from the left to generate its story and animation',
     pickArtworkLabel: 'Curated artworks for this lesson',
     loadingArtwork: 'Loading artwork…',
     replaceImage: 'Replace image',
@@ -332,7 +336,10 @@ export default {
       designRationale: 'Design Rationale',
       soundDesign: 'Sound Design',
       generatingStory: 'Generating story from your artwork…',
-      uploadHint: 'Upload an artwork image and click Generate Story to begin.',
+      // Kept as an empty string so any caller binding to this key
+      // still resolves (no missing-key warnings), but the empty
+      // state in Part3StoryPanel no longer renders a hint line.
+      uploadHint: '',
       part1Title: 'Part 1: First Half of the Story',
       part2Title: 'Part 2: Interactive Choices',
       choicesHint: 'Please choose how you would like the story to continue:',

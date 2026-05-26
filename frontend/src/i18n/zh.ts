@@ -307,7 +307,9 @@ export default {
   part3: {
     emptyState: '点击侧边栏的 + 添加第一张作品',
     uploadLabel: '点击上传作品图片',
-    uploadOrPick: '点击上传，或在上方选择本课的推荐画作',
+    // 画布占位文案 — 教师尚未选择画作时显示。文案改为指向
+    // 左侧画作缩略图列表（原文 "在上方" 在最终布局下已不准确）。
+    uploadOrPick: '请从左侧选择你想生成故事和动画的课本插图',
     pickArtworkLabel: '本课推荐画作',
     loadingArtwork: '正在加载画作…',
     replaceImage: '更换图片',
@@ -329,7 +331,9 @@ export default {
       designRationale: '设计理念',
       soundDesign: '音效设计',
       generatingStory: '正在根据作品生成故事…',
-      uploadHint: '上传作品图片并点击「生成故事」开始。',
+      // 占位提示已隐藏；保留 key 以避免遗留组件触发 missing-key
+      // 警告，但 Part3StoryPanel 的空状态不再渲染该行文字。
+      uploadHint: '',
       part1Title: '第一部分：故事前半段',
       part2Title: '第二部分：互动选项',
       choicesHint: '请选择故事的走向：',

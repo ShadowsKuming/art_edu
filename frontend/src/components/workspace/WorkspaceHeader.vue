@@ -40,7 +40,9 @@ function goBack() {
       <div class="header-actions">
         <button class="btn-lang" @click="toggleLocale">{{ locale === 'en' ? '中文' : 'EN' }}</button>
         <button class="btn-outline" @click="goBack">{{ t('nav.back') }}</button>
-        <button class="btn-outline">{{ t('nav.previewLesson') }}</button>
+        <!-- Preview Lesson removed per pilot feedback — the action
+             was non-functional and crowded the header. Re-introduce
+             once a presenter / preview surface ships. -->
         <button
           class="btn-filled"
           :class="canStartTeaching ? 'btn-filled--active' : 'btn-filled--disabled'"
