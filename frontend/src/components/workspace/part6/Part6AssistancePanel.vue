@@ -122,9 +122,9 @@ function onKeydown(e: KeyboardEvent) {
     </div>
 
     <div class="ap-identity">
-      <img src="/LOGO.png" alt="ArtBloom" class="ap-avatar" />
+      <img src="/LOGO.png" :alt="t('brand.name')" class="ap-avatar" />
       <div class="ap-bot-info">
-        <span class="ap-bot-name">ArtBloom</span>
+        <span class="ap-bot-name">{{ t('brand.name') }}</span>
         <span class="ap-bot-role">{{ t('chatbot.subtitle') }}</span>
       </div>
     </div>

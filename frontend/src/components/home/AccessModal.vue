@@ -106,7 +106,7 @@ function onSubmit() {
       </svg>
     </button>
 
-    <img :src="logoUrl" alt="ArtBloom" class="access-modal__logo" />
+    <img :src="logoUrl" :alt="t('brand.name')" class="access-modal__logo" />
 
     <h2 id="access-modal-title" class="access-modal__title">
       {{ t('home.access.title') }}

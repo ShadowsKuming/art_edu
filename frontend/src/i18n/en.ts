@@ -1,5 +1,8 @@
 export default {
   lang: 'EN',
+  brand: {
+    name: 'ArtBloom',
+  },
   home: {
     nav: {
       home: 'Home',
@@ -134,6 +137,7 @@ export default {
       saved: 'Saved',
       unitLessonShort: 'Unit {unit} • Lesson {lesson}',
     },
+    team: 'ArtBloom Team',
     preview: {
       title: 'Lesson Preview',
       slideOf: 'Part {part} · Slide {n}',

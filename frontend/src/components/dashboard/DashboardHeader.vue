@@ -88,7 +88,7 @@ function onUserClick() {
         <div class="db-header__inner">
             <button type="button" class="db-header__logo" :aria-label="t('dashboardHub.dashboardAriaLabel')"
                 @click="onLogoClick">
-                <img :src="logoUrl" alt="ArtBloom" class="db-header__logo-img" />
+                <img :src="logoUrl" :alt="t('brand.name')" class="db-header__logo-img" />
             </button>
 
             <div class="db-header__actions">

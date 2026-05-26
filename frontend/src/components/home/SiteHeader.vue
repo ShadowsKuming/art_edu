@@ -90,7 +90,7 @@ function onAccessSubmit(code: string) {
         :aria-label="t('home.nav.home')"
         @click="goHome"
       >
-        <img :src="logoUrl" alt="ArtBloom" class="site-header__logo-img" />
+        <img :src="logoUrl" :alt="t('brand.name')" class="site-header__logo-img" />
       </button>
 
       <nav class="site-header__nav" :aria-label="t('home.nav.home')">

@@ -114,17 +114,24 @@ const isZh = computed(() => locale.value === 'zh')
   font-weight: 300;
 }
 
-/* Chinese wordmark — use the Chill K Sans font while keeping the same
-   visual size as the English version. Chinese glyphs have slightly less
-   inherent height than Latin caps, so we nudge the font-size up to match
-   the English wordmark's cap-height/x-height optical size. */
+/* Chinese wordmark — use the Chill K Sans font, keep the same overall
+   visual size as the English version, but render the two characters
+   side-by-side ("艺 芽") instead of stacked. */
 .hero__title--zh {
   font-family: 'Chill K Sans', var(--font-display);
   letter-spacing: 0;
+  /* Override the column layout used by the English "Art / Bloom" wordmark
+     so the Chinese title reads horizontally. */
+  flex-direction: row;
+  align-items: center;
+  gap: clamp(var(--space-2), 1.2vw, var(--space-4));
 }
 
 .hero__title--zh .hero__title-line {
   font-weight: 700;
+  /* Reset the `display: block` from the English version so the spans
+     can flow as inline-level row children. */
+  display: inline-block;
 }
 
 .hero__title--zh .hero__title-line--light {

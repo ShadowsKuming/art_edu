@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { usePart3Store } from '@/stores/part3'
+
+const { t } = useI18n()
 
 interface Message {
   role: 'assistant' | 'user'
@@ -64,7 +67,7 @@ function onKeydown(e: KeyboardEvent) {
           </svg>
         </div>
         <div>
-          <p class="ap-bot-name">ArtBloom</p>
+          <p class="ap-bot-name">{{ t('brand.name') }}</p>
           <p class="ap-bot-role">Creative Assistant</p>
         </div>
       </div>

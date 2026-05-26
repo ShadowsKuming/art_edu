@@ -89,9 +89,9 @@ async function send(text?: string) {
 
     <!-- Bot identity -->
     <div class="bot-identity">
-      <img src="/LOGO.png" alt="ArtBloom" class="bot-avatar" />
+      <img src="/LOGO.png" :alt="t('brand.name')" class="bot-avatar" />
       <div class="bot-info">
-        <span class="bot-name">ArtBloom</span>
+        <span class="bot-name">{{ t('brand.name') }}</span>
         <span class="bot-subtitle">{{ t('chatbot.subtitle') }}</span>
       </div>
     </div>

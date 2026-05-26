@@ -201,7 +201,7 @@ const lessons = computed(() =>
             titleZh: seed.lesson_title_zh,
             unit,
             lesson,
-            author: 'ArtBloom Team',
+            author: t('community.team'),
             date: new Date().toISOString(),
             thumbnail: thumb,
         }

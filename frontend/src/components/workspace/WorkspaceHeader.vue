@@ -30,7 +30,7 @@ function goBack() {
   <header class="header">
     <div class="header-inner">
       <div class="header-logo">
-        <img src="/LOGO.png" alt="ArtBloom" class="logo" />
+        <img src="/LOGO.png" :alt="t('brand.name')" class="logo" />
       </div>
 
       <div class="header-actions">

@@ -1,5 +1,8 @@
 export default {
   lang: '中文',
+  brand: {
+    name: '艺芽',
+  },
   home: {
     nav: {
       home: '首页',
@@ -9,9 +12,9 @@ export default {
     },
     access: {
       title: '使用邀请码访问',
-      subtitle: '请使用研究团队提供的邀请码访问 ArtBloom',
+      subtitle: '请使用研究团队提供的邀请码访问 艺芽',
       placeholder: '输入邀请码',
-      submit: '进入 ArtBloom',
+      submit: '进入 艺芽',
       closeAria: '关闭访问弹窗',
     },
     hero: {
@@ -21,7 +24,7 @@ export default {
         '面向小学美术课堂的 AI 教学工作流，帮助老师在备课、授课、创作引导和反馈之间顺畅切换。',
       captionTopRight: '从教材出发，构建故事与互动。',
       captionBottomRight: '在创作过程中提供可视化的指导与反馈。',
-      mainImageAlt: 'ArtBloom 主视觉插画',
+      mainImageAlt: '艺芽 主视觉插画',
       photo1Alt: '老师在电脑上备课',
       photo2Alt: '孩子们在课堂上用蜡笔绘画',
       photo3Alt: '美术教室中的师生互动',
@@ -30,8 +33,8 @@ export default {
       title: '使用指南',
       subtitle: '从教材出发，按步骤搭建结构化的课堂幻灯片。',
       intro:
-        'ArtBloom 不是传统的幻灯片编辑器，而是围绕备课、课堂教学和课中辅助而设计的教学工作流系统。',
-      introBold: 'ArtBloom',
+        '艺芽 不是传统的幻灯片编辑器，而是围绕备课、课堂教学和课中辅助而设计的教学工作流系统。',
+      introBold: '艺芽',
       bannerAlt: '使用指南横幅',
       steps: [
         {
@@ -40,7 +43,7 @@ export default {
         },
         {
           title: 'AI 辅助创作',
-          body: '使用 ArtBloom 获得文本建议、故事生成、动画生成与页面级润色。',
+          body: '使用 艺芽 获得文本建议、故事生成、动画生成与页面级润色。',
         },
         {
           title: '构建结构化课件',
@@ -59,7 +62,7 @@ export default {
     contact: {
       title: '联系我们',
       subtitle:
-        '如果你对 ArtBloom 的使用、试点参与、研究合作或反馈有任何问题，欢迎与研究团队联系。',
+        '如果你对 艺芽 的使用、试点参与、研究合作或反馈有任何问题，欢迎与研究团队联系。',
       bannerAlt: '联系我们横幅',
       helpTitle: '我们能帮你什么',
       helpItems: [
@@ -131,6 +134,7 @@ export default {
       saved: '已收藏',
       unitLessonShort: '第{unit}单元 • 第{lesson}课',
     },
+    team: '艺芽团队',
     preview: {
       title: '课件预览',
       slideOf: '第 {part} 部分 · 第 {n} 张',
@@ -151,7 +155,7 @@ export default {
   dashboardHub: {
     title: '工作台',
     subtitle:
-      '欢迎使用 ArtBloom 工作台。在这里，你可以创建幻灯片课件、管理教学素材，并快速回到日常的备课与授课流程。',
+      '欢迎使用 艺芽 工作台。在这里，你可以创建幻灯片课件、管理教学素材，并快速回到日常的备课与授课流程。',
     greeting: '你好，{name}',
     homeAriaLabel: '返回首页',
     dashboardAriaLabel: 'Go to dashboard',
@@ -199,8 +203,8 @@ export default {
       label: '邀请码',
     },
     feedback: {
-      title: '帮助我们改进 ArtBloom',
-      body: '我们很想听到你对功能的体验和建议。你的反馈将塑造 ArtBloom 的下一个版本。',
+      title: '帮助我们改进 艺芽',
+      body: '我们很想听到你对功能的体验和建议。你的反馈将塑造 艺芽 的下一个版本。',
       send: '提交反馈',
     },
     quote: {
@@ -354,7 +358,7 @@ export default {
   chatbot: {
     title: '助手',
     subtitle: '创意助手',
-    greeting: '你好，我是 ArtBloom！有任何关于幻灯片设计的问题都可以问我，例如：',
+    greeting: '你好，我是 艺芽！有任何关于幻灯片设计的问题都可以问我，例如：',
     suggestions: [
       '这节课的学习目标是什么？',
       '这套幻灯片适合什么色调？',
@@ -390,7 +394,7 @@ export default {
     replace: '更换',
     step2Label: '第二步：选择一种风格，挖掘作品的潜力！',
     generatingStyles: '正在生成风格选项…',
-    stylesHint: '在聊天面板中介绍你的课程 → 风格选项将显示在此处。',
+    stylesHint: '在聊天面板中向 艺芽 介绍你的课程 → 风格选项将显示在此处。',
     convertBtn: '开始转换！',
     allUsed: '所有风格均已使用，上传新作品重试。',
     convertingOverlay: '转换中...',
@@ -398,7 +402,7 @@ export default {
     save: '保存',
     saveNext: '保存并继续',
     bot: {
-      greeting: '你好！我是 ArtBloom。请在第一步上传学生草稿，然后告诉我你的课程主题或学习目标——我将为你生成 3 个个性化的风格迁移方案。',
+      greeting: '你好！我是 艺芽。请在第一步上传学生草稿，然后告诉我你的课程主题或学习目标——我将为你生成 3 个个性化的风格迁移方案。',
       sketchUploaded: '草稿已上传！现在请描述你的课程背景，我将生成风格选项。例如："学生正在学习夸大动物绘画中的比例关系。"',
       stylesReady: '根据你的课程，这里有 3 个风格迁移方案：',
       stylesReadySuffix: '以下是 3 个推荐的风格方案：',
