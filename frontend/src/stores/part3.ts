@@ -605,10 +605,13 @@ export const usePart3Store = defineStore('part3', () => {
     if (pair.storyData?.part3) {
       pair.generatedContinuations = { 0: pair.storyData.part3 }
     }
-    // Reset choice selection so the panel's "click a path" hint
-    // reappears if the user wants to explore branches again with
-    // the revised storyline.
-    pair.selectedChoiceId = null
+    // 2026-05 fix: previously this set `selectedChoiceId = null` and
+    // the user had to manually click a branch on Story Preview to see
+    // the new part3 — defeating the whole "Apply" affordance. Now we
+    // pre-select choice 0 (the "main path") so Story Preview shows the
+    // new opening + the new part3 immediately. The teacher can still
+    // click a different branch if they want to explore alternatives.
+    pair.selectedChoiceId = 0
   }
 
   function removePair(id: string) {

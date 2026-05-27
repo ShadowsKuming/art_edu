@@ -4,6 +4,22 @@ import HomePage from '@/views/HomePage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  /**
+   * Smooth-scroll to in-page anchors whenever the route target includes
+   * a hash (e.g. `router.push({ path: '/', hash: '#contact' })` from
+   * MyAccount's "Send Feedback" button). Without this, `vue-router`
+   * just changes the URL bar — it never actually scrolls the new view
+   * to the matching `id`.
+   *
+   * `top: 88` accounts for the sticky `SiteHeader` (`--header-height`)
+   * on the marketing site so the anchored section doesn't slide under it.
+   */
+  scrollBehavior(to) {
+    if (to.hash) {
+      return { el: to.hash, behavior: 'smooth', top: 88 }
+    }
+    return { top: 0 }
+  },
   routes: [
     {
       path: '/',

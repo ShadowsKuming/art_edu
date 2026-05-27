@@ -21,6 +21,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import avatarUrl from '@/assets/images/avatar-default.png'
+import SlideThumbnail from '@/components/workspace/SlideThumbnail.vue'
+import type { Slide } from '@/stores/slides'
 
 interface Props {
     /** Stable id used in `emit('preview', id)` / `emit('save', id)`. */
@@ -32,8 +34,19 @@ interface Props {
     author: string
     /** ISO date string. */
     date: string
-    /** Optional thumbnail URL. Falls back to a flat grey block. */
+    /** Optional thumbnail URL. Used as a fallback when `previewSlide`
+     *  is not provided. Kept for backwards-compat with any external
+     *  caller that doesn't yet hydrate the LKP. */
     thumbnail?: string
+    /**
+     * Preferred thumbnail source — a fully hydrated `Slide` object
+     * (the lesson's Part-1 cover slide). When present, the card
+     * renders a live mini-preview of that slide via `<SlideThumbnail>`
+     * instead of the static `thumbnail` image. This makes the card
+     * reflect the actual opening slide a teacher will see when they
+     * open the deck, matching the My-Lessons row thumbnails.
+     */
+    previewSlide?: Slide
     /**
      * `true` when this lesson is already in the teacher's My Lessons
      * library (matched on `meta.lessonId`). The Save button switches
@@ -77,12 +90,18 @@ const subtitle = computed(() => {
 
 <template>
     <article class="lc">
-        <!-- Thumbnail. Background-image when provided, otherwise a flat
-             grey block matching the Figma placeholder rectangle. -->
+        <!-- Thumbnail. Three states, in priority order:
+             1. `previewSlide` provided   → render a live SlideThumbnail
+                of the actual Part-1 cover (preferred, matches My Lessons).
+             2. `thumbnail` URL provided  → background image (legacy path).
+             3. Neither                   → flat grey placeholder rectangle
+                matching the Figma stub. -->
         <div
             class="lc__thumb"
-            :style="thumbnail ? { backgroundImage: `url(${thumbnail})` } : {}"
-        />
+            :style="!previewSlide && thumbnail ? { backgroundImage: `url(${thumbnail})` } : {}"
+        >
+            <SlideThumbnail v-if="previewSlide" :slide="previewSlide" />
+        </div>
 
         <!-- Right-hand text + actions column -->
         <div class="lc__body">
@@ -158,18 +177,24 @@ const subtitle = computed(() => {
 
 <style scoped>
 /* ── Card frame ─────────────────────────────────────────────── */
+/* 2026-05: thumb column shrunk from 240px → 180px and the body
+   column is now `minmax(0, 1fr)` so the right side gets enough room
+   for the two action buttons (Preview / Save) at 13" laptop widths
+   without overflowing the card. The 240px thumb left only ~96px of
+   right-column space on a 400px card, which wasn't enough even for
+   two 12px-font buttons. */
 .lc {
     display: grid;
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: 180px minmax(0, 1fr);
     grid-template-rows: 1fr auto;
-    column-gap: var(--space-4);
+    column-gap: var(--space-3);
     row-gap: var(--space-4);
     padding: var(--space-4);
     background: #fff;
     border: 1px solid #d9d9d9;
     border-radius: 20px;
     box-shadow: var(--shadow-card-soft, 2px 4px 10px rgba(0, 0, 0, 0.08));
-    min-height: 230px;
+    min-height: 220px;
     box-sizing: border-box;
 }
 
@@ -183,6 +208,7 @@ const subtitle = computed(() => {
     background-size: cover;
     background-position: center;
     border-radius: 16px;
+    overflow: hidden;
 }
 
 /* ── Right-side body ────────────────────────────────────────── */
@@ -227,22 +253,37 @@ const subtitle = computed(() => {
 .lc__btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 14px;
+    justify-content: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 10px;
     border-radius: 5px;
     font-family: inherit;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 500;
     color: #464646;
     cursor: pointer;
     transition: filter 0.15s, background-color 0.15s;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    /* Keep the label on one horizontal line — on narrower cards
+       (e.g. 13" laptops) the Chinese characters were collapsing into
+       a vertical stack because the button was being squeezed below
+       its content width. `white-space: nowrap` plus `flex-shrink: 0`
+       force the label to lay out horizontally regardless of the
+       available card width.
+       2026-05: dropped font-size to 12px, height to 26px, padding to
+       10px, and min-width to 64px so two buttons + gap (≈ 138px)
+       comfortably fits inside the 1fr right-column on a 13" laptop
+       where the card width drops to ~360px and the right column
+       lands around ~108px (was overflowing the card). */
+    white-space: nowrap;
+    min-width: 64px;
+    flex-shrink: 0;
 }
 
 .lc__btn svg {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     flex-shrink: 0;
 }
 

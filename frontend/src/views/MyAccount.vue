@@ -32,7 +32,12 @@ import { getAvatar } from '@/data/avatars'
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue'
 import AvatarPickerPopover from '@/components/account/AvatarPickerPopover.vue'
 
-import decorUrl from '@/assets/images/account-decor.png'
+// 2026-05: the `account-decor.png` strip on the right of the page was
+// removed per design feedback — teachers said the cropped photo +
+// children's drawings made the profile area feel cluttered and
+// distracted from the form. We keep the import path-free so the
+// asset can be cleaned up in a later pass.
+// import decorUrl from '@/assets/images/account-decor.png'
 import quoteBannerUrl from '@/assets/images/quote-banner.png'
 import underlineUrl from '@/assets/images/Underline.svg'
 
@@ -90,18 +95,23 @@ function onBack() {
         <DashboardHeader />
 
         <main class="acc-main">
-            <button type="button" class="acc-back" @click="onBack">
-                <svg width="20" height="12" viewBox="0 0 20 12" fill="none" aria-hidden="true">
-                    <path d="M19 6H1M1 6L6 1M1 6l5 5" stroke="#000" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                </svg>
-                <span>{{ t('account.backToDashboard') }}</span>
-            </button>
+            <!-- Back link sits on its own row above the title; both
+                 are wrapped in a flex column so they never collapse
+                 onto the same baseline (2026-05 design feedback). -->
+            <div class="acc-header-stack">
+                <button type="button" class="acc-back" @click="onBack">
+                    <svg width="20" height="12" viewBox="0 0 20 12" fill="none" aria-hidden="true">
+                        <path d="M19 6H1M1 6L6 1M1 6l5 5" stroke="#000" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    <span>{{ t('account.backToDashboard') }}</span>
+                </button>
 
-            <header class="acc-title">
-                <h1 class="acc-title__text">{{ t('account.title') }}</h1>
-                <img :src="underlineUrl" alt="" class="acc-title__underline" aria-hidden="true" />
-            </header>
+                <header class="acc-title">
+                    <h1 class="acc-title__text">{{ t('account.title') }}</h1>
+                    <img :src="underlineUrl" alt="" class="acc-title__underline" aria-hidden="true" />
+                </header>
+            </div>
 
             <section class="acc-welcome">
                 <h2 class="acc-welcome__heading">
@@ -188,8 +198,10 @@ function onBack() {
             </figure>
         </main>
 
-        <!-- Decorative right-side strip — Figma image with white inner-shadow fade -->
-        <img :src="decorUrl" :alt="t('account.decorAlt')" class="acc-decor" />
+        <!-- 2026-05: the decorative right-side strip (`account-decor.png`)
+             was removed per design feedback — see comment at the import
+             site above. The reserved padding on `.acc-main` was reset to
+             a normal gutter so content can stretch full-width. -->
 
         <!-- Avatar picker popover -->
         <AvatarPickerPopover v-model:open="pickerOpen" />
@@ -204,36 +216,6 @@ function onBack() {
     overflow-x: hidden;
 }
 
-/* ── Decorative right-side image ────────────────────────────
-   Absolutely positioned so the page content can flow on top.
-   The Figma uses an inset 100px white shadow on the left edge
-   to fade the image into the page background — we match that
-   with a CSS gradient overlay since `box-shadow: inset` won't
-   show through an <img>. */
-
-.acc-decor {
-    position: absolute;
-    top: var(--header-height, 88px);
-    right: 0;
-    width: clamp(280px, 28vw, 544px);
-    max-height: calc(100vh - var(--header-height, 88px));
-    object-fit: cover;
-    object-position: center;
-    pointer-events: none;
-    user-select: none;
-    -webkit-user-drag: none;
-    /* Inset white fade on the left edge */
-    -webkit-mask-image: linear-gradient(to right,
-            transparent 0,
-            rgba(0, 0, 0, 0.3) 60px,
-            #000 150px);
-    mask-image: linear-gradient(to right,
-            transparent 0,
-            rgba(0, 0, 0, 0.3) 60px,
-            #000 150px);
-    z-index: 0;
-}
-
 /* ── Main content ──────────────────────────────────────────── */
 
 .acc-main {
@@ -241,9 +223,22 @@ function onBack() {
     z-index: 1;
     max-width: var(--content-max);
     margin: 0 auto;
-    /* Reserve space on the right for the decor image so content never
-       sits underneath it on wide viewports. */
-    padding: var(--space-5) calc(var(--gutter) + clamp(0px, 24vw, 480px)) var(--space-7) var(--gutter);
+    /* 2026-05: dropped the right-side decor image, so the previous
+       `padding-right: calc(gutter + 24vw)` reservation is no longer
+       needed. Now uses symmetric gutter padding for a balanced layout. */
+    padding: var(--space-5) var(--gutter) var(--space-7);
+}
+
+/* Stack the "← Back to dashboard" link above the "My Account"
+   title with a clear gap. Pre-2026-05 they were both inline-level
+   elements sitting on the same baseline, which made the back link
+   read as a left-side icon of the title rather than as nav. */
+.acc-header-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
 }
 
 /* ── Back link ─────────────────────────────────────────────── */
@@ -258,7 +253,6 @@ function onBack() {
     color: var(--color-text);
     font: 500 16px/20px var(--font-body, inherit);
     cursor: pointer;
-    margin-bottom: var(--space-3);
 }
 
 .acc-back:hover {
@@ -597,15 +591,6 @@ function onBack() {
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 }
 
-/* ── Hide decorative image on tablet/mobile ───────────────── */
-
-@media (max-width: 1100px) {
-    .acc-decor {
-        display: none;
-    }
-
-    .acc-main {
-        padding-right: var(--gutter);
-    }
-}
+/* (Decorative image was removed entirely — no responsive
+   adjustment needed any more.) */
 </style>

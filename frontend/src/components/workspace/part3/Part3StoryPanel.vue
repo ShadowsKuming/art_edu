@@ -62,6 +62,14 @@ function applyRevised(idx: number) {
   toastStore.show(t('part3.storyPanel.chatStoryUpdated'), 'success')
 }
 
+/** Jump to Story Preview tab so the teacher can immediately verify
+ *  the applied revision. Triggered from the "View Story Preview ›"
+ *  link rendered under an already-applied revision card. */
+function goToStoryPreview() {
+  activeTab.value = 'story'
+}
+
+
 // Keep the message list anchored to the bottom whenever a new
 // message lands. Watching length is cheap and avoids double-fire
 // on every text mutation inside a single message.
@@ -104,13 +112,48 @@ let ttsUsingFallback = false
 
 const toastStore = useToastStore()
 
+// ── TTS read-segment picker ─────────────────────────────────────────
+//
+// Pilot feedback (2026-05): teachers want to read just the second half
+// of the story aloud during the classroom recap, not always part1.
+// The two segments are exposed as a pill-button single-select; the
+// "choices" block (part2) is never spoken — it's UI affordance, not
+// narrative content.
+type TtsSegment = 'part1' | 'part3'
+const selectedSegment = ref<TtsSegment>('part1')
+
+/** Picks the active part-3 text, with a sensible fallback: when no
+ *  branch has been clicked yet, `store.activeContinuation` is null but
+ *  the original story payload always pre-fills choice 0 in
+ *  `generatedContinuations[0]` (see part3.ts → generateStory). */
+const part3Text = computed(() => {
+  const pair = store.activePair
+  if (!pair) return ''
+  return (
+    store.activeContinuation
+    ?? pair.generatedContinuations?.[0]
+    ?? ''
+  )
+})
+
 const ttsReadText = computed(() => {
   const sd = store.storyData
   if (!sd) return ''
-  return store.activeContinuation
-    ? `${sd.part1}\n\n${store.activeContinuation}`
-    : sd.part1
+  if (selectedSegment.value === 'part3') return part3Text.value
+  return sd.part1
 })
+
+/** True when the user has chosen the part-3 segment but no
+ *  continuation text exists yet — Play button is disabled and a hint
+ *  is shown directing them back to Story Preview. */
+const part3NotReady = computed(() =>
+  selectedSegment.value === 'part3' && !part3Text.value.trim()
+)
+
+// Stop any in-flight playback if the user toggles segments so we
+// don't end up with mismatched audio + UI state.
+watch(selectedSegment, () => { ttsStop() })
+
 
 const ttsStatusKey = computed(() => {
   if (ttsLoading.value)                      return 'part3.storyPanel.ttsLoading'
@@ -382,8 +425,14 @@ onUnmounted(_cleanupAudio)
 
     <!-- Design Rationale tab -->
     <div v-else-if="activeTab === 'design'" class="sp-body sp-body--design">
+      <!-- Top half: the AI-generated designRationale text. This is a
+           CSS `resize: vertical` box so teachers can drag the bottom
+           edge to give the chat below more room when the rationale
+           runs long (5-paragraph spec → ~330-360 字 in ZH mode). -->
       <h3 class="sp-section-title">{{ t('part3.storyPanel.designRationale') }}</h3>
-      <p class="sp-text sp-design-text">{{ store.storyData.designRationale }}</p>
+      <div class="sp-design-rationale-box">
+        <p class="sp-text sp-design-text">{{ store.storyData.designRationale }}</p>
+      </div>
 
       <div class="sp-chat-divider" />
 
@@ -404,7 +453,10 @@ onUnmounted(_cleanupAudio)
         >
           <p class="sp-chat-text">{{ msg.text }}</p>
 
-          <!-- Inline revision proposal card -->
+          <!-- Inline revision proposal card — renders the FULL revised
+               story (part1 / choices / part3 / designRationale) so
+               teachers can read the new version inline before
+               choosing to apply or iterate further. -->
           <div
             v-if="msg.role === 'assistant' && msg.revisedStory"
             class="sp-chat-revision"
@@ -416,15 +468,51 @@ onUnmounted(_cleanupAudio)
               <span>{{ t('part3.storyPanel.chatRevisedTitle') }}</span>
             </div>
             <p class="sp-chat-revision-hint">{{ t('part3.storyPanel.chatRevisedHint') }}</p>
-            <button
-              class="sp-chat-apply-btn"
-              :disabled="msg.revisedStoryApplied"
-              @click="applyRevised(idx)"
-            >
-              {{ msg.revisedStoryApplied
-                ? t('part3.storyPanel.chatApplied')
-                : t('part3.storyPanel.chatApply') }}
-            </button>
+
+            <!-- Full inline preview of the proposed story revision. -->
+            <div class="sp-revision-preview">
+              <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart1') }}</h4>
+              <p class="sp-revision-text">{{ msg.revisedStory.part1 }}</p>
+
+              <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart2') }}</h4>
+              <ul class="sp-revision-choices">
+                <li v-for="c in msg.revisedStory.choices" :key="c.id">
+                  <strong>{{ c.label }}</strong> – {{ c.desc }}
+                </li>
+              </ul>
+
+              <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart3') }}</h4>
+              <p class="sp-revision-text">{{ msg.revisedStory.part3 }}</p>
+
+              <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedDesign') }}</h4>
+              <p class="sp-revision-text sp-revision-text--design">
+                {{ msg.revisedStory.designRationale }}
+              </p>
+            </div>
+
+            <div class="sp-revision-actions">
+              <button
+                class="sp-chat-apply-btn"
+                :disabled="msg.revisedStoryApplied"
+                @click="applyRevised(idx)"
+              >
+                {{ msg.revisedStoryApplied
+                  ? t('part3.storyPanel.chatApplied')
+                  : t('part3.storyPanel.chatApply') }}
+              </button>
+              <!-- After apply: a subtle text link the teacher can use
+                   to jump back to Story Preview and verify. We don't
+                   auto-switch tabs (option a from the design review)
+                   so the chat history stays on screen. -->
+              <button
+                v-if="msg.revisedStoryApplied"
+                type="button"
+                class="sp-revision-link"
+                @click="goToStoryPreview"
+              >
+                {{ t('part3.storyPanel.chatViewStory') }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -470,12 +558,42 @@ onUnmounted(_cleanupAudio)
       <!-- TTS Player -->
       <h3 class="sp-section-title">{{ t('part3.storyPanel.ttsTitle') }}</h3>
 
-      <div v-if="!ttsReadText" class="sp-tts-empty">
+      <!-- Empty only when there's no story at all. When the user picks
+           part3 but no continuation exists yet, we still render the
+           segment picker + voice picker so they can simply switch
+           back — clearer than hiding everything. -->
+      <div v-if="!store.storyData" class="sp-tts-empty">
         {{ t('part3.storyPanel.ttsNoText') }}
       </div>
 
       <template v-else>
-        <!-- Voice selector (4 Doubao voices, always available) -->
+        <!-- Segment picker — choose which half of the story to read.
+             Part 2 (interactive choices) is never read aloud since
+             it's a UI affordance, not narrative content. -->
+        <p class="sp-subtext">{{ t('part3.storyPanel.ttsSegmentLabel') }}</p>
+        <div class="sp-segment-row">
+          <button
+            type="button"
+            class="sp-segment-btn"
+            :class="{ 'sp-segment-btn--active': selectedSegment === 'part1' }"
+            @click="selectedSegment = 'part1'"
+          >
+            {{ t('part3.storyPanel.ttsSegmentPart1') }}
+          </button>
+          <button
+            type="button"
+            class="sp-segment-btn"
+            :class="{ 'sp-segment-btn--active': selectedSegment === 'part3' }"
+            @click="selectedSegment = 'part3'"
+          >
+            {{ t('part3.storyPanel.ttsSegmentPart3') }}
+          </button>
+        </div>
+        <p v-if="part3NotReady" class="sp-cont-hint">
+          {{ t('part3.storyPanel.ttsPart3NotReady') }}
+        </p>
+
+        <!-- Voice selector (6 Edge-TTS voices, always available) -->
         <p class="sp-subtext">{{ t('part3.storyPanel.ttsVoiceLabel') }}</p>
         <div class="sp-voice-grid">
           <button
@@ -498,7 +616,7 @@ onUnmounted(_cleanupAudio)
         <div class="sp-tts-controls">
           <button
             class="sp-tts-btn sp-tts-btn--play"
-            :disabled="ttsLoading || (ttsSpeaking && !ttsPaused)"
+            :disabled="ttsLoading || (ttsSpeaking && !ttsPaused) || part3NotReady"
             @click="ttsPlay"
           >
             <svg v-if="!ttsLoading" viewBox="0 0 20 20" fill="currentColor">
@@ -787,6 +905,34 @@ onUnmounted(_cleanupAudio)
 
 .sp-tts-status--playing { color: #16a34a; font-weight: 600; }
 
+/* Segment picker (Opening vs. Continuation) — same visual language as
+   the voice grid but laid out horizontally as two pills. */
+.sp-segment-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sp-segment-btn {
+  flex: 1;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #374151;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.sp-segment-btn:hover { border-color: #B2F4BC; }
+.sp-segment-btn--active {
+  background: #B2F4BC;
+  border-color: #7FEC8F;
+  color: #064e3b;
+}
+
 .sp-tts-divider {
   height: 1px;
   background: #d1fae5;
@@ -802,6 +948,29 @@ onUnmounted(_cleanupAudio)
 .sp-body--design { gap: 10px; }
 
 .sp-design-text { white-space: pre-wrap; }
+
+/* Resizable rationale viewer. CSS `resize: vertical` gives the user a
+   grab handle at the bottom-right corner to shrink/expand. We cap
+   min/max so it can't collapse into nothing or push the chat off
+   screen. Default starts at ~140px which is enough for 4-5 lines —
+   tall enough to read the opening sentence, short enough to leave
+   plenty of room for chat. */
+.sp-design-rationale-box {
+  resize: vertical;
+  overflow-y: auto;
+  min-height: 80px;
+  max-height: 360px;
+  height: 140px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sp-design-rationale-box .sp-design-text {
+  margin: 0;
+}
 
 .sp-chat-divider {
   height: 1px;
@@ -880,6 +1049,87 @@ onUnmounted(_cleanupAudio)
   font-size: 11px;
   color: #047857;
   line-height: 1.5;
+}
+
+/* Full-story preview inside the revision card. The card itself sits
+   inside an .sp-chat-bubble which is already max-width 88% of the
+   scroller; the preview gets a white inset and its own scrollbar so
+   a very long revision doesn't blow out the bubble height. */
+.sp-revision-preview {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #d1fae5;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sp-revision-section {
+  margin: 8px 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.sp-revision-section:first-child {
+  margin-top: 0;
+}
+
+.sp-revision-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #1f2937;
+  white-space: pre-wrap;
+}
+
+.sp-revision-text--design {
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.sp-revision-choices {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #1f2937;
+}
+
+.sp-revision-choices li {
+  margin: 2px 0;
+}
+
+.sp-revision-choices strong {
+  color: #047857;
+  margin-right: 2px;
+}
+
+.sp-revision-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sp-revision-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #047857;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.sp-revision-link:hover {
+  text-decoration: underline;
 }
 
 .sp-chat-apply-btn {

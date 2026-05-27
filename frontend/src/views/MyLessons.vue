@@ -6,6 +6,8 @@ import { useSlideStore } from '@/stores/slides'
 import { usePart5Store } from '@/stores/part5'
 import { useI18n } from 'vue-i18n'
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue'
+import SlideThumbnail from '@/components/workspace/SlideThumbnail.vue'
+import type { Slide } from '@/stores/slides'
 
 const router = useRouter()
 const projectsStore = useProjectsStore()
@@ -94,13 +96,22 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })
 }
 
-function thumbnailStyle(project: typeof projectsStore.projects[0]) {
-  const snap = project.snapshot
-  if (snap.globalBackground) {
-    return { backgroundImage: `url(${snap.globalBackground})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-  }
-  if (snap.globalBgColor) return { backgroundColor: snap.globalBgColor }
-  return { background: 'linear-gradient(135deg, #B2F4BC 0%, #7FEC8F 100%)' }
+/**
+ * Returns the first Part-1 slide of a project (the lesson cover) so
+ * the row thumbnail is a faithful mini-preview of the real opening
+ * slide. Falls back to whatever slide is first in the snapshot if no
+ * Part-1 slide exists, and to `null` if the deck is empty — in which
+ * case the template renders a flat gradient placeholder.
+ *
+ * 2026-05: replaced the previous "show the global background colour
+ * as a flat rectangle" thumb. Teachers told us in the pilot that the
+ * green gradient placeholder all decks shared looked identical at a
+ * glance; rendering the actual cover slide makes My Lessons usable
+ * even when the teacher has 6+ projects.
+ */
+function thumbnailSlide(project: typeof projectsStore.projects[0]): Slide | null {
+  const slides = project.snapshot?.slides ?? []
+  return slides.find((s) => s.partId === 1) ?? slides[0] ?? null
 }
 
 /**
@@ -247,7 +258,12 @@ function statusLabel(status?: string) {
         >
           <!-- Slide deck -->
           <div class="col-deck">
-            <div class="row-thumb" :style="thumbnailStyle(project)" />
+            <div class="row-thumb">
+              <SlideThumbnail
+                v-if="thumbnailSlide(project)"
+                :slide="thumbnailSlide(project)!"
+              />
+            </div>
             <div class="row-info">
               <span class="row-name">{{ project.name }}</span>
               <span class="row-meta">{{ project.snapshot.slides.length }} {{ t('dashboard.slides') }} · {{ t('dashboard.created') }} {{ formatDate(project.createdAt) }}</span>
@@ -568,6 +584,8 @@ function statusLabel(status?: string) {
   width: 80px;
   height: 54px;
   border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #B2F4BC 0%, #7FEC8F 100%);
   flex-shrink: 0;
   border: 1px solid #e5e7eb;
 }

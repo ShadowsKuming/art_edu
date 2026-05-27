@@ -194,9 +194,19 @@ const lessons = computed(() =>
         const idMatch = /^g(\d)v(\d)-u(\d+)-l(\d+)$/.exec(seed.lesson_id)
         const unit = idMatch ? +idMatch[3] : 0
         const lesson = idMatch ? +idMatch[4] : 0
-        // Surface the first textbook artwork as the thumbnail — gives
-        // the card a sensible preview without any extra metadata.
-        const thumb = seed.textbook_artworks?.[0]?.image_url
+        // 2026-05: hydrate the LKP and surface its Part-1 cover slide
+        // as the thumbnail. This makes the Community card show the
+        // *actual* opening slide (title + cover artwork from the LKP
+        // schema) instead of just the first textbook artwork crop,
+        // which felt arbitrary and out of context. Hydration is light
+        // and re-runs when the locale changes so the title flips
+        // between zh/en correctly.
+        const { snapshot } = hydrateProjectFromLesson(
+            seed,
+            locale.value === 'zh' ? 'zh' : 'en',
+        )
+        const part1Slide =
+            snapshot.slides.find((s) => s.partId === 1) ?? snapshot.slides[0] ?? null
         return {
             id: seed.lesson_id,
             titleEn: seed.lesson_title_en,
@@ -205,10 +215,11 @@ const lessons = computed(() =>
             lesson,
             author: t('community.team'),
             date: new Date().toISOString(),
-            thumbnail: thumb,
+            previewSlide: part1Slide,
         }
     }),
 )
+
 
 
 
@@ -302,7 +313,7 @@ function backToDashboard() {
                 <LessonCard v-for="lesson in lessons" :key="lesson.id" :id="lesson.id"
                     :title-en="lesson.titleEn" :title-zh="lesson.titleZh" :unit="lesson.unit"
                     :lesson="lesson.lesson" :author="lesson.author" :date="lesson.date"
-                    :thumbnail="lesson.thumbnail"
+                    :preview-slide="lesson.previewSlide ?? undefined"
                     :saved="savedLessonIds.has(lesson.id)"
                     @preview="onPreview" @save="onSave" />
             </section>

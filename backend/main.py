@@ -261,28 +261,69 @@ def _story_user_text(language: str) -> str:
     Localised user-turn text for `/api/story/generate` and
     `/api/story/stream`. JSON shape stays identical across locales so
     the frontend parser doesn't care which language was used.
+
+    v3 (2026-05): added hard structural rules for the story *body*
+    (part1 / choices / part3), not just designRationale. The previous
+    prompt only said "3-4 paragraphs" which let the model write
+    generic storybook prose that ignored the LKP's learning
+    objectives. The new rules force:
+      - part1 / part3 word counts aligned to 180-200 Chinese chars
+        (≈120-150 English words) so the two halves read at the same
+        pace and the TTS narration feels balanced
+      - part1 must use ≥2 visual keywords from [本画作] (lifts the
+        story off the page and into the actual painting)
+      - 3 choices must each map to a distinct teaching facet of the
+        lesson (composition / detail / association / exaggeration …)
+        — no parallel "left/right/forward" branches
+      - part3 must land back on the lesson's "do" objective so the
+        story has educational closure, not just narrative closure
     """
     if language == "zh":
         return (
             "请根据这幅画作为二年级学生创作一个互动故事。\n\n"
             "必须返回如下结构的 JSON（key 保持英文，value 用简体中文）:\n"
             "{\n"
-            '  "part1": "<3-4 段开篇叙事，让孩子沉浸在画作的世界里>",\n'
+            '  "part1": "<开篇叙事，3-4 段>",\n'
             '  "choices": [\n'
             '    {"id": 0, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"},\n'
             '    {"id": 1, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"},\n'
             '    {"id": 2, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"}\n'
             "  ],\n"
-            '  "part3": "<2-3 段延续选项 0 的故事后半段>",\n'
+            '  "part3": "<延续选项 0 的故事后半段，2-3 段>",\n'
             '  "designRationale": "<按 [设计理念字段生成要求] 中的 5 段结构生成>"\n'
-            "}"
+            "}\n\n"
+            "[故事正文生成要求] 严格遵守以下硬约束。\n\n"
+            "【part1 · 开篇,3-4 段】\n"
+            "- 字数:严格 180-200 个中文字(不含标点)。低于 170 或超过 210 视为不合格。\n"
+            "- 必须包含 [本画作] 的「画面描述」中至少 2 个视觉关键词原句"
+            "(如「蜿蜒」「长长的」「桃花林」「溪水」等),让孩子在故事中真的看见这幅画。\n"
+            "- 必须体现 [学习任务] 中的动词(如「依形创编」对应:先呈现一个长形的具体物,"
+            "再由这个形状引出联想)。\n"
+            "- 7-8 岁口语化,多用感官细节;不要堆砌成语;不要透露教学概念名词"
+            "(像「夸张」「联想」「构图」不要直接出现,要让学生在情节里感受到)。\n\n"
+            "【choices · 3 个分支】\n"
+            "- label 每条 4-10 个中文字,desc 每条不超过 30 个中文字。\n"
+            "- 3 个分支必须各自对应 [关键艺术概念] 中不同的 3 个侧面,例如:\n"
+            "  分支 A → 关注画面构图/形式(对应『构图』『形式与内容的关系』)\n"
+            "  分支 B → 关注主体细节(对应『主体与背景』『细节表现』)\n"
+            "  分支 C → 展开联想(对应『联想』)\n"
+            "  分支 D → 尝试夸张(对应『夸张』)\n"
+            "- 你必须从本课实际给出的 [关键艺术概念] 中任选 3 个不同侧面来设计 3 条分支,"
+            "禁止 3 条都是平行的剧情走向(例如「往左走/往右走/往前走」)。\n"
+            "- 每条分支应当让备课老师一眼识别出它对应哪个艺术概念。\n\n"
+            "【part3 · 后半段,2-3 段,承接 choice 0】\n"
+            "- 字数:严格 180-200 个中文字(不含标点)。**必须与 part1 字数对齐**,"
+            "低于 170 或超过 210 视为不合格。\n"
+            "- 续写时保持同样的想象力与叙事语气,多用感官细节。\n"
+            "- 结尾必须自然落回 [学习目标] 中「能做」层的动作"
+            "(即学生在本课要动手做的事),让故事有教学闭环,而不是只有剧情闭环。\n"
+            "- 禁止使用「同学们」「小朋友们」等课堂集体称谓打破第四面墙。\n"
         )
     return (
         "Based on this artwork, generate an interactive story for grade-2 students.\n\n"
         "Return exactly this JSON structure:\n"
         "{\n"
-        '  "part1": "<3-4 paragraph opening narrative immersing the child '
-        'in the world of the painting>",\n'
+        '  "part1": "<3-4 paragraph opening narrative>",\n'
         '  "choices": [\n'
         '    {"id": 0, "label": "<short action title>", "desc": "<one '
         'sentence describing this path>"},\n'
@@ -294,7 +335,36 @@ def _story_user_text(language: str) -> str:
         '  "part3": "<2-3 paragraph continuation following choice 0>",\n'
         '  "designRationale": "<2-3 sentences on how this story connects '
         'to the artwork and its educational value>"\n'
-        "}"
+        "}\n\n"
+        "[Story body requirements] Follow these hard rules:\n\n"
+        "[part1 · opening, 3-4 short paragraphs]\n"
+        "- Word count: approximately 120-150 English words. Stay close to this band — "
+        "shorter than 110 or longer than 160 is not acceptable.\n"
+        "- Must include at least 2 concrete visual keywords from the artwork's "
+        "[visual_description] (e.g. 'winding stream', 'long scroll', 'peach blossoms') "
+        "so the child literally sees the painting through the story.\n"
+        "- Must enact the verb in the lesson [learning_task] (e.g. if the task is "
+        "'invent stories from long-paper shapes', start by showing a concrete long "
+        "object and then let association lead the story).\n"
+        "- Voice: spoken-language for a 7-8 year old, rich in sensory detail. Do NOT "
+        "name teaching concepts directly ('exaggeration', 'composition', 'association' "
+        "etc. should be *felt* through the plot, not stated).\n\n"
+        "[choices · 3 branches]\n"
+        "- Each label: 2-6 words. Each desc: ≤ 20 words.\n"
+        "- The 3 branches must each map to a DIFFERENT facet of the lesson's "
+        "[key_art_concepts], not three parallel plot directions ('go left / go right / "
+        "go forward'). Examples of distinct facets a teacher should be able to "
+        "recognise: composition / main-subject details / association / exaggeration.\n"
+        "- A teacher should be able to identify at a glance which concept each branch "
+        "is foregrounding.\n\n"
+        "[part3 · continuation of choice 0, 2-3 short paragraphs]\n"
+        "- Word count: approximately 120-150 English words. **Must match part1's word "
+        "count band** so the two halves narrate at the same pace.\n"
+        "- Keep the same imaginative tone and sensory richness as part1.\n"
+        "- The ending MUST loop back to the 'do' (能做) tier of [learning_objectives] — "
+        "i.e. the action the student will perform in this lesson — so the story has "
+        "pedagogical closure, not just narrative closure.\n"
+        "- Do NOT break the fourth wall with classroom collectives ('students', 'kids').\n"
     )
 
 
@@ -758,22 +828,43 @@ STORY_CONTINUE_SYSTEM = (
 
 
 def _continue_user_text(req: "StoryContinueRequest") -> str:
-    """Localised user-turn text for `/api/story/continue[/stream]`."""
+    """Localised user-turn text for `/api/story/continue[/stream]`.
+
+    v3 (2026-05): aligned to the new part1/part3 word-count band
+    (180-200 ZH chars / ~120-150 EN words) used by the main
+    `/api/story/stream`. Also requires the continuation to land back
+    on the lesson's "do" (能做) objective so the story has a
+    pedagogical close, not just a narrative close.
+    """
     if req.language == "zh":
         return (
             "故事的前半段:\n"
             f"{req.part1}\n\n"
             f"孩子选择了:「{req.choice_label}」—— {req.choice_desc}\n\n"
-            "请承接这个选择，写 2-3 段故事后半段。"
-            "保持同样的想象力和叙事语气，多用感官细节，给故事一个令人满意的结尾。"
+            "请承接这个选择，写 2-3 段故事后半段，严格遵守以下要求:\n"
+            "- 字数:严格 180-200 个中文字(不含标点),与前半段字数对齐。"
+            "低于 170 或超过 210 视为不合格。\n"
+            "- 保持同样的想象力与叙事语气,多用感官细节。\n"
+            "- 结尾必须自然落回本课 [学习目标] 中「能做」层的动作"
+            "(即学生在本课要动手做的事),让故事有教学闭环,而不是只有剧情闭环。\n"
+            "- 不要使用「同学们」「小朋友们」等课堂集体称谓打破第四面墙。\n"
+            "- 只输出故事文本,不要写 JSON、标签或额外说明。"
         )
     return (
         "First half of the story:\n"
         f"{req.part1}\n\n"
         f"The child chose: {req.choice_label} — {req.choice_desc}\n\n"
         "Write a 2-3 paragraph continuation that follows this choice. "
-        "Keep the same imaginative tone, use sensory details, and bring "
-        "the story to a satisfying close."
+        "Hard requirements:\n"
+        "- Word count: approximately 120-150 English words. **Must match the "
+        "first half's word count band** so the two halves narrate at the same pace.\n"
+        "- Keep the same imaginative tone and sensory richness.\n"
+        "- The ending MUST loop back to the 'do' tier of the lesson's learning "
+        "objectives — i.e. the action the student will perform in this lesson — "
+        "so the story has pedagogical closure, not just narrative closure.\n"
+        "- Do NOT break the fourth wall with classroom collectives "
+        "('students', 'kids').\n"
+        "- Output only the continuation text — no JSON, labels, or extra notes."
     )
 
 
@@ -915,15 +1006,32 @@ STORY_CHAT_SYSTEM = (
     "include a revised_story field.\n"
     "\n"
     "MODE B — Concrete revision.\n"
-    "  Triggered when the teacher explicitly asks to rewrite, replace, "
-    "shorten, lengthen, or restructure one or more story fields "
-    "(part1 / choices / part3 / designRationale) — words "
-    "like 「请改写」「重新生成」「换成」「把…改成」「rewrite」「replace」「change … to».\n"
+    "  Triggered whenever the teacher describes any concrete change to "
+    "the story, however small. Trigger words include but are not "
+    "limited to:\n"
+    "    Chinese: 改、改写、修改、调整、润色、重写、重新生成、换成、把…改成、"
+    "改得、改一下、写得、写成、再…一点、更…一点、把第N段、把第N个、把…改、"
+    "去掉、删除、加上、增加、补充、丰富、收紧、缩短、加长、变成、改为\n"
+    "    English: change, rewrite, replace, revise, polish, tweak, adjust, "
+    "make … more …, make … less …, drop, add, expand, shorten, lengthen, "
+    "tighten, soften, gentler, more sensory, more vivid, less scary…\n"
+    "  If you are uncertain whether the teacher wants discussion or a "
+    "revision, DEFAULT TO MODE B — produce a revised_story. A teacher "
+    "complaining about something in the current story (e.g. 「这段太干了」"
+    "/ 「the choices feel parallel」) is implicitly asking for a "
+    "revision; do not stall in discussion mode.\n"
     "  Action: return BOTH a brief reply (1-2 sentences acknowledging "
     "what you changed and why) AND a complete revised_story object "
     "with ALL FOUR fields (part1, choices[3], part3, designRationale) "
     "— even fields you did not touch must be carried over verbatim "
     "from the current story.\n"
+    "  All field-level constraints from the original story-generation "
+    "spec still apply to the revised_story: part1 / part3 strict "
+    "180-200 中文字 (≈120-150 EN words) and aligned with each other; "
+    "3 choices must each map to a different teaching facet of the "
+    "lesson's key art concepts; part3 ending must loop back to the "
+    "「能做」 (do) tier of the learning objectives; designRationale "
+    "follows the 5-paragraph 330-360-character spec.\n"
     "\n"
     "Output: a single JSON object — no markdown fences, no preamble:\n"
     "{\n"
