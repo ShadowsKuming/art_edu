@@ -10,7 +10,12 @@ const { t }      = useI18n()
 
 const canConvert = computed(() =>
   store.selectedStyleIdx !== null &&
-  !store.usedStyleIndices.includes(store.selectedStyleIdx!)
+  !store.usedStyleIndices.includes(store.selectedStyleIdx!) &&
+  // 2026-05: Step 2 no longer requires a sketch upload to appear
+  // (teacher can confirm styles first), but Convert obviously still
+  // needs an image — gate the button here so it stays disabled with
+  // a tooltip until Step 1 is complete.
+  !!store.sketchBase64
 )
 
 const allUsed = computed(() =>
@@ -121,26 +126,22 @@ function saveAndNext() {
         </div>
       </div>
 
-      <!-- Step 2: Pig style selectors (shown once sketch uploaded) -->
-      <div v-if="store.sketchDataUrl" class="p6-step">
+      <!-- Step 2: Pig style selectors.
+           2026-05: gate flipped from `sketchDataUrl` → `styles.length`.
+           Under the new chat-first UX the teacher can confirm a style
+           triple in the side panel before uploading a sketch, so the
+           pigs should appear as soon as the styles array is populated.
+           The Convert button itself stays disabled until a sketch is
+           uploaded (see `canConvert` above) and we surface that with
+           an explicit hint line below the pig row. -->
+      <div v-if="store.styles.length > 0" class="p6-step">
         <p class="p6-step-label">
           <span class="p6-dot" />
           <strong v-html="t('part6.step2Label')" />
         </p>
 
-        <!-- Loading -->
-        <div v-if="store.generatingStyles" class="p6-styles-loading">
-          <div class="p6-spinner" />
-          <span>{{ t('part6.generatingStyles') }}</span>
-        </div>
-
-        <!-- No styles yet -->
-        <div v-else-if="!store.styles.length" class="p6-styles-hint">
-          <p>{{ t('part6.stylesHint') }}</p>
-        </div>
-
         <!-- Pig cards -->
-        <div v-else class="p6-pig-row">
+        <div class="p6-pig-row">
           <div
             v-for="(style, i) in store.styles"
             :key="i"
@@ -167,11 +168,23 @@ function saveAndNext() {
         <!-- All used notice -->
         <p v-if="allUsed" class="p6-all-used">{{ t('part6.allUsed') }}</p>
 
+        <!-- Step-1-first hint. Surfaces only when the teacher confirmed
+             a style triple but hasn't uploaded a sketch yet — the
+             Convert button stays disabled in that state and this line
+             explains why so the teacher isn't stuck guessing. -->
+        <p
+          v-if="store.styles.length && !store.sketchDataUrl"
+          class="p6-upload-first-hint"
+        >
+          {{ t('part6.uploadFirst') }}
+        </p>
+
         <!-- Convert button (below selected pig) -->
         <button
           v-if="store.styles.length && !allUsed"
           class="p6-convert-btn"
           :disabled="!canConvert"
+          :title="!store.sketchBase64 ? t('part6.uploadFirst') : ''"
           @click="canConvert && store.convert()"
         >
           {{ t('part6.convertBtn') }}
@@ -435,6 +448,21 @@ function saveAndNext() {
   font-size: 13px;
   color: #6b7280;
   text-align: center;
+}
+
+/* Step-1-first hint — shown when styles are confirmed but no sketch
+   has been uploaded. Uses an amber callout so it reads as guidance
+   rather than an error. */
+.p6-upload-first-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .p6-error {

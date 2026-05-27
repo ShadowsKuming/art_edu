@@ -454,6 +454,9 @@ export default {
     stylesHint: '与艺芽讨论确定适合本节课的艺术风格吧！',
     convertBtn: '开始转换！',
     allUsed: '所有风格均已使用，上传新作品重试。',
+    // 2026-05 新增：当老师已在右侧聊天中确认了一套风格、但还没在 Step 1
+    // 上传学生作品时，3 只小猪上方提示需要先完成上传。
+    uploadFirst: '请先在上方上传学生作品后再开始转换。',
     convertingOverlay: '转换中...',
     convertAgain: '再次转换',
     save: '保存',

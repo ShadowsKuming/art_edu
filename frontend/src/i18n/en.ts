@@ -465,6 +465,9 @@ export default {
     stylesHint: 'Chat with ArtBloom to pick the art style that best fits this lesson!',
     convertBtn: 'Converting!',
     allUsed: 'All styles have been used. Upload a new work to try again.',
+    // 2026-05: shown when the teacher has confirmed a style triple
+    // via the chat panel but has not yet uploaded a sketch in Step 1.
+    uploadFirst: 'Upload a student work above before starting the conversion.',
     convertingOverlay: 'Converting...',
     convertAgain: 'Convert again',
     save: 'Save',
