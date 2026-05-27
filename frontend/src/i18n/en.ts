@@ -462,21 +462,27 @@ export default {
     replace: 'Replace',
     step2Label: "Step 2: Choose a style and unlock your artwork's potential!",
     generatingStyles: 'Generating style options…',
-    stylesHint: 'Tell ArtBloom about your lesson in the chat panel → style options will appear here.',
+    stylesHint: 'Chat with ArtBloom to pick the art style that best fits this lesson!',
     convertBtn: 'Converting!',
     allUsed: 'All styles have been used. Upload a new work to try again.',
     convertingOverlay: 'Converting...',
     convertAgain: 'Convert again',
     save: 'Save',
     saveNext: 'Save & Next',
+    // 2026-05 chat redesign — see zh.ts for the rationale. The bot
+    // already knows the lesson from the LKP, so the teacher picks
+    // one of three intent chips (or chats freely). Legacy keys
+    // were removed.
     bot: {
-      greeting: "Hi! I'm ArtBloom. Upload a student sketch in Step 1, then tell me about your lesson theme or learning objective — I'll generate 3 personalised style transfer options for you.",
-      sketchUploaded: "Sketch uploaded! Now describe your lesson context and I'll generate the style options. For example: \"Students are learning to exaggerate proportions in animal drawings.\"",
-      stylesReady: 'Here are 3 style transfer options based on your lesson:',
-      stylesReadySuffix: 'Here are the 3 recommended style options:',
-      selectedStyleLabel: 'Selected style prompt:',
-      selectedStyleNote: "Please review the style prompts for each option. If you'd like any adjustments, just let me know.",
-      errorStyles: "Sorry, I couldn't generate style options:",
+      greeting:
+        "Hi! I'm ArtBloom. Let's design a personalised style-transfer plan for this lesson. You can pick one of:",
+      intents: {
+        recommend: 'Recommend a style-transfer plan for this lesson',
+        skills: 'What creative skills should students master in this lesson?',
+        styles: 'What art style does this lesson focus on?',
+      },
+      confirmStyles: 'Confirm this set',
+      stylesConfirmed: 'Confirmed ✓',
       errorChat: 'Sorry, something went wrong. Please try again.',
     },
   },

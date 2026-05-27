@@ -397,7 +397,29 @@ export const usePart3Store = defineStore('part3', () => {
         const parts = raw.split('```')
         raw = parts[1].replace(/^json/, '').trim()
       }
-      pair.storyData = JSON.parse(raw)
+
+      // 2026-05: defensive parse. Previously a truncated or empty
+      // response would throw a raw "Unexpected end of JSON input"
+      // that gave the user no idea what happened. Now we:
+      //   1. catch the SyntaxError
+      //   2. log the raw text to the console for diagnostics
+      //   3. surface a clearer Chinese/English error in the UI
+      //
+      // Most-likely causes (in order): backend hit max_tokens and
+      // truncated the JSON mid-string; backend errored before any
+      // SSE chunks landed (empty fullText); or the model wrapped the
+      // JSON in unexpected prose despite the "no preamble" rule.
+      try {
+        pair.storyData = JSON.parse(raw)
+      } catch (parseErr) {
+        console.error('[generateStory] JSON.parse failed. Raw response:', raw)
+        const preview = raw.slice(0, 120).replace(/\s+/g, ' ')
+        const hint = !raw
+          ? '生成结果为空,可能是后端连接异常,请稍后重试。'
+          : `故事 JSON 解析失败(可能是生成被截断)。请重新生成。预览: ${preview}…`
+        throw new Error(hint)
+      }
+
       if (pair.storyData?.part3) {
         pair.generatedContinuations = { 0: pair.storyData.part3 }
       }

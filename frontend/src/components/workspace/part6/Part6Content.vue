@@ -95,10 +95,26 @@ function saveAndNext() {
           </template>
           <template v-else>
             <img :src="store.sketchDataUrl" class="p6-sketch-img" />
+            <!-- 2026-05: swapped the half-circle "refresh" icon for a
+                 conventional upload glyph (arrow ↑ into a tray). The
+                 previous icon's two SVG paths combined into something
+                 that looked like a "J" at 14×14, which teachers in
+                 the pilot mistook for a broken/missing icon. Standard
+                 upload semantics is clearer for the re-upload action. -->
             <button class="p6-reupload-btn" :title="t('part6.replace')" @click.stop="openFilePicker">
               <svg viewBox="0 0 16 16" fill="none">
-                <path d="M13 8A5 5 0 112 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M13 4v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Tray / bottom rectangle -->
+                <path d="M2 12v1.5A1.5 1.5 0 003.5 15h9A1.5 1.5 0 0014 13.5V12"
+                      stroke="currentColor" stroke-width="1.6"
+                      stroke-linecap="round" stroke-linejoin="round" />
+                <!-- Up arrow shaft -->
+                <path d="M8 11V2"
+                      stroke="currentColor" stroke-width="1.6"
+                      stroke-linecap="round" stroke-linejoin="round" />
+                <!-- Up arrow head -->
+                <path d="M4.5 5.5L8 2l3.5 3.5"
+                      stroke="currentColor" stroke-width="1.6"
+                      stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
           </template>

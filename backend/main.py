@@ -541,7 +541,20 @@ def _story_payload(req: StoryRequest, stream: bool = False) -> dict:
                 ],
             },
         ],
-        "max_tokens": 2000,
+        # 2026-05: bumped 2000 → 3500 after the v3 prompt rewrite added
+        # the [故事正文生成要求] block AND the 5-段 designRationale spec.
+        # The combined output budget now needs to cover:
+        #   • part1   180-200 中文字  (≈ 300-400 tokens)
+        #   • choices ~50 中文字       (≈ 80-120 tokens)
+        #   • part3   180-200 中文字  (≈ 300-400 tokens)
+        #   • designRationale 330-360 中文字 (≈ 550-700 tokens)
+        #   • JSON keys/punctuation overhead (~150 tokens)
+        # Total ≈ 1400-1800 tokens of pure content, but Doubao often
+        # overshoots the per-field char targets by 10-30% and we
+        # need headroom for any reasoning tokens. Truncating the
+        # JSON mid-string was producing "Unexpected end of JSON input"
+        # in the frontend; 3500 gives ~ 2× headroom.
+        "max_tokens": 3500,
     }
 
 
@@ -944,7 +957,10 @@ def _continue_payload(req: StoryContinueRequest, stream: bool = False) -> dict:
                 ],
             },
         ],
-        "max_tokens": 1000,
+        # 180-200 ZH chars ≈ 300-400 tokens. 1500 gives plenty of
+        # headroom for the new word-count-constrained output without
+        # ever truncating mid-paragraph.
+        "max_tokens": 1500,
     }
 
 
@@ -1330,6 +1346,265 @@ async def style_transfer(req: StyleTransferRequest):
         raise HTTPException(500, f"Unexpected image response format: {str(data)[:300]}")
 
     return {"image_url": image_url}
+
+
+# ════════════════════════════════════════════════════════════════════════
+# 7b. Part 6 chat — Executor D conversational front-end
+# ════════════════════════════════════════════════════════════════════════
+#
+# 2026-05 redesign. The original UX asked the teacher to "describe
+# your lesson context" in the chat panel and then triggered
+# /api/part6/generate-styles with that text — but the backend already
+# short-circuits to the LKP's curated `executor_d_styles` whenever
+# `lesson_id` is present, so the teacher's input was effectively a
+# trigger token, not real context. That was confusing.
+#
+# The new flow lets the teacher pick from 3 intents (or type freely):
+#   • intent="recommend" → return the 3 LKP styles immediately as
+#                          `proposed_styles`; no LLM call needed.
+#   • intent="skills"    → LLM answers what creative skills students
+#                          should master in THIS lesson (grounded in
+#                          LKP fields), then keeps chatting.
+#   • intent="styles"    → LLM answers what art style/technique THIS
+#                          lesson focuses on (grounded in LKP), then
+#                          keeps chatting.
+#   • intent=None        → freeform follow-up.
+#
+# At every LLM turn the model returns JSON of shape:
+#     { "reply": "<chat text>",
+#       "proposed_styles": null | [{ "label": str, "prompt": str } x3] }
+# The frontend renders chips + a "Confirm" button whenever
+# proposed_styles is non-null, so the teacher can lock in the final
+# set whenever discussion has converged.
+
+PART6_CHAT_SYSTEM_TEMPLATE = (
+    "You are 艺芽 (ArtBloom), an AI co-teacher helping a Chinese primary-school art "
+    "teacher prepare Part 6 (风格创作 / personalised style transfer of student artwork) "
+    "for the lesson described below. You MUST ground every answer in this lesson's "
+    "knowledge package — never invent facts about the textbook.\n\n"
+    "════════ LESSON KNOWLEDGE PACKAGE ════════\n"
+    "课程：{lesson_title_zh}\n"
+    "本课学习任务：{learning_task_zh}\n"
+    "单元大概念：{unit_big_idea_zh}\n"
+    "学习目标：{learning_objectives_text}\n"
+    "教学重点：{teaching_focus_zh}\n"
+    "教学难点：{teaching_difficulty}\n"
+    "核心美术概念：{key_art_concepts_text}\n"
+    "评价标准：{assessment_criteria}\n\n"
+    "默认的 3 个风格转换方案（教研团队基于教材教参预设；老师可保留、调整文案，或要求重新设计）：\n"
+    "{default_styles_text}\n"
+    "════════════════════════════════════════════\n\n"
+    "对话规则：\n"
+    "1) 当老师问「这节课学生需要掌握什么创作技能」时，从「学习目标」「教学重点」"
+    "   「核心美术概念」中提炼具体回答，避免泛泛而谈。\n"
+    "2) 当老师问「这节课重点学习的美术风格是什么」时，结合本课主题与上述 3 个默认风格的"
+    "   描述向老师介绍。\n"
+    "3) 当老师要求调整某个风格（如更夸张 / 更注重叙事 / 改色彩等），请基于默认 prompt 改写。\n"
+    "4) 每一轮回复必须是合法 JSON。仅当你认为老师已对 3 个风格的方向表示满意（明确说 OK / "
+    "   好的 / 就这样 / 确认 等），或者老师本轮请求是「为我推荐方案」时，才把 3 个风格写入 "
+    "   `proposed_styles`；否则该字段必须为 null。\n"
+    "5) `proposed_styles` 必须恰好 3 项，每项含 `label`（中文短名）和 `prompt`（英文图像"
+    "   生成 prompt，沿用默认 prompt 的结构与 image-to-image strength）。\n"
+    "6) `reply` 用 {lang_name} 与老师交流，简洁、亲切、专业。\n\n"
+    "输出严格 JSON："
+    '{{"reply": "<string>", "proposed_styles": null | [{{"label": "<zh>", "prompt": "<en>"}}, ...]}}'
+)
+
+
+def _format_part6_chat_system(ctx: dict, language: str) -> str:
+    """Stitch the LKP context dict into the Part-6 chat system prompt.
+
+    All multi-value fields are flattened to readable lines because Doubao
+    follows hand-written prose more reliably than nested JSON dumped via
+    `json.dumps(..., ensure_ascii=False)`.
+    """
+
+    # learning_objectives in the current LKP schema is
+    # {tier: str} (e.g. {"know": "...", "understand": "...", "do": "..."}),
+    # but earlier seed drafts used {tier: [str, ...]}. Handle both so a
+    # future schema bump doesn't silently render "学习目标：—".
+    lo = ctx.get("learning_objectives") or {}
+    TIER_LABELS = {"know": "知道", "understand": "理解", "do": "能做"}
+    if isinstance(lo, dict) and lo:
+        lo_lines = []
+        for tier, items in lo.items():
+            label = TIER_LABELS.get(tier, tier)
+            if isinstance(items, list):
+                value = "; ".join(s for s in items if s)
+            else:
+                value = str(items or "")
+            if value:
+                lo_lines.append(f"  - {label}: {value}")
+        learning_objectives_text = "\n" + "\n".join(lo_lines) if lo_lines else "—"
+    else:
+        learning_objectives_text = str(lo) or "—"
+
+    kac = ctx.get("key_art_concepts") or []
+    key_art_concepts_text = "、".join(kac) if isinstance(kac, list) else str(kac) or "—"
+
+    styles = ctx.get("styles") or []
+    if styles:
+        default_styles_lines = []
+        for i, s in enumerate(styles, 1):
+            label = s.get("style_name_zh", "")
+            desc = s.get("style_description_zh", "")
+            obj = s.get("linked_learning_objective", "")
+            prompt = s.get("image_gen_prompt_template_en", "")
+            default_styles_lines.append(
+                f"  {i}. {label}\n"
+                f"     - 描述: {desc}\n"
+                f"     - 关联目标: {obj}\n"
+                f"     - 默认 prompt: {prompt}"
+            )
+        default_styles_text = "\n".join(default_styles_lines)
+    else:
+        # Branch B — no curated styles. Tell the model to design from
+        # scratch on confirm.
+        default_styles_text = "  （本课没有预设风格，请基于学习目标自行设计 3 个方向）"
+
+    lang_name = "中文" if language.lower().startswith("zh") else "English"
+
+    return PART6_CHAT_SYSTEM_TEMPLATE.format(
+        lesson_title_zh=ctx.get("lesson_title_zh") or "—",
+        learning_task_zh=ctx.get("learning_task_zh") or "—",
+        unit_big_idea_zh=ctx.get("unit_big_idea_zh") or "—",
+        learning_objectives_text=learning_objectives_text,
+        teaching_focus_zh=ctx.get("teaching_focus_zh") or "—",
+        teaching_difficulty=ctx.get("teaching_difficulty") or "—",
+        key_art_concepts_text=key_art_concepts_text,
+        assessment_criteria=ctx.get("assessment_criteria") or "—",
+        default_styles_text=default_styles_text,
+        lang_name=lang_name,
+    )
+
+
+class Part6ChatMessage(BaseModel):
+    role: str       # "user" | "assistant"
+    text: str
+
+
+class Part6ChatRequest(BaseModel):
+    lesson_id: str
+    messages: list[Part6ChatMessage] = []
+    language: str = "zh"
+    intent: Optional[str] = None  # "recommend" | "skills" | "styles" | None
+
+
+@app.post("/api/part6/chat")
+async def part6_chat(req: Part6ChatRequest):
+    """Conversational front-end for Part 6 style design.
+
+    See the section banner above for the design rationale.
+    """
+    # Load LKP — 404 if the lesson isn't in our seed library.
+    try:
+        ctx = lesson_manager.build_executor_d_context(req.lesson_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+    # ── Fast path: teacher asked for an immediate recommendation ───
+    #
+    # Skip the LLM entirely — we already have curated styles in the
+    # LKP, and rolling them through a model would just add latency and
+    # a translation-drift risk (the prompts are hand-tuned English).
+    if req.intent == "recommend":
+        if ctx["branch"] == "B" or not ctx["styles"]:
+            return {
+                "reply": (
+                    f"本课《{ctx['lesson_title_zh']}》在教研团队的教材教参中尚未预设风格方案。"
+                    "请告诉我你希望学生在创作中练习什么技能，我来为你设计 3 个方向。"
+                ),
+                "proposed_styles": None,
+            }
+        proposed = [
+            {
+                "label": s["style_name_zh"],
+                "prompt": s["image_gen_prompt_template_en"],
+            }
+            for s in ctx["styles"]
+        ]
+        # Build a friendly intro line that quotes each style's
+        # description so the teacher can review without expanding.
+        intro_lines = [
+            f"基于本课《{ctx['lesson_title_zh']}》的学习任务"
+            f"「{ctx['learning_task_zh']}」，"
+            "我为你推荐以下 3 个风格转换方向："
+        ]
+        for s in ctx["styles"]:
+            intro_lines.append(
+                f"• {s['style_name_zh']}：{s.get('style_description_zh', '')}"
+            )
+        intro_lines.append("如果觉得方向合适就点「确认这套风格」，也可以告诉我想调整的地方。")
+        return {
+            "reply": "\n".join(intro_lines),
+            "proposed_styles": proposed,
+        }
+
+    # ── LLM path: skills / styles / freeform conversation ─────────
+    if not ARK_API_KEY:
+        raise HTTPException(500, "ARK_API_KEY is not set")
+
+    # When the teacher just clicked one of the canned intent chips
+    # with no prior conversation, we synthesise the first user message
+    # so the model gets a clean question instead of an empty turn.
+    api_messages = [
+        {"role": "system", "content": _format_part6_chat_system(ctx, req.language)},
+    ]
+    for m in req.messages:
+        # Map our "assistant"/"user" roles straight to OpenAI roles.
+        api_messages.append({"role": m.role, "content": m.text})
+
+    payload = {
+        "model": CHAT_MODEL,
+        "messages": api_messages,
+        "max_tokens": 1500,
+        # Ark / Doubao supports `response_format: json_object` the same
+        # way OpenAI does, which lets us skip the fragile fenced-JSON
+        # parser we wrote for /api/part6/generate-styles.
+        "response_format": {"type": "json_object"},
+        "temperature": 0.7,
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            f"{ARK_BASE}/chat/completions", json=payload, headers=_ark_headers()
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, f"Ark API error: {resp.text}")
+
+    raw = resp.json()["choices"][0]["message"]["content"].strip()
+
+    # Defensive: strip any stray markdown fences even though we asked
+    # for JSON mode. Doubao occasionally returns ```json ... ``` when
+    # it's confused by the system prompt.
+    if raw.startswith("```"):
+        parts = raw.split("```")
+        raw = parts[1].lstrip("json").strip() if len(parts) >= 2 else raw
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Graceful degradation — wrap the model's plain text in our
+        # schema. proposed_styles stays None so the UI just shows the
+        # message, no confirm button.
+        return {"reply": raw, "proposed_styles": None}
+
+    reply = data.get("reply") or ""
+    proposed = data.get("proposed_styles")
+
+    # Validate `proposed_styles`: must be a 3-item list of {label, prompt}.
+    if isinstance(proposed, list) and len(proposed) == 3 and all(
+        isinstance(s, dict) and "label" in s and "prompt" in s for s in proposed
+    ):
+        proposed_styles = [
+            {"label": str(s["label"]), "prompt": str(s["prompt"])}
+            for s in proposed
+        ]
+    else:
+        proposed_styles = None
+
+    return {"reply": reply, "proposed_styles": proposed_styles}
 
 
 # ════════════════════════════════════════════════════════════════════════

@@ -86,25 +86,27 @@ function saveAndNext() {
   <section class="p5-content">
     <div class="p5-canvas-area">
 
-      <!-- Slide preview with global theme background -->
+      <!-- 2026-05: removed the "创意示范" slide title bar and made the
+           Bilibili iframe fill the entire slide preview. Per design
+           feedback, the title felt redundant (the sidebar Part-5 label
+           already says "创意示范") and was eating ~60 px of valuable
+           video height. The iframe now sits directly in the white
+           preview box. The slide's global-theme background (set via
+           Part 1) is still honoured, but it's only visible as a 1-2 px
+           seam where the video doesn't reach the rounded corner. -->
       <div class="p5-slide-preview" :style="slideStyle">
-        <div class="p5-slide-title">{{ t('part5.slideTitle') }}</div>
-
-        <!-- Bilibili embed (replaces the former local-upload UI) -->
-        <div class="p5-video-area">
-          <iframe
-            class="p5-video-frame"
-            :src="videoEmbedUrl"
-            :title="t('part5.slideTitle')"
-            scrolling="no"
-            frameborder="0"
-            framespacing="0"
-            allowfullscreen
-            allow="autoplay; fullscreen; encrypted-media"
-            referrerpolicy="no-referrer"
-            loading="lazy"
-          />
-        </div>
+        <iframe
+          class="p5-video-frame"
+          :src="videoEmbedUrl"
+          :title="t('part5.slideTitle')"
+          scrolling="no"
+          frameborder="0"
+          framespacing="0"
+          allowfullscreen
+          allow="autoplay; fullscreen; encrypted-media"
+          referrerpolicy="no-referrer"
+          loading="lazy"
+        />
       </div>
 
     </div>
@@ -138,6 +140,12 @@ function saveAndNext() {
   overflow-y: auto;
 }
 
+/* 2026-05: dropped the inner padding so the Bilibili iframe stretches
+   to the slide preview's edges. The previous 32px padding + slide
+   title + nested .p5-video-area wrapper left the video at ~ 700×340
+   inside a 760×428 frame — feedback was that the video should fill
+   the whole white box. Now `.p5-slide-preview` is a bare container
+   and `.p5-video-frame` is `position: absolute; inset: 0`. */
 .p5-slide-preview {
   width: 100%;
   max-width: 760px;
@@ -146,31 +154,14 @@ function saveAndNext() {
   box-shadow: 0 4px 24px rgba(0,0,0,0.14);
   overflow: hidden;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  padding: 32px;
+  background: #000;
   box-sizing: border-box;
   flex-shrink: 0;
 }
 
-.p5-slide-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
-  margin-bottom: 16px;
-  flex-shrink: 0;
-  text-shadow: 0 1px 3px rgba(255,255,255,0.6);
-}
-
-.p5-video-area {
-  flex: 1;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #000;
-  min-height: 0;
-}
-
 .p5-video-frame {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;

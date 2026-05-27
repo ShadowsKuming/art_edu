@@ -190,11 +190,34 @@ class LessonContextManager:
     # ────────────────────────────────────────────────────────────────
 
     def build_executor_d_context(self, lesson_id: str) -> dict:
+        """
+        Build Executor D (Part 6 / style transfer) context.
+
+        2026-05 update: in addition to the existing `branch` + `styles`
+        + `lesson_summary` (kept for backward compatibility with the
+        legacy /api/part6/generate-styles short-circuit), we now also
+        expose the lesson-level pedagogy fields so the new
+        /api/part6/chat endpoint can ground its replies in the
+        textbook / teacher-guide instead of inventing answers when the
+        teacher asks "what skills should students master in this
+        lesson?" or "what art style does this lesson focus on?".
+        """
         seed = self.load(lesson_id)
         return {
+            # ─ Legacy fields (used by the short-circuit branch in
+            #   /api/part6/generate-styles — do not rename) ──────────
             "branch": seed.executor_d_styles.branch,
             "styles": [s.model_dump() for s in seed.executor_d_styles.styles],
             "lesson_summary": f"{seed.lesson_title_zh} — {seed.learning_task_zh}",
+            # ─ Extended pedagogy fields (used by /api/part6/chat) ───
+            "lesson_title_zh":      seed.lesson_title_zh,
+            "learning_task_zh":     seed.learning_task_zh,
+            "unit_big_idea_zh":     seed.unit_big_idea_zh,
+            "key_art_concepts":     seed.key_art_concepts,
+            "learning_objectives":  seed.learning_objectives or {},
+            "teaching_focus_zh":    seed.teaching_focus_zh,
+            "teaching_difficulty":  seed.teaching_difficulty_text(),
+            "assessment_criteria":  seed.assessment_criteria_text(),
         }
 
     # ────────────────────────────────────────────────────────────────

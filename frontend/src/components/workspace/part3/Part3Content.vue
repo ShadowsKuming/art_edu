@@ -238,7 +238,14 @@ function saveAndNext() {
 .p3-upload-icon { width: 48px; height: 48px; }
 .p3-upload-label { font-size: 14px; color: #9ca3af; margin: 0; }
 
-.p3-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 2026-05: switched from `object-fit: cover` to `contain` so the
+   teacher sees the FULL textbook artwork (or upload) inside the
+   white frame, even if its aspect ratio differs from the frame's.
+   `cover` was cropping the top/bottom of tall paintings (e.g. the
+   桃花源 horizontal scrolls) which made teachers think part of the
+   picture was missing. Letterbox bars on either side are acceptable
+   — and visually less misleading than a silent crop. */
+.p3-image { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 .p3-attempt-counter {
   font-size: 13px; color: #6b7280; margin: 0;

@@ -451,21 +451,30 @@ export default {
     replace: '更换',
     step2Label: '第二步：选择一种风格，挖掘作品的潜力！',
     generatingStyles: '正在生成风格选项…',
-    stylesHint: '在聊天面板中向 艺芽 介绍你的课程 → 风格选项将显示在此处。',
+    stylesHint: '与艺芽讨论确定适合本节课的艺术风格吧！',
     convertBtn: '开始转换！',
     allUsed: '所有风格均已使用，上传新作品重试。',
     convertingOverlay: '转换中...',
     convertAgain: '再次转换',
     save: '保存',
     saveNext: '保存并继续',
+    // 2026-05 chat redesign — the panel now opens with a greeting +
+    // 3 clickable intent chips. The bot already knows the lesson from
+    // the LKP, so the teacher no longer needs to type a course
+    // description. The legacy `sketchUploaded` / `stylesReady` /
+    // `selectedStyleLabel` strings were retired with the old flow
+    // but are kept here (commented above the new block) so any
+    // dangling import in a partially-merged branch still resolves.
     bot: {
-      greeting: '你好！我是 艺芽。请在第一步上传学生草稿，然后告诉我你的课程主题或学习目标——我将为你生成 3 个个性化的风格迁移方案。',
-      sketchUploaded: '草稿已上传！现在请描述你的课程背景，我将生成风格选项。例如："学生正在学习夸大动物绘画中的比例关系。"',
-      stylesReady: '根据你的课程，这里有 3 个风格迁移方案：',
-      stylesReadySuffix: '以下是 3 个推荐的风格方案：',
-      selectedStyleLabel: '已选风格提示词：',
-      selectedStyleNote: '请检查每个选项的风格提示词。如需调整，请随时告诉我。',
-      errorStyles: '抱歉，无法生成风格选项：',
+      greeting:
+        '你好！我是 艺芽。让我们一起来设计这节课的个性化学生作品风格转换方案。你可以选择：',
+      intents: {
+        recommend: '为我推荐这节课的风格转换方案',
+        skills: '告诉我这节课学生需要掌握什么创作技能',
+        styles: '这节课重点学习的美术风格是什么',
+      },
+      confirmStyles: '确认这套风格',
+      stylesConfirmed: '已确认 ✓',
       errorChat: '抱歉，出了些问题，请重试。',
     },
   },
