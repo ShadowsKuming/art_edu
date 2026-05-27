@@ -1008,58 +1008,117 @@ async def stream_continue(req: StoryContinueRequest):
 # ────────────────────────────────────────────────────────────────────────
 
 
+# ── Phase blocks (2026-05) ──────────────────────────────────────────────
+# Story chat is now phase-aware. The frontend passes
+# `selected_choice_id`:
+#   • None  → Phase A — only part1 + choices exist, model must NOT
+#             touch part3 and must not invent continuations.
+#   • int   → Phase B — at least one continuation is already drafted;
+#             the model MUST first ask "clarify-before-edit" if the
+#             teacher's latest message is ambiguous about WHICH slice
+#             they want changed (part1 / choices / current branch's
+#             part3 / a mix).
+
+_STORY_CHAT_PHASE_A = (
+    "[CONVERSATION PHASE — A]\n"
+    "老师还没有点击 part2 的任何一个互动选项，因此目前 *没有* 生成 part3 后半段。\n"
+    "本阶段你 *只可以* 协助老师修改以下两部分：\n"
+    "  • part1 — 故事前半段；\n"
+    "  • choices — 3 个互动选项（label + desc）。\n"
+    "\n"
+    "硬约束：\n"
+    "  • 严禁生成或改写 part3。若返回 revised_story，必须把 part3 设为空字符串 \"\"，\n"
+    "    designRationale 原样回填（或同步修改其中描述 part1/choices 的段落）。\n"
+    "  • 不要主动询问老师选哪条分支续写——这是 Part 2 互动按钮的职责。\n"
+    "  • 如果老师隐含要改 part3（例如「把后半段写得更紧凑」），用一句话告知：\n"
+    "    『请先在「故事预览」中点击 part2 的一个互动选项，生成后半段后我们再讨论怎么改这部分。』\n"
+    "    并维持 revised_story = null。\n"
+    "\n"
+    "MODE A / MODE B 判定（仅作用于 part1 与 choices）：\n"
+    "  • 老师问问题、探讨思路、给模糊建议 → MODE A，revised_story = null。\n"
+    "  • 老师明确要改 part1 或 choices 的具体内容 → MODE B，返回 revised_story（part3 留空）。"
+)
+
+_STORY_CHAT_PHASE_B = (
+    "[CONVERSATION PHASE — B]\n"
+    "老师已经在「故事预览」中点击过 part2 的一个互动选项（selected_choice_id 见下方上下文），\n"
+    "因此 current_story 中已经存在至少一条 part3 续篇（continuations 字典）。\n"
+    "\n"
+    "在本阶段，老师可能想改动以下四种之一：\n"
+    "  ① part1 前半段；\n"
+    "  ② choices 3 个互动选项的文案（label/desc）；\n"
+    "  ③ 当前正在看的那条分支（id = selected_choice_id）对应的 part3 续篇；\n"
+    "  ④ 其中两项或三项的组合。\n"
+    "\n"
+    "硬约束 —— 先澄清，后修改：\n"
+    "  • 如果老师在最新一条消息里 **已经明确指出** 要改哪一部分（例：「把前半段写得更细腻」、\n"
+    "    「第三个互动选项太血腥，换温和的」、「分支 2 的后半段结尾呼应一下『能做』」），\n"
+    "    → 直接进入 MODE B 输出 revised_story（仅改指定部分；其他字段原样回填）。\n"
+    "  • 如果老师 **没有明确指明修改对象**（例：「这段不太行」「太干了」「能不能改改」），\n"
+    "    → 必须先用 MODE A 反问澄清，让老师在 4 个具体选项中挑：\n"
+    "         A. 改 part1 故事前半段\n"
+    "         B. 改 part2 的 3 个互动选项文案\n"
+    "         C. 改当前分支（id = selected_choice_id）的 part3 后半段\n"
+    "         D. 同时改其中几项\n"
+    "    必须列出这 4 个选项让老师挑选；这一轮 revised_story = null。\n"
+    "    不要在没有明确目标时擅自输出修改稿。\n"
+    "\n"
+    "MODE B 字段回填规则（极重要）：\n"
+    "  • revised_story 必须仍含 part1 / choices / part3 / designRationale 四个字段；\n"
+    "    凡是老师 *没有* 要求改的字段，必须从 current_story 逐字回填，切勿『顺便』重写。\n"
+    "  • 如果老师要改某条 part3 续篇（即 ③ 或 ④ 含 part3），把改后的 part3 文本\n"
+    "    *同时* 放在 revised_story.part3 中（用于显示）和 revised_continuations 字典中：\n"
+    "        \"revised_continuations\": {{ \"<被修改的 choice id>\": \"<新的 part3 文本>\" }}\n"
+    "    revised_continuations 仅含被改的那条分支 id；其他分支续篇不要包含。\n"
+    "  • 如果老师没改任何 part3，revised_continuations 为 {{}} 或省略。\n"
+    "\n"
+    "字段级约束沿用故事生成规范：\n"
+    "  • part1 / part3 严格 180-200 中文字（≈ 120-150 EN words），两半段字数对齐；\n"
+    "  • 3 个 choices 各对应不同教学侧面；\n"
+    "  • part3 结尾必须回扣 [学习目标] 的「能做」层；\n"
+    "  • designRationale 遵循 5 段 330-360 字规范。"
+)
+
+
 STORY_CHAT_SYSTEM = (
     "You are an art-education assistant having a conversation with a "
     "grade-2 art teacher who is iterating on an interactive story you "
     "previously wrote together. The story (artwork image, current "
     "JSON, lesson curriculum context) is below.\n\n"
-    "Your job has two modes — you pick based on the user's latest message:\n"
+    "{phase_block}\n\n"
+    "── 通用规则 (无论 Phase A 还是 Phase B 都适用) ──\n"
     "\n"
     "MODE A — Discussion only.\n"
     "  Triggered when the teacher is asking a question, exploring ideas, "
     "asking for advice, or making small/ambiguous suggestions.\n"
-    "  Action: reply conversationally (1-3 short paragraphs). Do NOT "
-    "include a revised_story field.\n"
+    "  Action: reply conversationally (1-3 short paragraphs). Set "
+    "revised_story to null and revised_continuations to {{}}.\n"
     "\n"
     "MODE B — Concrete revision.\n"
-    "  Triggered whenever the teacher describes any concrete change to "
-    "the story, however small. Trigger words include but are not "
-    "limited to:\n"
+    "  Triggered ONLY when the teacher has unambiguously specified which "
+    "slice of the story to change AND how. Trigger words include:\n"
     "    Chinese: 改、改写、修改、调整、润色、重写、重新生成、换成、把…改成、"
     "改得、改一下、写得、写成、再…一点、更…一点、把第N段、把第N个、把…改、"
     "去掉、删除、加上、增加、补充、丰富、收紧、缩短、加长、变成、改为\n"
     "    English: change, rewrite, replace, revise, polish, tweak, adjust, "
     "make … more …, make … less …, drop, add, expand, shorten, lengthen, "
     "tighten, soften, gentler, more sensory, more vivid, less scary…\n"
-    "  If you are uncertain whether the teacher wants discussion or a "
-    "revision, DEFAULT TO MODE B — produce a revised_story. A teacher "
-    "complaining about something in the current story (e.g. 「这段太干了」"
-    "/ 「the choices feel parallel」) is implicitly asking for a "
-    "revision; do not stall in discussion mode.\n"
-    "  Action: return BOTH a brief reply (1-2 sentences acknowledging "
-    "what you changed and why) AND a complete revised_story object "
-    "with ALL FOUR fields (part1, choices[3], part3, designRationale) "
-    "— even fields you did not touch must be carried over verbatim "
-    "from the current story.\n"
-    "  All field-level constraints from the original story-generation "
-    "spec still apply to the revised_story: part1 / part3 strict "
-    "180-200 中文字 (≈120-150 EN words) and aligned with each other; "
-    "3 choices must each map to a different teaching facet of the "
-    "lesson's key art concepts; part3 ending must loop back to the "
-    "「能做」 (do) tier of the learning objectives; designRationale "
-    "follows the 5-paragraph 330-360-character spec.\n"
+    "  Action: return BOTH a 1-2 sentence reply acknowledging what was "
+    "changed AND a complete revised_story with ALL FOUR fields (part1, "
+    "choices, part3, designRationale). Fields the teacher did NOT ask "
+    "you to change must be carried over verbatim from current_story.\n"
     "\n"
     "Output: a single JSON object — no markdown fences, no preamble:\n"
-    "{\n"
+    "{{\n"
     '  "reply": "<conversational reply text>",\n'
-    '  "revised_story": null  // OR the full StoryData JSON in mode B\n'
-    "}\n"
+    '  "revised_story": null,  // OR the full StoryData JSON in MODE B\n'
+    '  "revised_continuations": {{}}  // OR {{ "<choiceId>": "<new part3>" }} when a continuation was changed\n'
+    "}}\n"
     "\n"
-    "When revised_story is non-null, it must follow the same schema as "
-    "the original story (English keys, values in the same language as "
-    "the conversation) and must respect the designRationale 5-paragraph "
-    "330-360-character spec already given above."
+    "When revised_story is non-null it must follow the original story "
+    "schema (English keys, values in the same language as the conversation)."
 )
+
 
 
 class StoryChatRequest(BaseModel):
@@ -1070,6 +1129,17 @@ class StoryChatRequest(BaseModel):
     language: str = "zh"
     lesson_id: Optional[str] = None
     artwork_id: Optional[str] = None
+    # 2026-05 — phase wiring (Phase A vs Phase B).
+    # `selected_choice_id` is None while the teacher is still on the
+    # initial generation (part1 + choices visible, no continuation
+    # picked yet → Phase A); becomes an int after they click any of
+    # the 3 choice buttons (→ Phase B). `continuations` is the full
+    # dict of any already-generated part3 texts keyed by choice id,
+    # so the model can see what's been written across branches and
+    # only rewrite the one the teacher wants changed.
+    selected_choice_id: Optional[int] = None
+    continuations: Optional[dict[str, str]] = None
+
 
 
 def _build_story_chat_context(req: StoryChatRequest) -> str:
@@ -1114,12 +1184,28 @@ def _build_story_chat_context(req: StoryChatRequest) -> str:
     story_json = json.dumps(req.current_story, ensure_ascii=False, indent=2)
     story_block = f"\n\n[当前故事 / Current story JSON]\n{story_json}"
 
+    # Phase-B aux: per-branch continuations + which one is "current".
+    # The model needs this to know which part3 text to rewrite when
+    # the teacher says "改一下分支 2 的后半段" without re-clicking the
+    # button. continuations is a dict keyed by choice id (stringified).
+    phase_aux_lines: list[str] = []
+    if req.selected_choice_id is not None:
+        phase_aux_lines.append(
+            f"\n\n[当前查看分支] selected_choice_id = {req.selected_choice_id}"
+        )
+    if req.continuations:
+        cont_lines = ["\n[已生成的分支续篇 / continuations]"]
+        for cid, text in req.continuations.items():
+            cont_lines.append(f"  • choice id {cid}: {text}")
+        phase_aux_lines.append("\n".join(cont_lines))
+    phase_aux_block = "".join(phase_aux_lines)
+
     # When language is zh AND lesson_id is set, also pass the
     # designRationale spec so MODE B revisions stay within the
     # 5-paragraph 330-360 character contract.
     spec_block = _design_rationale_spec(req.language)
 
-    return lesson_block + story_block + spec_block
+    return lesson_block + story_block + phase_aux_block + spec_block
 
 
 @app.post("/api/story/chat")
@@ -1127,11 +1213,22 @@ async def story_chat(req: StoryChatRequest):
     if not ARK_API_KEY:
         raise HTTPException(500, "ARK_API_KEY is not set")
 
+    # Phase selection — Phase A while no continuation picked yet,
+    # Phase B once any choice has been clicked. The phase block is
+    # injected via str.format() so we have to escape literal braces
+    # in STORY_CHAT_SYSTEM (already done above with {{ }}).
+    phase_block = (
+        _STORY_CHAT_PHASE_B
+        if req.selected_choice_id is not None
+        else _STORY_CHAT_PHASE_A
+    )
+    system_head = STORY_CHAT_SYSTEM.format(phase_block=phase_block)
     system = (
-        STORY_CHAT_SYSTEM
+        system_head
         + _build_story_chat_context(req)
         + _lang_suffix(req.language)
     )
+
     history = [{"role": m.role, "content": m.text} for m in req.messages]
 
     # The artwork image is attached to the last user turn so the
@@ -1184,11 +1281,32 @@ async def story_chat(req: StoryChatRequest):
 
     reply = data.get("reply") or ""
     revised = data.get("revised_story")
+    revised_conts_raw = data.get("revised_continuations") or {}
+
+    # `revised_continuations` is a dict keyed by choice id (stringified
+    # ints OK). Normalise both keys and values to plain str so the
+    # frontend doesn't have to deal with json's mixed int/str-key
+    # parsing quirks.
+    revised_continuations: dict[str, str] = {}
+    if isinstance(revised_conts_raw, dict):
+        for k, v in revised_conts_raw.items():
+            if isinstance(v, str) and v.strip():
+                revised_continuations[str(k)] = v
+
     # Sanity-check: revised_story must include all 4 keys to be applied.
     REQUIRED = {"part1", "choices", "part3", "designRationale"}
     if isinstance(revised, dict) and REQUIRED.issubset(revised.keys()):
-        return {"reply": reply, "revised_story": revised}
-    return {"reply": reply, "revised_story": None}
+        return {
+            "reply": reply,
+            "revised_story": revised,
+            "revised_continuations": revised_continuations,
+        }
+    return {
+        "reply": reply,
+        "revised_story": None,
+        "revised_continuations": revised_continuations,
+    }
+
 
 
 # ════════════════════════════════════════════════════════════════════════

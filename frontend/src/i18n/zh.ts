@@ -371,8 +371,9 @@ export default {
       // 后端在生成故事时不再产出该字段，前端也不再渲染。Sound
       // Design tab 现在仅保留 TTS 朗读。
       // 设计理念 tab 里的 AI 协作对话框（2026-05 试点新增）。
-      chatTitle: '与 AI 讨论修改',
-      chatHint: '可以问"把第 2 段写得更细腻"，或"把第三个分支改成更温和的方向"。',
+      chatTitle: '与艺芽讨论修改',
+      chatHint: '可以说「把故事修改得更贴近本课学习目标」，或「让故事更有想象力」。',
+
       chatPlaceholder: '说说想怎么改…',
       chatSend: '发送',
       chatSending: '思考中…',
@@ -472,12 +473,31 @@ export default {
     },
   },
 
-  // 第五部分 — 制作示例。当前嵌入 Bilibili 示范视频（取消了
-  // 教师本地上传 UI），保留 store 以兼容旧课件。
+  // 第五部分 — 制作示例。默认嵌入 Bilibili 示范视频；
+  // 2026-05-27 起恢复教师上传 / 粘贴链接的能力（见 Part5Content.vue 注释）。
   part5: {
     // 与侧栏 `sidebar.parts[4]` 保持一致（教学组 2026-05 提供）。
     slideTitle: '创意示范',
+    upload: {
+      localBtn: '上传本地视频',
+      urlBtn: '粘贴视频链接',
+      restoreBtn: '恢复默认视频',
+      defaultLabel: '当前播放：默认示范视频',
+      urlPlaceholder: '粘贴 Bilibili 链接、BV 号，或 mp4 直链',
+      urlConfirm: '使用此链接',
+    },
+    errors: {
+      notVideo: '请选择视频文件（mp4 / mov / webm）',
+      tooLarge: '视频不能超过 200 MB',
+      badUrl: '请输入有效的视频链接或 Bilibili BV 号',
+    },
+    toasts: {
+      uploaded: '已替换为本地视频',
+      urlSet: '已替换为指定链接',
+      restored: '已恢复默认示范视频',
+    },
   },
+
   part7: {
     noLessonTitle: '第七部分需要绑定教材课程',
     noLessonHint:

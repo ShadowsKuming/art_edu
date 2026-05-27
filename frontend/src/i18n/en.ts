@@ -481,14 +481,33 @@ export default {
     },
   },
 
-  // Part 5 — Making Example. Slide now embeds a curated Bilibili
-  // tutorial via iframe; the local-upload UI was retired during the
-  // pilot but the store still exists for legacy projects.
+  // Part 5 — Making Example. Slide embeds a curated Bilibili tutorial
+  // by default; 2026-05-27 onward teachers can also upload a local
+  // clip or paste their own URL (see Part5Content.vue for details).
   part5: {
     // Slide H1 mirrors the sidebar label from `sidebar.parts[4]`
     // (curriculum-team copy, 2026-05).
     slideTitle: 'Creative Demonstration',
+    upload: {
+      localBtn: 'Upload Local Video',
+      urlBtn: 'Paste Video URL',
+      restoreBtn: 'Restore Default',
+      defaultLabel: 'Playing: default demonstration video',
+      urlPlaceholder: 'Paste a Bilibili link, BV id, or direct mp4 URL',
+      urlConfirm: 'Use this link',
+    },
+    errors: {
+      notVideo: 'Please choose a video file (mp4 / mov / webm).',
+      tooLarge: 'Video must be smaller than 200 MB.',
+      badUrl: 'Please enter a valid video URL or Bilibili BV id.',
+    },
+    toasts: {
+      uploaded: 'Replaced with your local video.',
+      urlSet: 'Replaced with the provided URL.',
+      restored: 'Restored the default demonstration video.',
+    },
   },
+
   part7: {
     noLessonTitle: 'Part 7 needs a curriculum lesson',
     noLessonHint:

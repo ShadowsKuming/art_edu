@@ -2,48 +2,55 @@
 /**
  * Part 5 — Making Example.
  *
- * Pilot update 2026-05: instead of asking the teacher to upload their
- * own demo clip, the slide now embeds a curated Bilibili tutorial via
- * iframe. The custom-upload affordance was removed for the pilot
- * because every classroom in the trial uses the same teacher-facing
- * demonstration; the existing `usePart5Store` is left untouched so
- * any project that already has a user-uploaded video saved keeps
- * working when re-opened, but no new uploads can be created from
- * this surface.
+ * Originally (pilot 2026-05-01): hard-coded per-lesson Bilibili iframe;
+ * the teacher could not change the clip. Teacher feedback on 2026-05-27
+ * asked for the upload affordance back: some teachers want to use a
+ * clip they recorded themselves, others want to swap to a different
+ * online demo (especially Bilibili, since that's what the curriculum
+ * team already uses).
  *
- * Source videos (per lesson):
+ * The new flow keeps the default Bilibili clip as the fallback and
+ * adds an upload row beneath the canvas with TWO entry points:
+ *
+ *   ① 「上传本地视频」— file picker (mp4 / mov / webm). The file is
+ *     converted to a `blob:` URL so it stays entirely client-side
+ *     (matches the pilot's no-backend-storage stance for media).
+ *
+ *   ② 「粘贴视频链接」— a free-text input that accepts either:
+ *       • a Bilibili BV id (e.g. `BV1VjVc6tEhK`)
+ *       • a Bilibili share URL (`https://www.bilibili.com/video/BVxxxx`)
+ *       • a Bilibili player iframe URL (`…/player.html?bvid=…`)
+ *       • any direct mp4 / m3u8 URL (rendered as <video src="…">)
+ *
+ *   ③ 「恢复默认视频」— clears the custom source and falls back to
+ *     the per-lesson default iframe.
+ *
+ * Source videos (default, per lesson):
  *   g2v2-u4-l4 《好长好长……》   → https://www.bilibili.com/video/BV1VjVc6tEhK
  *   g2v2-u4-l5 《吸引人的标题》 → https://www.bilibili.com/video/BV155Vc6fEpd
  *   g2v2-u5-l1 《听听画画》     → https://www.bilibili.com/video/BV1ETVc6eENm
- * Bilibili embed reference:
- *   https://player.bilibili.com/player.html?bvid=...&page=1
- *
- * The mapping below is intentionally hard-coded in this component
- * (rather than added to each LKP JSON) because the demo videos are a
- * pilot-only asset — they don't belong in the curriculum schema and
- * the curriculum team prefers to swap them via a code edit. When a
- * new lesson is onboarded, add its BVID here.
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSlideStore } from '@/stores/slides'
 import { useProjectsStore } from '@/stores/projects'
+import { usePart5Store } from '@/stores/part5'
+import { useToastStore } from '@/stores/toast'
 
 const slideStore = useSlideStore()
 const projectsStore = useProjectsStore()
+const part5Store = usePart5Store()
+const toast = useToastStore()
 const { t } = useI18n()
 
-/** Per-lesson demo-video Bilibili BVIDs. Falls back to the U4-L4
- *  ("好长好长……") clip when the active lesson has no mapping yet —
- *  that's the canonical demo and works as a generic placeholder for
- *  legacy projects without `meta.lessonId`. */
+/** Per-lesson Bilibili BVIDs. Falls back to U4-L4 clip for legacy
+ *  projects without a `meta.lessonId`. */
 const LESSON_VIDEO_MAP: Record<string, string> = {
-  'g2v2-u4-l4': 'BV1VjVc6tEhK', // 《好长好长……》
-  'g2v2-u4-l5': 'BV155Vc6fEpd', // 《吸引人的标题》
-  'g2v2-u5-l1': 'BV1ETVc6eENm', // 《听听画画》
+  'g2v2-u4-l4': 'BV1VjVc6tEhK',
+  'g2v2-u4-l5': 'BV155Vc6fEpd',
+  'g2v2-u5-l1': 'BV1ETVc6eENm',
 }
 const DEFAULT_BVID = 'BV1VjVc6tEhK'
-
 
 const slideStyle = computed(() => {
   if (slideStore.globalBackground) {
@@ -59,22 +66,110 @@ const slideStyle = computed(() => {
   return { backgroundColor: '#ffffff' }
 })
 
-/**
- * Bilibili embed URL — recomputed when the active lesson changes
- * (e.g. teacher switches projects via the dashboard). Query params:
- *   • `page=1`         — first segment (only one in this video)
- *   • `high_quality=1` — request the highest available stream
- *   • `danmaku=0`      — hide the floating-comment overlay in class
- *   • `autoplay=0`     — never autoplay, teachers press play manually
- */
-const videoEmbedUrl = computed(() => {
-  const lessonId = projectsStore.activeLessonId
-  const bvid = (lessonId && LESSON_VIDEO_MAP[lessonId]) || DEFAULT_BVID
+function buildBilibiliEmbed(bvid: string): string {
   return (
     `https://player.bilibili.com/player.html?bvid=${bvid}` +
     `&page=1&high_quality=1&danmaku=0&autoplay=0`
   )
+}
+
+/** Default per-lesson Bilibili embed URL. */
+const defaultEmbedUrl = computed(() => {
+  const lessonId = projectsStore.activeLessonId
+  const bvid = (lessonId && LESSON_VIDEO_MAP[lessonId]) || DEFAULT_BVID
+  return buildBilibiliEmbed(bvid)
 })
+
+/** Extract a Bilibili BVID from any of the supported URL shapes. */
+function extractBvid(raw: string): string | null {
+  const s = raw.trim()
+  if (!s) return null
+  // Plain BV id, e.g. "BV1VjVc6tEhK"
+  if (/^BV[a-zA-Z0-9]{8,}$/.test(s)) return s
+  // bvid= query param (player URL share)
+  const q = s.match(/[?&]bvid=([a-zA-Z0-9]+)/)
+  if (q) return q[1]
+  // /video/BVxxxx path
+  const p = s.match(/\/video\/(BV[a-zA-Z0-9]+)/)
+  if (p) return p[1]
+  return null
+}
+
+/** Decide what URL & element the active custom source should render as. */
+type RenderTarget =
+  | { kind: 'iframe'; url: string }
+  | { kind: 'video'; url: string }
+  | null
+
+const customRender = computed<RenderTarget>(() => {
+  if (part5Store.customSourceType === 'upload' && part5Store.customBlobUrl) {
+    return { kind: 'video', url: part5Store.customBlobUrl }
+  }
+  if (part5Store.customSourceType === 'url' && part5Store.customUrl) {
+    const bvid = extractBvid(part5Store.customUrl)
+    if (bvid) return { kind: 'iframe', url: buildBilibiliEmbed(bvid) }
+    // Treat any other URL as a direct video file. The <video> element
+    // will surface its own error UI if the URL isn't playable.
+    return { kind: 'video', url: part5Store.customUrl }
+  }
+  return null
+})
+
+// ── Upload UI handlers ────────────────────────────────────────────
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const pastedUrl = ref('')
+const showUrlInput = ref(false)
+
+function onPickFile() {
+  fileInputRef.value?.click()
+}
+
+function onFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('video/')) {
+    toast.show(t('part5.errors.notVideo'), 'warning')
+    target.value = ''
+    return
+  }
+  // Soft cap at 200 MB so the browser doesn't choke on a 4K master.
+  // Blob URL itself is cheap; the cost is the <video> decoder.
+  const MAX_BYTES = 200 * 1024 * 1024
+  if (file.size > MAX_BYTES) {
+    toast.show(t('part5.errors.tooLarge'), 'warning')
+    target.value = ''
+    return
+  }
+
+  part5Store.setLocalFile(file)
+  toast.show(t('part5.toasts.uploaded'), 'success')
+  target.value = ''
+}
+
+function onSubmitUrl() {
+  const url = pastedUrl.value.trim()
+  if (!url) return
+  // Quick validation: must be a BV id, a bilibili.com URL, or
+  // http(s) URL ending in a video extension.
+  const bvid = extractBvid(url)
+  const isMediaUrl = /^https?:\/\/.+\.(mp4|m3u8|webm|mov)(\?|$)/i.test(url)
+  if (!bvid && !isMediaUrl && !/^https?:\/\//.test(url)) {
+    toast.show(t('part5.errors.badUrl'), 'warning')
+
+    return
+  }
+  part5Store.setPastedUrl(url)
+  pastedUrl.value = ''
+  showUrlInput.value = false
+  toast.show(t('part5.toasts.urlSet'), 'success')
+}
+
+function onRestoreDefault() {
+  part5Store.clearCustom()
+  toast.show(t('part5.toasts.restored'), 'info')
+}
+
 
 
 function saveAndNext() {
@@ -86,18 +181,38 @@ function saveAndNext() {
   <section class="p5-content">
     <div class="p5-canvas-area">
 
-      <!-- 2026-05: removed the "创意示范" slide title bar and made the
-           Bilibili iframe fill the entire slide preview. Per design
-           feedback, the title felt redundant (the sidebar Part-5 label
-           already says "创意示范") and was eating ~60 px of valuable
-           video height. The iframe now sits directly in the white
-           preview box. The slide's global-theme background (set via
-           Part 1) is still honoured, but it's only visible as a 1-2 px
-           seam where the video doesn't reach the rounded corner. -->
+      <!-- Slide preview: shows custom source if set, otherwise the
+           default per-lesson Bilibili iframe. We branch in template
+           (rather than computing one src) because the custom path may
+           need <video> instead of <iframe>. -->
       <div class="p5-slide-preview" :style="slideStyle">
+        <template v-if="customRender">
+          <iframe
+            v-if="customRender.kind === 'iframe'"
+            class="p5-video-frame"
+            :src="customRender.url"
+            :title="t('part5.slideTitle')"
+            scrolling="no"
+            frameborder="0"
+            framespacing="0"
+            allowfullscreen
+            allow="autoplay; fullscreen; encrypted-media"
+            referrerpolicy="no-referrer"
+            loading="lazy"
+          />
+          <video
+            v-else
+            class="p5-video-frame"
+            :src="customRender.url"
+            controls
+            preload="metadata"
+            :title="t('part5.slideTitle')"
+          />
+        </template>
         <iframe
+          v-else
           class="p5-video-frame"
-          :src="videoEmbedUrl"
+          :src="defaultEmbedUrl"
           :title="t('part5.slideTitle')"
           scrolling="no"
           frameborder="0"
@@ -107,6 +222,60 @@ function saveAndNext() {
           referrerpolicy="no-referrer"
           loading="lazy"
         />
+      </div>
+
+      <!-- Upload / URL paste / restore-default row. The chip at the
+           right end surfaces the active custom source so the teacher
+           can tell at a glance whether the default or a custom clip is
+           playing. -->
+      <div class="p5-upload-bar">
+        <button class="p5-upload-btn" @click="onPickFile">
+          {{ t('part5.upload.localBtn') }}
+        </button>
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="video/*"
+          class="p5-file-hidden"
+          @change="onFileChange"
+        />
+
+        <button class="p5-upload-btn" @click="showUrlInput = !showUrlInput">
+          {{ t('part5.upload.urlBtn') }}
+        </button>
+
+        <button
+          v-if="part5Store.customSourceType"
+          class="p5-restore-btn"
+          @click="onRestoreDefault"
+        >
+          {{ t('part5.upload.restoreBtn') }}
+        </button>
+
+        <span v-if="part5Store.customSourceType === 'upload'" class="p5-source-chip">
+          📁 {{ part5Store.customFileName }}
+        </span>
+        <span v-else-if="part5Store.customSourceType === 'url'" class="p5-source-chip">
+          🔗 {{ part5Store.customUrl }}
+        </span>
+        <span v-else class="p5-source-chip is-default">
+          {{ t('part5.upload.defaultLabel') }}
+        </span>
+      </div>
+
+      <!-- Collapsible URL input: only visible when teacher clicked
+           "Paste link" — saves vertical space when not in use. -->
+      <div v-if="showUrlInput" class="p5-url-row">
+        <input
+          v-model="pastedUrl"
+          class="p5-url-input"
+          type="url"
+          :placeholder="t('part5.upload.urlPlaceholder')"
+          @keyup.enter="onSubmitUrl"
+        />
+        <button class="p5-url-submit" @click="onSubmitUrl">
+          {{ t('part5.upload.urlConfirm') }}
+        </button>
       </div>
 
     </div>
@@ -135,17 +304,11 @@ function saveAndNext() {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 40px 32px 16px;
+  padding: 32px 32px 16px;
   gap: 16px;
   overflow-y: auto;
 }
 
-/* 2026-05: dropped the inner padding so the Bilibili iframe stretches
-   to the slide preview's edges. The previous 32px padding + slide
-   title + nested .p5-video-area wrapper left the video at ~ 700×340
-   inside a 760×428 frame — feedback was that the video should fill
-   the whole white box. Now `.p5-slide-preview` is a bare container
-   and `.p5-video-frame` is `position: absolute; inset: 0`. */
 .p5-slide-preview {
   width: 100%;
   max-width: 760px;
@@ -166,6 +329,95 @@ function saveAndNext() {
   height: 100%;
   display: block;
   border: 0;
+  background: #000;
+}
+
+/* ── Upload row ───────────────────────────────────────────────── */
+.p5-upload-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 760px;
+  width: 100%;
+}
+
+.p5-upload-btn {
+  height: 36px;
+  padding: 0 16px;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.p5-upload-btn:hover { background: #f3f4f6; }
+
+.p5-restore-btn {
+  height: 36px;
+  padding: 0 14px;
+  background: transparent;
+  color: #6b7280;
+  border: 1px dashed #9ca3af;
+  border-radius: 999px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.p5-restore-btn:hover { color: #1f2937; border-color: #6b7280; }
+
+.p5-file-hidden { display: none; }
+
+.p5-source-chip {
+  margin-left: auto;
+  padding: 4px 10px;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 12px;
+  font-size: 12px;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.p5-source-chip.is-default {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.p5-url-row {
+  display: flex;
+  gap: 8px;
+  max-width: 760px;
+  width: 100%;
+}
+
+.p5-url-input {
+  flex: 1;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.p5-url-input:focus { outline: 2px solid #7FEC8F; outline-offset: 1px; }
+
+.p5-url-submit {
+  height: 38px;
+  padding: 0 18px;
+  background: #7FEC8F;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .p5-footer {
@@ -189,7 +441,6 @@ function saveAndNext() {
   font-family: inherit;
   cursor: pointer;
 }
-
 .p5-save-plain-btn:hover { background: #d8d8d8; }
 
 .p5-save-btn {
@@ -205,6 +456,5 @@ function saveAndNext() {
   cursor: pointer;
   box-shadow: 2px 3px 6px rgba(0,0,0,0.12);
 }
-
 .p5-save-btn:hover { transform: translateY(-1px) scale(1.02); }
 </style>

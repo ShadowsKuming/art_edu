@@ -46,10 +46,17 @@ export interface DesignChatMessage {
    *  it inline on the message so the user can review/apply it later
    *  even after sending follow-up messages. */
   revisedStory?: StoryData | null
+  /** 2026-05 — when the model rewrote one or more specific branch
+   *  continuations (Phase B), it returns them as a map keyed by
+   *  choice id. Stored alongside `revisedStory` so applyRevisedStory
+   *  can merge these into `generatedContinuations` without clobbering
+   *  branches the teacher didn't ask to change. */
+  revisedContinuations?: Record<number, string>
   /** Becomes true once the user clicks "Apply" on the proposed
    *  rewrite — keeps the button from being clicked twice. */
   revisedStoryApplied?: boolean
 }
+
 
 /** Persistent story/animation state saved per artwork when the user switches away. */
 export interface SavedArtworkState {
@@ -582,6 +589,17 @@ export const usePart3Store = defineStore('part3', () => {
       const res = await fetch(`${API_BASE}/api/story/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // 2026-05 — Phase A/B wiring.
+        //   selected_choice_id: null → Phase A (only part1 + choices
+        //     drafted, no continuation yet; backend forbids touching
+        //     part3 and asks the teacher to pick a branch first).
+        //   selected_choice_id: int  → Phase B (≥1 continuation
+        //     exists; backend will FIRST ask the teacher which slice
+        //     they want changed when the request is ambiguous).
+        // We also forward `generatedContinuations` keyed by choice id
+        // so the model sees every branch already written and can
+        // rewrite just the one the teacher names without losing the
+        // others.
         body: JSON.stringify({
           image_base64: pair.imageBase64,
           image_mime: pair.imageMime,
@@ -590,6 +608,10 @@ export const usePart3Store = defineStore('part3', () => {
           language,
           lesson_id: lessonId ?? undefined,
           artwork_id: pair.selectedArtworkId ?? undefined,
+          selected_choice_id: pair.selectedChoiceId,
+          continuations: Object.fromEntries(
+            Object.entries(pair.generatedContinuations).map(([k, v]) => [String(k), v]),
+          ),
         }),
       })
       if (!res.ok) {
@@ -597,12 +619,26 @@ export const usePart3Store = defineStore('part3', () => {
         throw new Error(err.detail ?? 'Chat failed')
       }
       const data = await res.json()
+      // `revised_continuations` is an optional map { choiceId: newPart3 }
+      // returned when the model rewrote one or more branches' part3.
+      // Normalise to Record<number, string> so applyRevisedStory can
+      // merge it into generatedContinuations cleanly.
+      const rawConts = (data.revised_continuations ?? {}) as Record<string, string>
+      const revisedContinuations: Record<number, string> = {}
+      for (const [k, v] of Object.entries(rawConts)) {
+        const n = Number(k)
+        if (Number.isInteger(n) && typeof v === 'string' && v.trim()) {
+          revisedContinuations[n] = v
+        }
+      }
       pair.designChatMessages.push({
         role: 'assistant',
         text: data.reply ?? '',
         revisedStory: data.revised_story ?? null,
+        revisedContinuations,
         revisedStoryApplied: false,
       })
+
     } catch (e: any) {
       pair.designChatError = e.message
     } finally {
@@ -624,17 +660,56 @@ export const usePart3Store = defineStore('part3', () => {
     if (!msg?.revisedStory || msg.revisedStoryApplied) return
     pair.storyData = JSON.parse(JSON.stringify(msg.revisedStory))
     msg.revisedStoryApplied = true
-    if (pair.storyData?.part3) {
-      pair.generatedContinuations = { 0: pair.storyData.part3 }
+
+    // 2026-05 — Phase A/B aware continuation merge.
+    //
+    // Phase A (no continuation yet): backend was instructed to return
+    //   part3 = "" to signal "I did not touch the continuation". We
+    //   keep `generatedContinuations` empty and `selectedChoiceId`
+    //   null so the teacher must still pick a branch to generate
+    //   part3 — matches the rest of the Story Preview flow.
+    //
+    // Phase B (≥1 continuation already drafted): backend may return
+    //   `revisedContinuations` = { choiceId: newPart3 } for the
+    //   branches it rewrote. We merge those into the existing dict
+    //   so untouched branches stay intact. If revisedContinuations
+    //   is empty AND revisedStory.part3 is non-empty, fall back to
+    //   the legacy single-branch behaviour and overwrite the
+    //   currently-selected branch (or choice 0 if none).
+    const part3 = pair.storyData?.part3 ?? ''
+    const hasRevisedConts = msg.revisedContinuations
+      && Object.keys(msg.revisedContinuations).length > 0
+
+    if (hasRevisedConts) {
+      pair.generatedContinuations = {
+        ...pair.generatedContinuations,
+        ...msg.revisedContinuations,
+      }
+      // Keep current branch selection if it was one of the rewritten
+      // ones, otherwise default to the first rewritten branch so the
+      // teacher immediately sees the change in Story Preview.
+      const rewrittenIds = Object.keys(msg.revisedContinuations!).map(Number)
+      if (
+        pair.selectedChoiceId === null
+        || !rewrittenIds.includes(pair.selectedChoiceId)
+      ) {
+        pair.selectedChoiceId = rewrittenIds[0]
+      }
+    } else if (part3) {
+      // Legacy / Phase A → Phase A revisit. Backfill only if part3
+      // is non-empty (Phase A revisions set part3 to "").
+      const target = pair.selectedChoiceId ?? 0
+      pair.generatedContinuations = {
+        ...pair.generatedContinuations,
+        [target]: part3,
+      }
+      if (pair.selectedChoiceId === null) pair.selectedChoiceId = 0
     }
-    // 2026-05 fix: previously this set `selectedChoiceId = null` and
-    // the user had to manually click a branch on Story Preview to see
-    // the new part3 — defeating the whole "Apply" affordance. Now we
-    // pre-select choice 0 (the "main path") so Story Preview shows the
-    // new opening + the new part3 immediately. The teacher can still
-    // click a different branch if they want to explore alternatives.
-    pair.selectedChoiceId = 0
+    // Otherwise (Phase A response with empty part3): leave
+    // generatedContinuations + selectedChoiceId as they are — the
+    // teacher still needs to pick a branch.
   }
+
 
   function removePair(id: string) {
     pairs.value = pairs.value.filter(p => p.id !== id)
