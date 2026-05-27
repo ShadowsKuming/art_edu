@@ -1,222 +1,228 @@
 {
-    "lesson_id": "g2v2-u4-l5",
-    "lesson_title_zh": "吸引人的标题",
-    "lesson_title_en": "An Eye-Catching Title",
-    "unit_id": "g2v2-u4",
-    "unit_title_zh": "我的图画书",
-    "unit_title_en": "My Picture Book",
-    "unit_big_idea_zh": "艺术家用图画书讲故事，表达所思所想",
-    "grade": 2,
-    "volume": 2,
-    "publisher": "湖南美术出版社",
-    "textbook_page_range": [
-        46,
-        47
-    ],
-    "teacher_guide_page_range": [
-        83,
-        85
-    ],
-    "category": "A",
-    "category_reason": "Flat title / typography / graphic design task",
-    "learning_task_zh": "为自己喜欢的故事设计标题",
-    "learning_objectives": {
-        "know": "图画书的标题可以用丰富多样的字体，艺术家可以用有趣的标题吸引大家读故事",
-        "understand": "改变标题的字形、大小、颜色、花纹等能让故事标题更吸引人",
-        "do": "能为自己喜欢的书或自编的故事书设计一个吸引人的标题"
+  "lesson_id": "g2v2-u4-l5",
+  "lesson_title_zh": "吸引人的标题",
+  "lesson_title_en": "An Eye-Catching Title",
+  "unit_id": "g2v2-u4",
+  "unit_title_zh": "我的图画书",
+  "unit_title_en": "My Picture Book",
+  "unit_big_idea_zh": "艺术家用图画书讲故事，表达所思所想",
+  "grade": 2,
+  "volume": 2,
+  "publisher": "湖南美术出版社",
+  "textbook_page_range": [
+    46,
+    47
+  ],
+  "teacher_guide_page_range": [
+    83,
+    85
+  ],
+  "category": "A",
+  "category_reason": "Flat title / typography / graphic design task",
+  "learning_task_zh": "为自己喜欢的故事设计标题",
+  "learning_objectives": {
+    "know": "图画书的标题可以用丰富多样的字体，艺术家可以用有趣的标题吸引大家读故事",
+    "understand": "改变标题的字形、大小、颜色、花纹等能让故事标题更吸引人",
+    "do": "能为自己喜欢的书或自编的故事书设计一个吸引人的标题"
+  },
+  "key_art_concepts": [
+    "字形（字的形状和笔画处理）",
+    "大小对比",
+    "颜色搭配",
+    "花纹与装饰",
+    "标题位置与布局",
+    "标题与故事内容的呼应"
+  ],
+  "teaching_focus_zh": "欣赏优秀图画书标题，结合故事内容赏析标题设计，感受图画书的字体之美；能改变标题的字形、大小、颜色、花纹等，让故事标题更吸引人",
+  "teaching_difficulty_zh": [
+    "能根据故事内容设计吸引人的故事标题",
+    "能兼顾文字美感与画面整体的统一"
+  ],
+  "driving_question_zh": "如何让图画书标题表现故事内容，更吸引人？",
+  "guiding_questions_zh": [
+    "你见过哪些有意思的图画书标题？它们最吸引你的地方是什么呢？",
+    "艺术家的标题设计分别运用了哪些方法？为什么要这样设计呢？",
+    "怎样通过标题设计突出故事主题呢？"
+  ],
+  "assessment_criteria": [
+    "能欣赏优秀图画书标题，能结合故事内容赏析标题设计，感受图画书的字体之美",
+    "能通过改变标题的字形、大小、颜色、花纹等让故事标题更吸引人",
+    "能根据故事主题选择合适的字形与色彩，让标题与画面整体统一",
+    "能感受到创作的乐趣，愿意把自己设计标题讲故事的方法分享给老师和同学们"
+  ],
+  "slide_framework": [
+    {
+      "page": 1,
+      "part_id": 1,
+      "section": "封面",
+      "content_points": "课题《吸引人的标题》、年级、出版社",
+      "asset_types": "设计感标题背景图"
     },
-    "key_art_concepts": [
-        "字形（字的形状和笔画处理）",
-        "大小对比",
-        "颜色搭配",
-        "花纹与装饰",
-        "标题位置与布局",
-        "标题与故事内容的呼应"
-    ],
-    "teaching_focus_zh": "欣赏优秀图画书标题，结合故事内容赏析标题设计，感受图画书的字体之美；能改变标题的字形、大小、颜色、花纹等，让故事标题更吸引人",
-    "teaching_difficulty_zh": [
-        "能根据故事内容设计吸引人的故事标题",
-        "能兼顾文字美感与画面整体的统一"
-    ],
-    "driving_question_zh": "如何让图画书标题表现故事内容，更吸引人？",
-    "guiding_questions_zh": [
-        "你见过哪些有意思的图画书标题？它们最吸引你的地方是什么呢？",
-        "艺术家的标题设计分别运用了哪些方法？为什么要这样设计呢？",
-        "怎样通过标题设计突出故事主题呢？"
-    ],
-    "assessment_criteria": [
-        "能欣赏优秀图画书标题，能结合故事内容赏析标题设计，感受图画书的字体之美",
-        "能通过改变标题的字形、大小、颜色、花纹等让故事标题更吸引人",
-        "能根据故事主题选择合适的字形与色彩，让标题与画面整体统一",
-        "能感受到创作的乐趣，愿意把自己设计标题讲故事的方法分享给老师和同学们"
-    ],
-    "slide_framework": [
-        {
-            "page": 1,
-            "part_id": 1,
-            "section": "封面",
-            "content_points": "课题《吸引人的标题》、年级、出版社",
-            "asset_types": "设计感标题背景图"
-        },
-        {
-            "page": 2,
-            "part_id": 2,
-            "section": "导入·封面对比",
-            "content_points": "展示同一故事两个封面（标题字体不同），提问哪个更吸引人",
-            "asset_types": "两版书封面图"
-        },
-        {
-            "page": 3,
-            "part_id": 3,
-            "section": "新授·欣赏不同风格",
-            "content_points": "展示并通过故事讲解《年》/《糟了！我忘了关水龙头！》/《臭臭的比尔》等标题范例",
-            "asset_types": "封面图、互动故事、动画"
-        },
-        {
-            "page": 4,
-            "part_id": 4,
-            "section": "艺术实践·任务布置",
-            "content_points": "为自己喜欢的故事或自编故事设计一个标题",
-            "asset_types": "任务文字"
-        },
-        {
-            "page": 5,
-            "part_id": 5,
-            "section": "艺术实践·步骤提示",
-            "content_points": "构思布局→添画轮廓→选择颜色",
-            "asset_types": "步骤示意图"
-        },
-        {
-            "page": 6,
-            "part_id": 6,
-            "section": "作品转化",
-            "content_points": "学生标题草图上传 + 3 种风格转换",
-            "asset_types": "风格示例"
-        },
-        {
-            "page": 7,
-            "part_id": 7,
-            "section": "评价·标题艺术展",
-            "content_points": "模拟展览，学生介绍设计思路，互评优点",
-            "asset_types": "评价句式"
-        }
-    ],
-    "textbook_artworks": [
-        {
-            "artwork_id": "G2V2-U4-L5-art01",
-            "title_zh": "年",
-            "artist_zh": "朱慧颖",
-            "year": 2015,
-            "medium_zh": "图画书封面",
-            "image_url": "/textbook-assets/G2V2-U4-L5/art01-nian.jpg",
-            "license_status": "Pilot study 内部使用，不公开分发。来源：《年》绘本封面, 2015",
-            "textbook_position": "page 46",
-            "visual_description_zh": "封面以红色为主调，中心一个金色的『年』字，周围环绕红色鞭炮装饰图案，营造浓烈的春节氛围",
-            "teacher_guide_notes_zh": "用立体感强烈、色彩鲜艳的红金配色，周围添加文化象征性装饰（鞭炮）。引导学生发现：字形如何呼应春节的红火气氛。",
-            "executor_b_prompt_hint_zh": "POV: 一个中国小朋友过春节的所见所闻。『年』是关于春节的传说而不是『年兽吓人』——重点写贴对联、放小礼花、吃团圆饭的喜庆，标题中的『年』字变化呼应春节的红火气氛。儿童本位，避免年兽传说中怪兽吓人的细节。",
-            "recommended_for_executor_b": true,
-            "recommended_for_executor_c": true,
-            "narrative_richness": "high"
-        },
-        {
-            "artwork_id": "G2V2-U4-L5-art02",
-            "title_zh": "糟了！我忘了关水龙头！",
-            "artist_zh": "刘畅",
-            "year": 2022,
-            "medium_zh": "图画书封面",
-            "image_url": "/textbook-assets/G2V2-U4-L5/art02-shuilongtou.jpg",
-            "license_status": "Pilot study 内部使用，不公开分发。来源：《糟了！我忘了关水龙头！》绘本封面, 2022",
-            "textbook_position": "page 46",
-            "visual_description_zh": "封面是浴室场景，瓷砖墙背景，中心标题文字被设计成水流的形态，字体起伏摇晃，营造水溢出的紧张感",
-            "teacher_guide_notes_zh": "字形跟随主题（水流形态）、笔画动感、夸张感叹号传递情绪。引导学生体会：标题的字形如何把『糟了』的紧张感传递出来。",
-            "executor_b_prompt_hint_zh": "POV: 一个粗心的小学生回家发现忘记关水龙头的搞笑混乱。基调是诙谐和『糟糕但好玩』而不是真的灾难。可以有水溢出来变成小池塘、小鸭子漂在上面等童趣化处理，避免水管爆裂、家具损坏等成人感担忧。",
-            "recommended_for_executor_b": true,
-            "recommended_for_executor_c": true,
-            "narrative_richness": "high"
-        },
-        {
-            "artwork_id": "G2V2-U4-L5-art03",
-            "title_zh": "臭臭的比尔",
-            "artist_zh": "丹尼尔·帕斯盖特",
-            "year": 2018,
-            "medium_zh": "图画书封面",
-            "image_url": "/textbook-assets/G2V2-U4-L5/art03-chouchoubier.jpg",
-            "license_status": "Pilot study 内部使用，不公开分发。来源：《臭臭的比尔》绘本中文版封面, 2018",
-            "textbook_position": "page 46",
-            "visual_description_zh": "封面是一只蓬乱、表情滑稽的黄色小狗，标题字体歪斜可爱，周围有飞舞的小虫，营造臭烘烘但又招人喜爱的氛围",
-            "teacher_guide_notes_zh": "字形扭曲歪斜传递『臭』的滑稽感，周围添加情景装饰（小虫）。引导学生注意：装饰图案如何让标题更有故事性。",
-            "executor_b_prompt_hint_zh": "POV: 小狗比尔的好朋友(一个小孩子)的视角，讲述比尔很臭但人见人爱的故事。臭味的描写要保持滑稽不要恶心(可以描写『比尔身上的味道像踩到了小花』之类幽默化处理)，小虫子是友好的伙伴而不是讨厌的虫害。",
-            "recommended_for_executor_b": true,
-            "recommended_for_executor_c": true,
-            "narrative_richness": "high"
-        }
-    ],
-    "default_executor_b_artwork_id": "G2V2-U4-L5-art02",
-    "animation_default_mood": "playful, lively, slightly mischievous",
-    "executor_d_styles": {
-        "branch": "A",
-        "styles": [
-            {
-                "style_id": 1,
-                "style_name_zh": "字形夸张",
-                "style_description_zh": "把孩子写的字按主题进行夸张变形（字形跟随含义）",
-                "linked_learning_objective": "根据文字的含义来装饰、改变字形笔画",
-                "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character and the basic layout. Now exaggerate each character's shape to MATCH ITS MEANING — make 'long' characters elongated, 'small' characters tiny, 'tall' characters towering, 'round' characters bulbous. Keep the child's pen style. Vivid colors. Image-to-image strength: 0.55.",
-                "model_recommendation": "doubao-seedream-5-0-260128"
-            },
-            {
-                "style_id": 2,
-                "style_name_zh": "色彩更情绪化",
-                "style_description_zh": "根据标题情绪选择颜色（开心=暖色、安静=冷色、紧张=对比强烈）",
-                "linked_learning_objective": "根据文字的含义改变字的颜色",
-                "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character's shape exactly. Now re-color each character with an emotionally appropriate palette: bright warm tones for happy/exciting titles, cool blues/greens for calm/quiet titles, high-contrast clashing colors for tense/dramatic titles. Apply gradient fills inside each stroke. Image-to-image strength: 0.4.",
-                "model_recommendation": "doubao-seedream-5-0-260128"
-            },
-            {
-                "style_id": 3,
-                "style_name_zh": "添加装饰图案",
-                "style_description_zh": "在字的笔画里或周围添加与故事内容相关的装饰图案",
-                "linked_learning_objective": "在文字周围添加装饰细节，让标题更有吸引力",
-                "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character's outline. Now embellish: replace selected strokes with thematic illustrations (e.g., a water droplet becomes part of a stroke for a water-themed title; small flowers grow from strokes for a spring title). Add small thematic decorations floating around the title. Keep readability. Image-to-image strength: 0.5.",
-                "model_recommendation": "doubao-seedream-5-0-260128"
-            }
-        ]
+    {
+      "page": 2,
+      "part_id": 2,
+      "section": "导入·封面对比",
+      "content_points": "展示同一故事两个封面（标题字体不同），提问哪个更吸引人",
+      "asset_types": "两版书封面图"
     },
-    "executor_a_part_prompts": {
-        "part1": "【课程上下文】本节课是《吸引人的标题》，学习任务：为自己喜欢的故事设计标题。老师正在备 Part 1（封面与开场），可向你咨询封面字体、视觉风格、开场提问等。只回答老师实际提出的问题，不要主动输出完整设计方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
-        "part2": "【课程上下文】本节课是《吸引人的标题》，关键概念：字形（字的形状和笔画处理）、大小对比、颜色搭配、花纹与装饰。老师正在备 Part 2（导入与注意力引导），可向你咨询儿歌、提问、悬念、生活场景等导入形式。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
-        "part4": "【课程上下文】本节课是《吸引人的标题》，学习任务：为自己喜欢的故事设计标题。老师正在备 Part 4（制作任务布置），可向你咨询任务目标、关键约束、时间预期、安全提示等。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
-        "part5": "【课程上下文】本节课是《吸引人的标题》。老师正在备 Part 5（示范环节），可向你咨询哪些步骤需要演示、细节如何强调、如何让全班看清，以及示范视频的引导方式。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
-        "part7": {
-            "system_prompt": "你是艺芽 AI 系统的「创意助手 Executor A」,现在切换到「学生作品评论员」模式。\n\n你的工作:\n- 接收一幅学生提交的作品照片\n- 基于本课的教学目标和评价维度,给出 180-200 字的反馈\n- 字数严格控制在 180-200 之间(不含标点),低于 170 或超过 210 视为不合格\n\n称谓与语气要求:\n- 直接对学生说话,用「你」作为称呼,可写「学生的作品」或「这幅画」\n- 严禁使用「宝贝」「孩子」「小朋友」「亲爱的」「同学们」等亲昵或集体称谓\n- 严禁自称「老师」(如「老师觉得」「老师看到」「老师超想」「老师期待」)\n- 严禁出现「我希望」「我想」「我觉得」等第一人称表达\n- 整体语气:中性、温和、像教研员对学生写的评语,既专业又能让二年级学生听懂\n- 避免使用感叹号过多(整段不超过 2 个感叹号)\n\n评价结构(严格按 3 段,每段独立成段,段间用空行分隔):\n\n【第 1 段·识别亮点,约 60 字】\n- 必须指出作品中至少 1 个具体、可见的视觉细节(不能空洞)\n- 该细节必须呼应本课「学习目标」中「知道」或「能做」层中的某一项(从 lesson_context 中给出的原文中选取关键词)\n- 不要使用「完全贴合主题」这种表层判断,要用具体动作描述(如「把主体拉得很长」「用了起伏的线条」「字形随着内容变了样子」)\n\n【第 2 段·提出改进,约 80 字】\n- 必须指出作品中至少 1 个尚可改进的方向\n- 该改进方向必须对应本课的「教学难点」或「评价标准」中合格级别的某一项\n- 改进建议要具体可操作(如「试着在主体周围添画一两处背景细节,让画面更丰富」「可以让标题的字形再夸张一些,让人一眼就被吸引」),不要空话(如「加油创作」「下次更努力」)\n\n【第 3 段·鼓励性收束,约 50 字】\n- 用一句肯定性的话结尾,呼应本课的关键艺术概念或学习目标\n- 不要使用「老师期待」「老师想看」等第一人称\n- 可用「期待你下一次的作品」「继续保持这份大胆的表达」「你已经走出了重要的一步」等\n\n评价维度覆盖要求(关键):\n- 由 lesson_context 提供本课的「评价维度清单」(feedback_dimensions),通常为 4 个\n- 评价必须覆盖其中 3-5 个维度,优先覆盖全部 4 个;若作品确实在某维度上无内容可评,可省略该维度,但保留维度数不能少于 3\n- 维度名称必须**逐字**出现在评价文字中(例如必须出现「字形设计」四个字,而不是用「字形很好看」代替;必须出现「色彩与花纹」五个字,而不是用「颜色挺好的」代替)\n- 这样系统可以自动统计 dimensions_covered 字段\n- 维度名称在评价文字中应自然出现,可作为主语、宾语或修饰语,不要罗列式堆砌\n\n教参引用要求:\n- 评价中提到的「教学相关」内容,必须来自 lesson_context 提供的以下字段:\n  (1) learning_objectives 三层目标的原句关键词(知道 / 理解 / 能做)\n  (2) teaching_focus_zh 教学重点\n  (3) teaching_difficulty_zh 教学难点\n  (4) key_art_concepts 关键艺术概念\n  (5) assessment_criteria 评价标准\n- 严禁仅以「贴合本课主题」或「符合课程要求」作为论据\n- 严禁出现课名、单元名作为评价的核心论据(课名只是定位用,不是教学内容本身)\n- 至少 1 处具体引用应能让备课老师对照教参原文识别出来源(让评价具有教研锚点,而非泛泛而谈)\n\n字数与维度覆盖由 lesson_context 进一步细化,请严格遵守。",
-            "feedback_word_count": [
-                180,
-                200
-            ],
-            "feedback_dimensions": [
-                "字形设计",
-                "色彩与花纹",
-                "主题呼应",
-                "整体布局"
-            ],
-            "encouragement_tone": "warm"
-        }
+    {
+      "page": 3,
+      "part_id": 3,
+      "section": "新授·欣赏不同风格",
+      "content_points": "展示并通过故事讲解《年》/《糟了！我忘了关水龙头！》/《臭臭的比尔》等标题范例",
+      "asset_types": "封面图、互动故事、动画"
     },
-    "example_video_url": "/textbook-assets/G2V2-U4-L5/example.mp4",
-    "example_video_notes_zh": "Part 5（Making Example）示范视频。研究员负责提供真实老师/工匠/孩子的示范录像，60-90 秒。",
-    "tts_voice_recommendation": "zh-CN-XiaoyiNeural",
-    "classroom_activity": {
-        "task_zh": "请选择合适的方式，为你喜欢的书或自编的故事书设计一个吸引人的标题",
-        "task_en": "Choose a suitable method and design an eye-catching title for a favorite book or your own story.",
-        "duration_minutes": 20,
-        "materials_zh": [
-            "水彩纸",
-            "水彩笔",
-            "彩铅",
-            "装饰材料"
-        ],
-        "safety_notes_zh": [],
-        "expected_outcome_zh": "一个使用了至少 2 种设计方法（字形/大小/颜色/装饰）的故事标题"
+    {
+      "page": 4,
+      "part_id": 4,
+      "section": "艺术实践·任务布置",
+      "content_points": "为自己喜欢的故事或自编故事设计一个标题",
+      "asset_types": "任务文字"
     },
-    "suggested_ai_support_zh": "Title style options, font-size/colour/layout suggestions, theme-to-design mapping"
+    {
+      "page": 5,
+      "part_id": 5,
+      "section": "艺术实践·步骤提示",
+      "content_points": "构思布局→添画轮廓→选择颜色",
+      "asset_types": "步骤示意图"
+    },
+    {
+      "page": 6,
+      "part_id": 6,
+      "section": "作品转化",
+      "content_points": "学生标题草图上传 + 3 种风格转换",
+      "asset_types": "风格示例"
+    },
+    {
+      "page": 7,
+      "part_id": 7,
+      "section": "评价·标题艺术展",
+      "content_points": "模拟展览，学生介绍设计思路，互评优点",
+      "asset_types": "评价句式"
+    }
+  ],
+  "textbook_artworks": [
+    {
+      "artwork_id": "G2V2-U4-L5-art01",
+      "title_zh": "年",
+      "artist_zh": "朱慧颖",
+      "year": 2015,
+      "medium_zh": "图画书封面",
+      "image_url": "/textbook-assets/G2V2-U4-L5/art01-nian.jpg",
+      "license_status": "Pilot study 内部使用，不公开分发。来源：《年》绘本封面, 2015",
+      "textbook_position": "page 46",
+      "visual_description_zh": "封面以红色为主调，中心一个金色的『年』字，周围环绕红色鞭炮装饰图案，营造浓烈的春节氛围",
+      "teacher_guide_notes_zh": "用立体感强烈、色彩鲜艳的红金配色，周围添加文化象征性装饰（鞭炮）。引导学生发现：字形如何呼应春节的红火气氛。",
+      "executor_b_prompt_hint_zh": "POV: 一个中国小朋友过春节的所见所闻。『年』是关于春节的传说而不是『年兽吓人』——重点写贴对联、放小礼花、吃团圆饭的喜庆，标题中的『年』字变化呼应春节的红火气氛。儿童本位，避免年兽传说中怪兽吓人的细节。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "high",
+      "animation_brief_zh": "镜头缓慢推近至画面中的『年』字标题；构成笔画的红色鞭炮整体保持位置，仅在导火索处冒出细小火花并向上飘起，字体边缘伴随微小震动产生轻微颤动，背景的金色花纹有微弱明暗呼吸。保留原作浓郁的中国民间年画色彩与质感。",
+      "animation_brief_en": "Camera slowly pushes in toward the Chinese title character 年. The red firecrackers that form the strokes hold their positions; only the fuses emit small sparks that drift upward, and the letterform edges quiver slightly. The golden patterns in the background pulse with a faint light-and-dark breathing. Preserve the rich Chinese folk new-year colour palette and texture of the original."
+    },
+    {
+      "artwork_id": "G2V2-U4-L5-art02",
+      "title_zh": "糟了！我忘了关水龙头！",
+      "artist_zh": "刘畅",
+      "year": 2022,
+      "medium_zh": "图画书封面",
+      "image_url": "/textbook-assets/G2V2-U4-L5/art02-shuilongtou.jpg",
+      "license_status": "Pilot study 内部使用，不公开分发。来源：《糟了！我忘了关水龙头！》绘本封面, 2022",
+      "textbook_position": "page 46",
+      "visual_description_zh": "封面是浴室场景，瓷砖墙背景，中心标题文字被设计成水流的形态，字体起伏摇晃，营造水溢出的紧张感",
+      "teacher_guide_notes_zh": "字形跟随主题（水流形态）、笔画动感、夸张感叹号传递情绪。引导学生体会：标题的字形如何把『糟了』的紧张感传递出来。",
+      "executor_b_prompt_hint_zh": "POV: 一个粗心的小学生回家发现忘记关水龙头的搞笑混乱。基调是诙谐和『糟糕但好玩』而不是真的灾难。可以有水溢出来变成小池塘、小鸭子漂在上面等童趣化处理，避免水管爆裂、家具损坏等成人感担忧。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "high",
+      "animation_brief_zh": "镜头缓慢推近至蓝绿色标题字体，字符边缘持续渗出细小水珠并沿字形流下；背景瓷砖墙面上不断泛起同心圆水波涟漪并轻轻扩散，光在水面闪烁。保留原作平涂插画风格与瓷砖图案的清晰线稿。",
+      "animation_brief_en": "Camera slowly pushes in toward the blue-green title letterform. Tiny water droplets continuously seep from the character edges and trickle down along the strokes. Concentric water ripples rise and spread gently across the tiled wall in the background, with light shimmering on the water surface. Preserve the flat illustration style and the clean line work of the tile pattern."
+    },
+    {
+      "artwork_id": "G2V2-U4-L5-art03",
+      "title_zh": "臭臭的比尔",
+      "artist_zh": "丹尼尔·帕斯盖特",
+      "year": 2018,
+      "medium_zh": "图画书封面",
+      "image_url": "/textbook-assets/G2V2-U4-L5/art03-chouchoubier.jpg",
+      "license_status": "Pilot study 内部使用，不公开分发。来源：《臭臭的比尔》绘本中文版封面, 2018",
+      "textbook_position": "page 46",
+      "visual_description_zh": "封面是一只蓬乱、表情滑稽的黄色小狗，标题字体歪斜可爱，周围有飞舞的小虫，营造臭烘烘但又招人喜爱的氛围",
+      "teacher_guide_notes_zh": "字形扭曲歪斜传递『臭』的滑稽感，周围添加情景装饰（小虫）。引导学生注意：装饰图案如何让标题更有故事性。",
+      "executor_b_prompt_hint_zh": "POV: 小狗比尔的好朋友(一个小孩子)的视角，讲述比尔很臭但人见人爱的故事。臭味的描写要保持滑稽不要恶心(可以描写『比尔身上的味道像踩到了小花』之类幽默化处理)，小虫子是友好的伙伴而不是讨厌的虫害。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "high",
+      "animation_brief_zh": "镜头停留在画面中央乱蓬蓬的标题字体上，字体周围散发出绿黄色烟雾状气味线条缓缓向上飘逸；几只黑色苍蝇沿不规则曲线在标题四周持续盘旋飞舞。整体保留原作粗糙拼贴与手绘字体的肌理感。",
+      "animation_brief_en": "Camera holds on the messy, scruffy title letterform in the centre of the frame. Greenish-yellow wisps of stink-line vapour rise slowly upward around the letters, and several black flies circle the title along irregular curving paths. Preserve the rough collage texture and hand-drawn letterform quality of the original."
+    }
+  ],
+  "default_executor_b_artwork_id": "G2V2-U4-L5-art02",
+  "animation_default_mood": "playful, lively, slightly mischievous",
+  "executor_d_styles": {
+    "branch": "A",
+    "styles": [
+      {
+        "style_id": 1,
+        "style_name_zh": "字形夸张",
+        "style_description_zh": "把孩子写的字按主题进行夸张变形（字形跟随含义）",
+        "linked_learning_objective": "根据文字的含义来装饰、改变字形笔画",
+        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character and the basic layout. Now exaggerate each character's shape to MATCH ITS MEANING — make 'long' characters elongated, 'small' characters tiny, 'tall' characters towering, 'round' characters bulbous. Keep the child's pen style. Vivid colors. Image-to-image strength: 0.55.",
+        "model_recommendation": "doubao-seedream-5-0-260128"
+      },
+      {
+        "style_id": 2,
+        "style_name_zh": "色彩更情绪化",
+        "style_description_zh": "根据标题情绪选择颜色（开心=暖色、安静=冷色、紧张=对比强烈）",
+        "linked_learning_objective": "根据文字的含义改变字的颜色",
+        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character's shape exactly. Now re-color each character with an emotionally appropriate palette: bright warm tones for happy/exciting titles, cool blues/greens for calm/quiet titles, high-contrast clashing colors for tense/dramatic titles. Apply gradient fills inside each stroke. Image-to-image strength: 0.4.",
+        "model_recommendation": "doubao-seedream-5-0-260128"
+      },
+      {
+        "style_id": 3,
+        "style_name_zh": "添加装饰图案",
+        "style_description_zh": "在字的笔画里或周围添加与故事内容相关的装饰图案",
+        "linked_learning_objective": "在文字周围添加装饰细节，让标题更有吸引力",
+        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character's outline. Now embellish: replace selected strokes with thematic illustrations (e.g., a water droplet becomes part of a stroke for a water-themed title; small flowers grow from strokes for a spring title). Add small thematic decorations floating around the title. Keep readability. Image-to-image strength: 0.5.",
+        "model_recommendation": "doubao-seedream-5-0-260128"
+      }
+    ]
+  },
+  "executor_a_part_prompts": {
+    "part1": "【课程上下文】本节课是《吸引人的标题》，学习任务：为自己喜欢的故事设计标题。老师正在备 Part 1（封面与开场），可向你咨询封面字体、视觉风格、开场提问等。只回答老师实际提出的问题，不要主动输出完整设计方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
+    "part2": "【课程上下文】本节课是《吸引人的标题》，关键概念：字形（字的形状和笔画处理）、大小对比、颜色搭配、花纹与装饰。老师正在备 Part 2（导入与注意力引导），可向你咨询儿歌、提问、悬念、生活场景等导入形式。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
+    "part4": "【课程上下文】本节课是《吸引人的标题》，学习任务：为自己喜欢的故事设计标题。老师正在备 Part 4（制作任务布置），可向你咨询任务目标、关键约束、时间预期、安全提示等。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
+    "part5": "【课程上下文】本节课是《吸引人的标题》。老师正在备 Part 5（示范环节），可向你咨询哪些步骤需要演示、细节如何强调、如何让全班看清，以及示范视频的引导方式。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
+    "part7": {
+      "system_prompt": "你是艺芽 AI 系统的「创意助手 Executor A」,现在切换到「学生作品评论员」模式。\n\n你的工作:\n- 接收一幅学生提交的作品照片\n- 基于本课的教学目标和评价维度,给出 180-200 字的反馈\n- 字数严格控制在 180-200 之间(不含标点),低于 170 或超过 210 视为不合格\n\n称谓与语气要求:\n- 直接对学生说话,用「你」作为称呼,可写「学生的作品」或「这幅画」\n- 严禁使用「宝贝」「孩子」「小朋友」「亲爱的」「同学们」等亲昵或集体称谓\n- 严禁自称「老师」(如「老师觉得」「老师看到」「老师超想」「老师期待」)\n- 严禁出现「我希望」「我想」「我觉得」等第一人称表达\n- 整体语气:中性、温和、像教研员对学生写的评语,既专业又能让二年级学生听懂\n- 避免使用感叹号过多(整段不超过 2 个感叹号)\n\n评价结构(严格按 3 段,每段独立成段,段间用空行分隔):\n\n【第 1 段·识别亮点,约 60 字】\n- 必须指出作品中至少 1 个具体、可见的视觉细节(不能空洞)\n- 该细节必须呼应本课「学习目标」中「知道」或「能做」层中的某一项(从 lesson_context 中给出的原文中选取关键词)\n- 不要使用「完全贴合主题」这种表层判断,要用具体动作描述(如「把主体拉得很长」「用了起伏的线条」「字形随着内容变了样子」)\n\n【第 2 段·提出改进,约 80 字】\n- 必须指出作品中至少 1 个尚可改进的方向\n- 该改进方向必须对应本课的「教学难点」或「评价标准」中合格级别的某一项\n- 改进建议要具体可操作(如「试着在主体周围添画一两处背景细节,让画面更丰富」「可以让标题的字形再夸张一些,让人一眼就被吸引」),不要空话(如「加油创作」「下次更努力」)\n\n【第 3 段·鼓励性收束,约 50 字】\n- 用一句肯定性的话结尾,呼应本课的关键艺术概念或学习目标\n- 不要使用「老师期待」「老师想看」等第一人称\n- 可用「期待你下一次的作品」「继续保持这份大胆的表达」「你已经走出了重要的一步」等\n\n评价维度覆盖要求(关键):\n- 由 lesson_context 提供本课的「评价维度清单」(feedback_dimensions),通常为 4 个\n- 评价必须覆盖其中 3-5 个维度,优先覆盖全部 4 个;若作品确实在某维度上无内容可评,可省略该维度,但保留维度数不能少于 3\n- 维度名称必须**逐字**出现在评价文字中(例如必须出现「字形设计」四个字,而不是用「字形很好看」代替;必须出现「色彩与花纹」五个字,而不是用「颜色挺好的」代替)\n- 这样系统可以自动统计 dimensions_covered 字段\n- 维度名称在评价文字中应自然出现,可作为主语、宾语或修饰语,不要罗列式堆砌\n\n教参引用要求:\n- 评价中提到的「教学相关」内容,必须来自 lesson_context 提供的以下字段:\n  (1) learning_objectives 三层目标的原句关键词(知道 / 理解 / 能做)\n  (2) teaching_focus_zh 教学重点\n  (3) teaching_difficulty_zh 教学难点\n  (4) key_art_concepts 关键艺术概念\n  (5) assessment_criteria 评价标准\n- 严禁仅以「贴合本课主题」或「符合课程要求」作为论据\n- 严禁出现课名、单元名作为评价的核心论据(课名只是定位用,不是教学内容本身)\n- 至少 1 处具体引用应能让备课老师对照教参原文识别出来源(让评价具有教研锚点,而非泛泛而谈)\n\n字数与维度覆盖由 lesson_context 进一步细化,请严格遵守。",
+      "feedback_word_count": [
+        180,
+        200
+      ],
+      "feedback_dimensions": [
+        "字形设计",
+        "色彩与花纹",
+        "主题呼应",
+        "整体布局"
+      ],
+      "encouragement_tone": "warm"
+    }
+  },
+  "example_video_url": "/textbook-assets/G2V2-U4-L5/example.mp4",
+  "example_video_notes_zh": "Part 5（Making Example）示范视频。研究员负责提供真实老师/工匠/孩子的示范录像，60-90 秒。",
+  "tts_voice_recommendation": "zh-CN-XiaoyiNeural",
+  "classroom_activity": {
+    "task_zh": "请选择合适的方式，为你喜欢的书或自编的故事书设计一个吸引人的标题",
+    "task_en": "Choose a suitable method and design an eye-catching title for a favorite book or your own story.",
+    "duration_minutes": 20,
+    "materials_zh": [
+      "水彩纸",
+      "水彩笔",
+      "彩铅",
+      "装饰材料"
+    ],
+    "safety_notes_zh": [],
+    "expected_outcome_zh": "一个使用了至少 2 种设计方法（字形/大小/颜色/装饰）的故事标题"
+  },
+  "suggested_ai_support_zh": "Title style options, font-size/colour/layout suggestions, theme-to-design mapping"
 }

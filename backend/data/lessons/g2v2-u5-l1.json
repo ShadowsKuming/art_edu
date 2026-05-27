@@ -1,222 +1,226 @@
 {
-    "lesson_id": "g2v2-u5-l1",
-    "lesson_title_zh": "听听画画",
-    "lesson_title_en": "Listen and Draw",
-    "unit_id": "g2v2-u5",
-    "unit_title_zh": "音乐入画来",
-    "unit_title_en": "Music Meets Art",
-    "unit_big_idea_zh": "视觉艺术能表现音乐之美",
-    "grade": 2,
-    "volume": 2,
-    "publisher": "湖南美术出版社",
-    "textbook_page_range": [
-        50,
-        51
-    ],
-    "teacher_guide_page_range": [
-        92,
-        95
-    ],
-    "category": "A",
-    "category_reason": "2D expressive response to music using lines, shapes, colors",
-    "learning_task_zh": "聆听音乐，用绘画表现音乐",
-    "learning_objectives": {
-        "know": "绘画可以表现音乐，音乐能够表达绘画",
-        "understand": "视觉语言与听觉语言之间的联系与相互转换",
-        "do": "选择合适的线条、形状、色彩表现音乐，大胆表达自己的感受"
+  "lesson_id": "g2v2-u5-l1",
+  "lesson_title_zh": "听听画画",
+  "lesson_title_en": "Listen and Draw",
+  "unit_id": "g2v2-u5",
+  "unit_title_zh": "音乐入画来",
+  "unit_title_en": "Music Meets Art",
+  "unit_big_idea_zh": "视觉艺术能表现音乐之美",
+  "grade": 2,
+  "volume": 2,
+  "publisher": "湖南美术出版社",
+  "textbook_page_range": [
+    50,
+    51
+  ],
+  "teacher_guide_page_range": [
+    92,
+    95
+  ],
+  "category": "A",
+  "category_reason": "2D expressive response to music using lines, shapes, colors",
+  "learning_task_zh": "聆听音乐，用绘画表现音乐",
+  "learning_objectives": {
+    "know": "绘画可以表现音乐，音乐能够表达绘画",
+    "understand": "视觉语言与听觉语言之间的联系与相互转换",
+    "do": "选择合适的线条、形状、色彩表现音乐，大胆表达自己的感受"
+  },
+  "key_art_concepts": [
+    "线条（粗细/直曲/起伏）→节奏与旋律",
+    "形状（圆/方/三角/大小/疏密）→声音强弱与节拍",
+    "色彩（暖/冷/明/暗）→情绪与音色",
+    "听觉与视觉的通感（synesthesia）"
+  ],
+  "teaching_focus_zh": "用线条、形状、色彩等元素大胆、自由地表现对声音的感受",
+  "teaching_difficulty_zh": [
+    "展开联想和思考，习得将听觉语言转换为视觉语言的方法和能力",
+    "在艺术实践中找到个人化的表现方式，形成独特的音乐视觉表达"
+  ],
+  "driving_question_zh": "我们可以用什么样的线条、形状、色彩来表达对音乐的感受？",
+  "guiding_questions_zh": [
+    "你能用拍手和唱『啊』的方式将不同的形状和线条变成音乐吗？",
+    "艺术家是怎么用绘画表现音乐的呢？",
+    "教材中的这两首曲子分别对应哪幅画？教材中的两幅画分别对应对音乐的哪种感受？"
+  ],
+  "assessment_criteria": [
+    "知道音乐之美不仅可以聆听，还可以看见；人们常通过美术作品表达音乐之美",
+    "能用合适的线条、形状、色彩来表达对音乐的感受",
+    "能解释自己的视觉表现与音乐感受之间的联系，初步感知听觉与视觉的通感",
+    "能感受到创作的乐趣，愿意把自己的作品分享给老师和同学们"
+  ],
+  "slide_framework": [
+    {
+      "page": 1,
+      "part_id": 1,
+      "section": "封面",
+      "content_points": "课题《听听画画》、年级、出版社",
+      "asset_types": "抽象音乐绘画风格背景图"
     },
-    "key_art_concepts": [
-        "线条（粗细/直曲/起伏）→节奏与旋律",
-        "形状（圆/方/三角/大小/疏密）→声音强弱与节拍",
-        "色彩（暖/冷/明/暗）→情绪与音色",
-        "听觉与视觉的通感（synesthesia）"
-    ],
-    "teaching_focus_zh": "用线条、形状、色彩等元素大胆、自由地表现对声音的感受",
-    "teaching_difficulty_zh": [
-        "展开联想和思考，习得将听觉语言转换为视觉语言的方法和能力",
-        "在艺术实践中找到个人化的表现方式，形成独特的音乐视觉表达"
-    ],
-    "driving_question_zh": "我们可以用什么样的线条、形状、色彩来表达对音乐的感受？",
-    "guiding_questions_zh": [
-        "你能用拍手和唱『啊』的方式将不同的形状和线条变成音乐吗？",
-        "艺术家是怎么用绘画表现音乐的呢？",
-        "教材中的这两首曲子分别对应哪幅画？教材中的两幅画分别对应对音乐的哪种感受？"
-    ],
-    "assessment_criteria": [
-        "知道音乐之美不仅可以聆听，还可以看见；人们常通过美术作品表达音乐之美",
-        "能用合适的线条、形状、色彩来表达对音乐的感受",
-        "能解释自己的视觉表现与音乐感受之间的联系，初步感知听觉与视觉的通感",
-        "能感受到创作的乐趣，愿意把自己的作品分享给老师和同学们"
-    ],
-    "slide_framework": [
-        {
-            "page": 1,
-            "part_id": 1,
-            "section": "封面",
-            "content_points": "课题《听听画画》、年级、出版社",
-            "asset_types": "抽象音乐绘画风格背景图"
-        },
-        {
-            "page": 2,
-            "part_id": 2,
-            "section": "导入·声音游戏 + 教材曲目",
-            "content_points": "用拍手表现圆形的大小疏密，用声音模仿线条变化；播放《火车开啦》《小小的船》引出音画通感",
-            "asset_types": "形状/线条变化图 + 2 段教材音频（音乐资源见 audio_resources）"
-        },
-        {
-            "page": 3,
-            "part_id": 3,
-            "section": "新授·欣赏大师作品",
-            "content_points": "展示刘迅《2000交响曲》与康定斯基《构成第8号》，生成互动故事和动画",
-            "asset_types": "高清图、故事、动画"
-        },
-        {
-            "page": 4,
-            "part_id": 4,
-            "section": "艺术实践·任务布置",
-            "content_points": "选择音乐，用线条、形状、色彩画下感受",
-            "asset_types": "3 段不同风格音乐片段"
-        },
-        {
-            "page": 5,
-            "part_id": 5,
-            "section": "艺术实践·方法提示",
-            "content_points": "粗线强音/细线弱音、大形快/小形慢、暖冷对应情绪",
-            "asset_types": "对比范画"
-        },
-        {
-            "page": 6,
-            "part_id": 6,
-            "section": "作品转化",
-            "content_points": "学生半成品上传 + 3 种风格转换（节奏感/色彩情绪/抽象推进）",
-            "asset_types": "风格示例"
-        },
-        {
-            "page": 7,
-            "part_id": 7,
-            "section": "评价·我的画唱什么",
-            "content_points": "学生介绍：我的画在听____，因为有____的线条和____的颜色",
-            "asset_types": "分享句式模板"
-        }
-    ],
-    "textbook_artworks": [
-        {
-            "artwork_id": "G2V2-U5-L1-art01",
-            "title_zh": "2000交响曲",
-            "artist_zh": "刘迅",
-            "year": 2000,
-            "medium_zh": "油画",
-            "image_url": "/textbook-assets/G2V2-U5-L1/art01-2000jiaoxiang.jpg",
-            "license_status": "Pilot study 内部使用，不公开分发。来源：中国美术馆藏品高清图",
-            "textbook_position": "page 50",
-            "visual_description_zh": "完全抽象油画。底色以绿色和黄绿色为主，中央偏右有大片明亮的黄色和红色色块，如同鼓点节奏。背景能感受到细密的笔触起伏，像旋律的延展。",
-            "teacher_guide_notes_zh": "引导学生观察画中形状、色彩和音乐的关系。红色圆块像鼓，蓝色线条像长音。属于本课教材主图。",
-            "executor_b_prompt_hint_zh": "POV: 一个孩子坐在画前听音乐，突然画里的色彩和形状跳了出来变成可以触摸的『声音』。中国当代抽象画背景，可以用东方音乐意象（古筝、笛声、雨声）作为通感锚点。",
-            "recommended_for_executor_b": true,
-            "recommended_for_executor_c": true,
-            "narrative_richness": "low"
-        },
-        {
-            "artwork_id": "G2V2-U5-L1-art02",
-            "title_zh": "构成第8号",
-            "artist_zh": "瓦西里·康定斯基",
-            "year": 1923,
-            "medium_zh": "布面油画",
-            "image_url": "/textbook-assets/G2V2-U5-L1/art02-kandinsky-composition8.jpg",
-            "license_status": "Pilot study 内部使用，不公开分发。原作藏于纽约古根海姆美术馆，公共领域参考图",
-            "textbook_position": "教参补充（教参 §3.1 探索新知环节）",
-            "visual_description_zh": "几何抽象油画，140×201cm，大型横构图。米黄色底色，带有局部淡蓝色块。画面布满几何元素：大小不一的同心圆（其中一个左上角的大黑圆带粉红色光晕特别醒目）、三角形、网格状色块、直线和曲线。色彩有红、黄、蓝、绿、紫等纯色，均匀分布。整体动感而有节奏。",
-            "teacher_guide_notes_zh": "康定斯基是西方抽象艺术的开创者，他将色彩和形状视为『可见的音乐』。在他的『声音色彩理论』中：暖色（黄、红、橙）对应高音和响亮声音，冷色（蓝、绿、紫）对应低音和柔和声音；网格状色块对应钢琴声，圆形和三角形对应铜管乐器，斜线像弦乐拨奏，曲线像长笛等管乐。这与本课『用线条、形状、色彩表达音乐』的核心高度契合，且与《2000交响曲》形成中西方抽象音画对比。",
-            "executor_b_prompt_hint_zh": "POV: 一个孩子凑近这幅画，发现每个几何形状都在『唱歌』。圆形敲鼓声、三角形吹小号、波浪线拉小提琴、网格色块弹钢琴。叙事核心是西方乐器与几何形的对应关系，可以让孩子『指挥』这场画里的小乐队。语言要简单，7-8 岁能懂西方乐器名（钢琴/小号/小提琴/长笛即可，不要古典作曲家或乐理术语）。",
-            "recommended_for_executor_b": true,
-            "recommended_for_executor_c": true,
-            "narrative_richness": "low"
-        }
-    ],
-    "default_executor_b_artwork_id": "G2V2-U5-L1-art01",
-    "animation_default_mood": "wondrous, rhythmic, abstract motion synced to music",
-    "executor_d_styles": {
-        "branch": "A",
-        "styles": [
-            {
-                "style_id": 1,
-                "style_name_zh": "节奏感更强",
-                "style_description_zh": "强化孩子画中的节奏元素——让线条更粗细分明，形状大小对比更强烈",
-                "linked_learning_objective": "粗细线条的变化",
-                "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every shape and line. Now enhance the RHYTHMIC quality: thicken some lines dramatically, thin others to whispers; enlarge some shapes 2x while shrinking others to dots. Create a clear visual 'beat' across the composition. Keep the child's color palette. Image-to-image strength: 0.5.",
-                "model_recommendation": "doubao-seedream-5-0-260128"
-            },
-            {
-                "style_id": 2,
-                "style_name_zh": "色彩更情绪化",
-                "style_description_zh": "把孩子的色彩推向更强烈的情绪——开心的更暖更鲜艳，安静的更冷更柔和",
-                "linked_learning_objective": "色彩与情绪的对应",
-                "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every shape and line. Now push the colors toward stronger emotion: if the piece feels happy/energetic, intensify warm hues (oranges, reds, yellows) with high saturation; if it feels calm/dreamy, deepen cool hues (blues, greens, lavenders) with soft gradients; if it feels tense, add high-contrast clashing pairs. Image-to-image strength: 0.45.",
-                "model_recommendation": "doubao-seedream-5-0-260128"
-            },
-            {
-                "style_id": 3,
-                "style_name_zh": "形状更抽象",
-                "style_description_zh": "把孩子画的具象形状推向更纯粹的抽象造型，接近大师作品的语言",
-                "linked_learning_objective": "用形状、线条表达对音乐的感受",
-                "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve the COMPOSITION (where things are placed) but simplify each element into a pure abstract form: blobs become geometric shapes, scribbled lines become elegant curves, recognizable objects dissolve into color fields and form. Echo the language of Wassily Kandinsky or Liu Xun's abstract music paintings. Image-to-image strength: 0.65.",
-                "model_recommendation": "doubao-seedream-5-0-260128"
-            }
-        ]
+    {
+      "page": 2,
+      "part_id": 2,
+      "section": "导入·声音游戏 + 教材曲目",
+      "content_points": "用拍手表现圆形的大小疏密，用声音模仿线条变化；播放《火车开啦》《小小的船》引出音画通感",
+      "asset_types": "形状/线条变化图 + 2 段教材音频（音乐资源见 audio_resources）"
     },
-    "executor_a_part_prompts": {
-        "part1": "【课程上下文】本节课是《听听画画》，学习任务：聆听音乐，用绘画表现音乐。老师正在备 Part 1（封面与开场），可向你咨询封面字体、视觉风格、开场提问等。只回答老师实际提出的问题，不要主动输出完整设计方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
-        "part2": "【课程上下文】本节课是《听听画画》，关键概念：线条→节奏与旋律、形状→声音强弱与节拍、色彩→情绪与音色、听觉与视觉的通感。老师正在备 Part 2（导入与注意力引导），可向你咨询儿歌、提问、悬念、生活场景等导入形式。教材推荐播放《火车开啦》（匈牙利儿歌）与《小小的船》（胡汉娟）。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
-        "part4": "【课程上下文】本节课是《听听画画》，学习任务：聆听音乐，用绘画表现音乐。老师正在备 Part 4（制作任务布置），可向你咨询任务目标、关键约束、时间预期、安全提示等。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
-        "part5": "【课程上下文】本节课是《听听画画》。老师正在备 Part 5（示范环节），可向你咨询哪些步骤需要演示、细节如何强调、如何让全班看清，以及示范视频的引导方式。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
-        "part7": {
-            "system_prompt": "你是艺芽 AI 系统的「创意助手 Executor A」,现在切换到「学生作品评论员」模式。\n\n你的工作:\n- 接收一幅学生提交的作品照片\n- 基于本课的教学目标和评价维度,给出 180-200 字的反馈\n- 字数严格控制在 180-200 之间(不含标点),低于 170 或超过 210 视为不合格\n\n称谓与语气要求:\n- 直接对学生说话,用「你」作为称呼,可写「学生的作品」或「这幅画」\n- 严禁使用「宝贝」「孩子」「小朋友」「亲爱的」「同学们」等亲昵或集体称谓\n- 严禁自称「老师」(如「老师觉得」「老师看到」「老师超想」「老师期待」)\n- 严禁出现「我希望」「我想」「我觉得」等第一人称表达\n- 整体语气:中性、温和、像教研员对学生写的评语,既专业又能让二年级学生听懂\n- 避免使用感叹号过多(整段不超过 2 个感叹号)\n\n评价结构(严格按 3 段,每段独立成段,段间用空行分隔):\n\n【第 1 段·识别亮点,约 60 字】\n- 必须指出作品中至少 1 个具体、可见的视觉细节(不能空洞)\n- 该细节必须呼应本课「学习目标」中「知道」或「能做」层中的某一项(从 lesson_context 中给出的原文中选取关键词)\n- 不要使用「完全贴合主题」这种表层判断,要用具体动作描述(如「把主体拉得很长」「用了起伏的线条」「字形随着内容变了样子」)\n\n【第 2 段·提出改进,约 80 字】\n- 必须指出作品中至少 1 个尚可改进的方向\n- 该改进方向必须对应本课的「教学难点」或「评价标准」中合格级别的某一项\n- 改进建议要具体可操作(如「试着在主体周围添画一两处背景细节,让画面更丰富」「可以让标题的字形再夸张一些,让人一眼就被吸引」),不要空话(如「加油创作」「下次更努力」)\n\n【第 3 段·鼓励性收束,约 50 字】\n- 用一句肯定性的话结尾,呼应本课的关键艺术概念或学习目标\n- 不要使用「老师期待」「老师想看」等第一人称\n- 可用「期待你下一次的作品」「继续保持这份大胆的表达」「你已经走出了重要的一步」等\n\n评价维度覆盖要求(关键):\n- 由 lesson_context 提供本课的「评价维度清单」(feedback_dimensions),通常为 4 个\n- 评价必须覆盖其中 3-5 个维度,优先覆盖全部 4 个;若作品确实在某维度上无内容可评,可省略该维度,但保留维度数不能少于 3\n- 维度名称必须**逐字**出现在评价文字中(例如必须出现「线条节奏」四个字,而不是用「线条很有节奏感」代替;必须出现「色彩情绪」四个字,而不是用「颜色挺有感觉」代替)\n- 这样系统可以自动统计 dimensions_covered 字段\n- 维度名称在评价文字中应自然出现,可作为主语、宾语或修饰语,不要罗列式堆砌\n\n教参引用要求:\n- 评价中提到的「教学相关」内容,必须来自 lesson_context 提供的以下字段:\n  (1) learning_objectives 三层目标的原句关键词(知道 / 理解 / 能做)\n  (2) teaching_focus_zh 教学重点\n  (3) teaching_difficulty_zh 教学难点\n  (4) key_art_concepts 关键艺术概念\n  (5) assessment_criteria 评价标准\n- 严禁仅以「贴合本课主题」或「符合课程要求」作为论据\n- 严禁出现课名、单元名作为评价的核心论据(课名只是定位用,不是教学内容本身)\n- 至少 1 处具体引用应能让备课老师对照教参原文识别出来源(让评价具有教研锚点,而非泛泛而谈)\n\n字数与维度覆盖由 lesson_context 进一步细化,请严格遵守。",
-            "feedback_word_count": [
-                180,
-                200
-            ],
-            "feedback_dimensions": [
-                "线条节奏",
-                "形状对应",
-                "色彩情绪",
-                "音画通感"
-            ],
-            "encouragement_tone": "warm"
-        }
+    {
+      "page": 3,
+      "part_id": 3,
+      "section": "新授·欣赏大师作品",
+      "content_points": "展示刘迅《2000交响曲》与康定斯基《构成第8号》，生成互动故事和动画",
+      "asset_types": "高清图、故事、动画"
     },
-    "example_video_url": "/textbook-assets/G2V2-U5-L1/example.mp4",
-    "example_video_notes_zh": "Part 5（Making Example）示范视频。研究员负责提供真实老师/工匠/孩子的示范录像，60-90 秒。",
-    "audio_resources": [
-        {
-            "audio_id": "music01",
-            "title_zh": "火车开啦",
-            "url": "/textbook-assets/G2V2-U5-L1/music/music01-huochekaila.mp3",
-            "duration_seconds": 0,
-            "usage_in_part": 2,
-            "description_zh": "匈牙利儿歌，节奏鲜明，对应大色块 + 暖色调；可作为『节奏型』音乐示例"
-        },
-        {
-            "audio_id": "music02",
-            "title_zh": "小小的船",
-            "url": "/textbook-assets/G2V2-U5-L1/music/music02-xiaoxiaodechuan.mp3",
-            "duration_seconds": 0,
-            "usage_in_part": 2,
-            "description_zh": "胡汉娟作曲，舒缓柔和，对应蓝色调 + 流畅曲线；可作为『旋律型』音乐示例"
-        }
+    {
+      "page": 4,
+      "part_id": 4,
+      "section": "艺术实践·任务布置",
+      "content_points": "选择音乐，用线条、形状、色彩画下感受",
+      "asset_types": "3 段不同风格音乐片段"
+    },
+    {
+      "page": 5,
+      "part_id": 5,
+      "section": "艺术实践·方法提示",
+      "content_points": "粗线强音/细线弱音、大形快/小形慢、暖冷对应情绪",
+      "asset_types": "对比范画"
+    },
+    {
+      "page": 6,
+      "part_id": 6,
+      "section": "作品转化",
+      "content_points": "学生半成品上传 + 3 种风格转换（节奏感/色彩情绪/抽象推进）",
+      "asset_types": "风格示例"
+    },
+    {
+      "page": 7,
+      "part_id": 7,
+      "section": "评价·我的画唱什么",
+      "content_points": "学生介绍：我的画在听____，因为有____的线条和____的颜色",
+      "asset_types": "分享句式模板"
+    }
+  ],
+  "textbook_artworks": [
+    {
+      "artwork_id": "G2V2-U5-L1-art01",
+      "title_zh": "2000交响曲",
+      "artist_zh": "刘迅",
+      "year": 2000,
+      "medium_zh": "油画",
+      "image_url": "/textbook-assets/G2V2-U5-L1/art01-2000jiaoxiang.jpg",
+      "license_status": "Pilot study 内部使用，不公开分发。来源：中国美术馆藏品高清图",
+      "textbook_position": "page 50",
+      "visual_description_zh": "完全抽象油画。底色以绿色和黄绿色为主，中央偏右有大片明亮的黄色和红色色块，如同鼓点节奏。背景能感受到细密的笔触起伏，像旋律的延展。",
+      "teacher_guide_notes_zh": "引导学生观察画中形状、色彩和音乐的关系。红色圆块像鼓，蓝色线条像长音。属于本课教材主图。",
+      "executor_b_prompt_hint_zh": "POV: 一个孩子坐在画前听音乐，突然画里的色彩和形状跳了出来变成可以触摸的『声音』。中国当代抽象画背景，可以用东方音乐意象（古筝、笛声、雨声）作为通感锚点。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "low",
+      "animation_brief_zh": "画面中的红色、黄色、绿色色块以缓慢呼吸式节奏轻微流动并互相渗透，粗犷的黑色笔触线条依次从画面边缘向中心生长延伸，色彩饱和度产生有节奏的明暗起伏。保留原作粗犷的油彩笔触与抽象表现派风格。",
+      "animation_brief_en": "Red, yellow, and green colour blocks in the painting flow and bleed into each other in a slow breathing rhythm. Bold black brushstroke lines grow inward from the edges toward the centre of the frame in sequence, and the saturation rises and falls in rhythmic pulses. Preserve the rough oil-paint brushwork and abstract expressionist style of the original."
+    },
+    {
+      "artwork_id": "G2V2-U5-L1-art02",
+      "title_zh": "构成第8号",
+      "artist_zh": "瓦西里·康定斯基",
+      "year": 1923,
+      "medium_zh": "布面油画",
+      "image_url": "/textbook-assets/G2V2-U5-L1/art02-kandinsky-composition8.jpg",
+      "license_status": "Pilot study 内部使用，不公开分发。原作藏于纽约古根海姆美术馆，公共领域参考图",
+      "textbook_position": "教参补充（教参 §3.1 探索新知环节）",
+      "visual_description_zh": "几何抽象油画，140×201cm，大型横构图。米黄色底色，带有局部淡蓝色块。画面布满几何元素：大小不一的同心圆（其中一个左上角的大黑圆带粉红色光晕特别醒目）、三角形、网格状色块、直线和曲线。色彩有红、黄、蓝、绿、紫等纯色，均匀分布。整体动感而有节奏。",
+      "teacher_guide_notes_zh": "康定斯基是西方抽象艺术的开创者，他将色彩和形状视为『可见的音乐』。在他的『声音色彩理论』中：暖色（黄、红、橙）对应高音和响亮声音，冷色（蓝、绿、紫）对应低音和柔和声音；网格状色块对应钢琴声，圆形和三角形对应铜管乐器，斜线像弦乐拨奏，曲线像长笛等管乐。这与本课『用线条、形状、色彩表达音乐』的核心高度契合，且与《2000交响曲》形成中西方抽象音画对比。",
+      "executor_b_prompt_hint_zh": "POV: 一个孩子凑近这幅画，发现每个几何形状都在『唱歌』。圆形敲鼓声、三角形吹小号、波浪线拉小提琴、网格色块弹钢琴。叙事核心是西方乐器与几何形的对应关系，可以让孩子『指挥』这场画里的小乐队。语言要简单，7-8 岁能懂西方乐器名（钢琴/小号/小提琴/长笛即可，不要古典作曲家或乐理术语）。",
+      "recommended_for_executor_b": true,
+      "recommended_for_executor_c": true,
+      "narrative_richness": "low",
+      "animation_brief_zh": "画面中的圆形几何图形依次轻微跳动、放大缩小，线条沿原有走向缓慢延伸并闪烁，色块在锐角交汇处产生微弱光晕脉动，整体构图保持稳定。保留康定斯基原作的几何抽象色彩与硬边线条风格。",
+      "animation_brief_en": "Circular geometric shapes in the painting bounce and scale slightly in sequence; lines extend slowly along their original directions and shimmer; faint halos pulse where colour blocks meet at acute angles. The overall composition stays stable. Preserve the geometric abstract palette and hard-edge line style of Kandinsky's original."
+    }
+  ],
+  "default_executor_b_artwork_id": "G2V2-U5-L1-art01",
+  "animation_default_mood": "wondrous, rhythmic, abstract motion synced to music",
+  "executor_d_styles": {
+    "branch": "A",
+    "styles": [
+      {
+        "style_id": 1,
+        "style_name_zh": "节奏感更强",
+        "style_description_zh": "强化孩子画中的节奏元素——让线条更粗细分明，形状大小对比更强烈",
+        "linked_learning_objective": "粗细线条的变化",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every shape and line. Now enhance the RHYTHMIC quality: thicken some lines dramatically, thin others to whispers; enlarge some shapes 2x while shrinking others to dots. Create a clear visual 'beat' across the composition. Keep the child's color palette. Image-to-image strength: 0.5.",
+        "model_recommendation": "doubao-seedream-5-0-260128"
+      },
+      {
+        "style_id": 2,
+        "style_name_zh": "色彩更情绪化",
+        "style_description_zh": "把孩子的色彩推向更强烈的情绪——开心的更暖更鲜艳，安静的更冷更柔和",
+        "linked_learning_objective": "色彩与情绪的对应",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every shape and line. Now push the colors toward stronger emotion: if the piece feels happy/energetic, intensify warm hues (oranges, reds, yellows) with high saturation; if it feels calm/dreamy, deepen cool hues (blues, greens, lavenders) with soft gradients; if it feels tense, add high-contrast clashing pairs. Image-to-image strength: 0.45.",
+        "model_recommendation": "doubao-seedream-5-0-260128"
+      },
+      {
+        "style_id": 3,
+        "style_name_zh": "形状更抽象",
+        "style_description_zh": "把孩子画的具象形状推向更纯粹的抽象造型，接近大师作品的语言",
+        "linked_learning_objective": "用形状、线条表达对音乐的感受",
+        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve the COMPOSITION (where things are placed) but simplify each element into a pure abstract form: blobs become geometric shapes, scribbled lines become elegant curves, recognizable objects dissolve into color fields and form. Echo the language of Wassily Kandinsky or Liu Xun's abstract music paintings. Image-to-image strength: 0.65.",
+        "model_recommendation": "doubao-seedream-5-0-260128"
+      }
+    ]
+  },
+  "executor_a_part_prompts": {
+    "part1": "【课程上下文】本节课是《听听画画》，学习任务：聆听音乐，用绘画表现音乐。老师正在备 Part 1（封面与开场），可向你咨询封面字体、视觉风格、开场提问等。只回答老师实际提出的问题，不要主动输出完整设计方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
+    "part2": "【课程上下文】本节课是《听听画画》，关键概念：线条→节奏与旋律、形状→声音强弱与节拍、色彩→情绪与音色、听觉与视觉的通感。老师正在备 Part 2（导入与注意力引导），可向你咨询儿歌、提问、悬念、生活场景等导入形式。教材推荐播放《火车开啦》（匈牙利儿歌）与《小小的船》（胡汉娟）。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
+    "part4": "【课程上下文】本节课是《听听画画》，学习任务：聆听音乐，用绘画表现音乐。老师正在备 Part 4（制作任务布置），可向你咨询任务目标、关键约束、时间预期、安全提示等。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
+    "part5": "【课程上下文】本节课是《听听画画》。老师正在备 Part 5（示范环节），可向你咨询哪些步骤需要演示、细节如何强调、如何让全班看清，以及示范视频的引导方式。只回答老师实际提出的问题，不要主动输出完整方案。若问题简短（如问候、闲聊），用一句话简短回应即可。",
+    "part7": {
+      "system_prompt": "你是艺芽 AI 系统的「创意助手 Executor A」,现在切换到「学生作品评论员」模式。\n\n你的工作:\n- 接收一幅学生提交的作品照片\n- 基于本课的教学目标和评价维度,给出 180-200 字的反馈\n- 字数严格控制在 180-200 之间(不含标点),低于 170 或超过 210 视为不合格\n\n称谓与语气要求:\n- 直接对学生说话,用「你」作为称呼,可写「学生的作品」或「这幅画」\n- 严禁使用「宝贝」「孩子」「小朋友」「亲爱的」「同学们」等亲昵或集体称谓\n- 严禁自称「老师」(如「老师觉得」「老师看到」「老师超想」「老师期待」)\n- 严禁出现「我希望」「我想」「我觉得」等第一人称表达\n- 整体语气:中性、温和、像教研员对学生写的评语,既专业又能让二年级学生听懂\n- 避免使用感叹号过多(整段不超过 2 个感叹号)\n\n评价结构(严格按 3 段,每段独立成段,段间用空行分隔):\n\n【第 1 段·识别亮点,约 60 字】\n- 必须指出作品中至少 1 个具体、可见的视觉细节(不能空洞)\n- 该细节必须呼应本课「学习目标」中「知道」或「能做」层中的某一项(从 lesson_context 中给出的原文中选取关键词)\n- 不要使用「完全贴合主题」这种表层判断,要用具体动作描述(如「把主体拉得很长」「用了起伏的线条」「字形随着内容变了样子」)\n\n【第 2 段·提出改进,约 80 字】\n- 必须指出作品中至少 1 个尚可改进的方向\n- 该改进方向必须对应本课的「教学难点」或「评价标准」中合格级别的某一项\n- 改进建议要具体可操作(如「试着在主体周围添画一两处背景细节,让画面更丰富」「可以让标题的字形再夸张一些,让人一眼就被吸引」),不要空话(如「加油创作」「下次更努力」)\n\n【第 3 段·鼓励性收束,约 50 字】\n- 用一句肯定性的话结尾,呼应本课的关键艺术概念或学习目标\n- 不要使用「老师期待」「老师想看」等第一人称\n- 可用「期待你下一次的作品」「继续保持这份大胆的表达」「你已经走出了重要的一步」等\n\n评价维度覆盖要求(关键):\n- 由 lesson_context 提供本课的「评价维度清单」(feedback_dimensions),通常为 4 个\n- 评价必须覆盖其中 3-5 个维度,优先覆盖全部 4 个;若作品确实在某维度上无内容可评,可省略该维度,但保留维度数不能少于 3\n- 维度名称必须**逐字**出现在评价文字中(例如必须出现「线条节奏」四个字,而不是用「线条很有节奏感」代替;必须出现「色彩情绪」四个字,而不是用「颜色挺有感觉」代替)\n- 这样系统可以自动统计 dimensions_covered 字段\n- 维度名称在评价文字中应自然出现,可作为主语、宾语或修饰语,不要罗列式堆砌\n\n教参引用要求:\n- 评价中提到的「教学相关」内容,必须来自 lesson_context 提供的以下字段:\n  (1) learning_objectives 三层目标的原句关键词(知道 / 理解 / 能做)\n  (2) teaching_focus_zh 教学重点\n  (3) teaching_difficulty_zh 教学难点\n  (4) key_art_concepts 关键艺术概念\n  (5) assessment_criteria 评价标准\n- 严禁仅以「贴合本课主题」或「符合课程要求」作为论据\n- 严禁出现课名、单元名作为评价的核心论据(课名只是定位用,不是教学内容本身)\n- 至少 1 处具体引用应能让备课老师对照教参原文识别出来源(让评价具有教研锚点,而非泛泛而谈)\n\n字数与维度覆盖由 lesson_context 进一步细化,请严格遵守。",
+      "feedback_word_count": [
+        180,
+        200
+      ],
+      "feedback_dimensions": [
+        "线条节奏",
+        "形状对应",
+        "色彩情绪",
+        "音画通感"
+      ],
+      "encouragement_tone": "warm"
+    }
+  },
+  "example_video_url": "/textbook-assets/G2V2-U5-L1/example.mp4",
+  "example_video_notes_zh": "Part 5（Making Example）示范视频。研究员负责提供真实老师/工匠/孩子的示范录像，60-90 秒。",
+  "audio_resources": [
+    {
+      "audio_id": "music01",
+      "title_zh": "火车开啦",
+      "url": "/textbook-assets/G2V2-U5-L1/music/music01-huochekaila.mp3",
+      "duration_seconds": 0,
+      "usage_in_part": 2,
+      "description_zh": "匈牙利儿歌，节奏鲜明，对应大色块 + 暖色调；可作为『节奏型』音乐示例"
+    },
+    {
+      "audio_id": "music02",
+      "title_zh": "小小的船",
+      "url": "/textbook-assets/G2V2-U5-L1/music/music02-xiaoxiaodechuan.mp3",
+      "duration_seconds": 0,
+      "usage_in_part": 2,
+      "description_zh": "胡汉娟作曲，舒缓柔和，对应蓝色调 + 流畅曲线；可作为『旋律型』音乐示例"
+    }
+  ],
+  "tts_voice_recommendation": "zh-CN-XiaoxiaoNeural",
+  "classroom_activity": {
+    "task_zh": "选择并聆听一首自己喜欢的乐曲，尝试用适合的线条、色彩画下自己的感受",
+    "task_en": "Choose and listen to a favorite music piece, then use appropriate lines and colors to draw your feelings.",
+    "duration_minutes": 20,
+    "materials_zh": [
+      "白纸",
+      "彩色笔",
+      "蜡笔",
+      "水彩"
     ],
-    "tts_voice_recommendation": "zh-CN-XiaoxiaoNeural",
-    "classroom_activity": {
-        "task_zh": "选择并聆听一首自己喜欢的乐曲，尝试用适合的线条、色彩画下自己的感受",
-        "task_en": "Choose and listen to a favorite music piece, then use appropriate lines and colors to draw your feelings.",
-        "duration_minutes": 20,
-        "materials_zh": [
-            "白纸",
-            "彩色笔",
-            "蜡笔",
-            "水彩"
-        ],
-        "safety_notes_zh": [],
-        "expected_outcome_zh": "一幅用线条、形状、色彩表达对某段音乐感受的抽象画"
-    },
-    "suggested_ai_support_zh": "Mood-line-colour exemplars, music-to-image prompts, abstraction push"
+    "safety_notes_zh": [],
+    "expected_outcome_zh": "一幅用线条、形状、色彩表达对某段音乐感受的抽象画"
+  },
+  "suggested_ai_support_zh": "Mood-line-colour exemplars, music-to-image prompts, abstraction push"
 }

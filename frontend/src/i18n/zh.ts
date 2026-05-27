@@ -360,7 +360,22 @@ export default {
       ttsCrisp: '清爽',
       ttsDeep: '深沉',
       ttsNatural: '自然',
-      aiSuggestionsTitle: 'AI 音效建议',
+      // 2026-05：原 `aiSuggestionsTitle` + 故事 JSON 的 soundDesign
+      // 字段已下线（视频模型不出音、教师反馈也不会真的采用），
+      // 后端在生成故事时不再产出该字段，前端也不再渲染。Sound
+      // Design tab 现在仅保留 TTS 朗读。
+      // 设计理念 tab 里的 AI 协作对话框（2026-05 试点新增）。
+      chatTitle: '与 AI 讨论修改',
+      chatHint: '可以问"把第 2 段写得更细腻"，或"把第三个分支改成更温和的方向"。',
+      chatPlaceholder: '说说想怎么改…',
+      chatSend: '发送',
+      chatSending: '思考中…',
+      chatEmpty: '还没有对话。试试上面的提问示例，或直接问我任何关于这个故事的问题。',
+      chatRevisedTitle: '我准备了一份修改方案',
+      chatRevisedHint: '点击应用后，左下角故事区会替换为新版本，旧版本会保留在对话记录里。',
+      chatApply: '应用此版本',
+      chatApplied: '已应用',
+      chatStoryUpdated: '故事已更新',
     },
     // 第三部分右侧动画助手面板。标题复用
     // `chatbot.title`（创意助手）以保持品牌一致，所以这里只放

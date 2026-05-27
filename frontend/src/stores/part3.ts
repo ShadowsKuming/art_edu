@@ -14,7 +14,14 @@ export interface StoryData {
   choices: StoryChoice[]
   part3: string
   designRationale: string
-  soundDesign: string
+  /**
+   * Retired 2026-05. New backend responses no longer include this
+   * field — the AI sound suggestions tab was removed because the
+   * video model has no audio output and teachers said in pilot
+   * interviews they never adopted the suggestions. Kept optional so
+   * pre-2026-05 saved projects still parse cleanly.
+   */
+  soundDesign?: string
 }
 
 export type AnimationStatus = 'pending' | 'done' | 'failed'
@@ -32,6 +39,18 @@ export interface UploadedArtwork {
   imageMime: string
 }
 
+export interface DesignChatMessage {
+  role: 'user' | 'assistant'
+  text: string
+  /** When the assistant returned a candidate story rewrite, we store
+   *  it inline on the message so the user can review/apply it later
+   *  even after sending follow-up messages. */
+  revisedStory?: StoryData | null
+  /** Becomes true once the user clicks "Apply" on the proposed
+   *  rewrite — keeps the button from being clicked twice. */
+  revisedStoryApplied?: boolean
+}
+
 /** Persistent story/animation state saved per artwork when the user switches away. */
 export interface SavedArtworkState {
   storyData: StoryData | null
@@ -40,6 +59,7 @@ export interface SavedArtworkState {
   chosenVideoUrl: string | null
   selectedChoiceId: number | null
   generatedContinuations: Record<number, string>
+  designChatMessages: DesignChatMessage[]
 }
 
 export interface Part3Pair {
@@ -68,6 +88,13 @@ export interface Part3Pair {
   continuationLoading: boolean
   continuationError: string | null
   continuationStreamText: string
+  /** Per-artwork iterative-revision chat (lives under the "Design
+   *  Rationale" tab in Part3StoryPanel). Reset when switching to a
+   *  different artwork, restored when switching back — same lifecycle
+   *  as `generatedContinuations`. */
+  designChatMessages: DesignChatMessage[]
+  designChatLoading: boolean
+  designChatError: string | null
 }
 
 
@@ -84,6 +111,7 @@ function makePair(id: string): Part3Pair {
     remainingAttempts: 3, chosenVideoUrl: null,
     selectedChoiceId: null, generatedContinuations: {},
     continuationLoading: false, continuationError: null, continuationStreamText: '',
+    designChatMessages: [], designChatLoading: false, designChatError: null,
   }
 }
 
@@ -130,6 +158,9 @@ export const usePart3Store = defineStore('part3', () => {
   const continuationLoading = computed(() => activePair.value?.continuationLoading ?? false)
   const continuationError = computed(() => activePair.value?.continuationError ?? null)
   const continuationStreamText = computed(() => activePair.value?.continuationStreamText ?? '')
+  const designChatMessages = computed(() => activePair.value?.designChatMessages ?? [])
+  const designChatLoading = computed(() => activePair.value?.designChatLoading ?? false)
+  const designChatError = computed(() => activePair.value?.designChatError ?? null)
   const activeContinuation = computed(() => {
     const pair = activePair.value
     if (!pair) return null
@@ -187,6 +218,7 @@ export const usePart3Store = defineStore('part3', () => {
       chosenVideoUrl: pair.chosenVideoUrl,
       selectedChoiceId: pair.selectedChoiceId,
       generatedContinuations: { ...pair.generatedContinuations },
+      designChatMessages: pair.designChatMessages.map(m => ({ ...m })),
     }
   }
 
@@ -202,6 +234,8 @@ export const usePart3Store = defineStore('part3', () => {
     pair.continuationLoading = false
     pair.continuationError = null
     pair.continuationStreamText = ''
+    pair.designChatLoading = false
+    pair.designChatError = null
     const saved = pair.artworkStates[key]
     if (saved) {
       pair.storyData = saved.storyData
@@ -210,6 +244,7 @@ export const usePart3Store = defineStore('part3', () => {
       pair.chosenVideoUrl = saved.chosenVideoUrl
       pair.selectedChoiceId = saved.selectedChoiceId
       pair.generatedContinuations = saved.generatedContinuations
+      pair.designChatMessages = saved.designChatMessages ?? []
     } else {
       pair.storyData = null
       pair.animationVersions = []
@@ -217,6 +252,7 @@ export const usePart3Store = defineStore('part3', () => {
       pair.chosenVideoUrl = null
       pair.selectedChoiceId = null
       pair.generatedContinuations = {}
+      pair.designChatMessages = []
     }
   }
 
@@ -498,6 +534,83 @@ export const usePart3Store = defineStore('part3', () => {
     setTimeout(tick, 3000)
   }
 
+  /**
+   * Send a message to `/api/story/chat`. The endpoint returns
+   * `{ reply, revised_story | null }`. We always push the reply as
+   * an assistant message; if `revised_story` is present we stash it
+   * on the message so the panel can render an "Apply" button (we
+   * deliberately do NOT auto-replace `storyData` — the teacher must
+   * confirm).
+   */
+  async function sendDesignChat(message: string, language = 'zh') {
+    const pair = activePair.value
+    if (!pair?.storyData || !pair.imageDataUrl) return
+    const text = message.trim()
+    if (!text || pair.designChatLoading) return
+    if (!await _ensureBase64(pair)) return
+
+    pair.designChatMessages.push({ role: 'user', text })
+    pair.designChatLoading = true
+    pair.designChatError = null
+
+    const lessonId = useProjectsStore().activeLessonId
+
+    try {
+      const history = pair.designChatMessages.map(m => ({ role: m.role, text: m.text }))
+      const res = await fetch(`${API_BASE}/api/story/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_base64: pair.imageBase64,
+          image_mime: pair.imageMime,
+          messages: history,
+          current_story: pair.storyData,
+          language,
+          lesson_id: lessonId ?? undefined,
+          artwork_id: pair.selectedArtworkId ?? undefined,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }))
+        throw new Error(err.detail ?? 'Chat failed')
+      }
+      const data = await res.json()
+      pair.designChatMessages.push({
+        role: 'assistant',
+        text: data.reply ?? '',
+        revisedStory: data.revised_story ?? null,
+        revisedStoryApplied: false,
+      })
+    } catch (e: any) {
+      pair.designChatError = e.message
+    } finally {
+      pair.designChatLoading = false
+    }
+  }
+
+  /**
+   * Replace `storyData` with the revision proposed in an assistant
+   * message. Marks the message as `applied` so its "Apply" button
+   * hides on subsequent renders. Also rebuilds the choice-0 cache
+   * in `generatedContinuations` so Part3 Story Preview keeps showing
+   * the freshly revised Part 3 text.
+   */
+  function applyRevisedStory(messageIndex: number) {
+    const pair = activePair.value
+    if (!pair) return
+    const msg = pair.designChatMessages[messageIndex]
+    if (!msg?.revisedStory || msg.revisedStoryApplied) return
+    pair.storyData = JSON.parse(JSON.stringify(msg.revisedStory))
+    msg.revisedStoryApplied = true
+    if (pair.storyData?.part3) {
+      pair.generatedContinuations = { 0: pair.storyData.part3 }
+    }
+    // Reset choice selection so the panel's "click a path" hint
+    // reappears if the user wants to explore branches again with
+    // the revised storyline.
+    pair.selectedChoiceId = null
+  }
+
   function removePair(id: string) {
     pairs.value = pairs.value.filter(p => p.id !== id)
     if (activePairId.value === id) {
@@ -520,10 +633,12 @@ export const usePart3Store = defineStore('part3', () => {
     animationVersions, animationLoading, animationError, remainingAttempts, chosenVideoUrl,
     selectedChoiceId, continuationLoading, continuationError, activeContinuation,
     storyStreamText, continuationStreamText,
+    designChatMessages, designChatLoading, designChatError,
     selectedArtworkId, selectedUploadedId, uploadedArtworks,
     ensurePair, removePair, setArtworkFromUrl,
     addUploadedArtwork, selectUploadedArtwork, removeUploadedArtwork,
     generateStory, generateAnimation, saveChosenVideo, generateContinuation,
+    sendDesignChat, applyRevisedStory,
   }
 })
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onUnmounted, watch } from 'vue'
 import { usePart3Store } from '@/stores/part3'
 import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
@@ -23,6 +23,59 @@ const storyStreamPreview = computed(() => {
 function selectChoice(id: number) {
   store.generateContinuation(id, locale.value)
 }
+
+// ── Design-Rationale chat (Part 3 iterative revision) ─────────────────
+//
+// The chat lives inside the Design tab so teachers can keep talking
+// to the executor about the story they just generated, without
+// jumping out of the Part-3 workspace. State is managed by the store
+// (one history per artwork), this section is just the local input
+// box + scrolling glue.
+
+const chatInput = ref('')
+const chatScroller = ref<HTMLElement | null>(null)
+
+async function sendDesignChat() {
+  const text = chatInput.value.trim()
+  if (!text || store.designChatLoading) return
+  chatInput.value = ''
+  await store.sendDesignChat(text, locale.value)
+  // Scroll the new assistant reply into view.
+  nextTick(() => {
+    chatScroller.value?.scrollTo({
+      top: chatScroller.value.scrollHeight,
+      behavior: 'smooth',
+    })
+  })
+}
+
+function onChatKeydown(e: KeyboardEvent) {
+  // Enter sends, Shift+Enter inserts a newline (standard chat UX).
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault()
+    sendDesignChat()
+  }
+}
+
+function applyRevised(idx: number) {
+  store.applyRevisedStory(idx)
+  toastStore.show(t('part3.storyPanel.chatStoryUpdated'), 'success')
+}
+
+// Keep the message list anchored to the bottom whenever a new
+// message lands. Watching length is cheap and avoids double-fire
+// on every text mutation inside a single message.
+watch(
+  () => store.designChatMessages.length,
+  () => {
+    nextTick(() => {
+      chatScroller.value?.scrollTo({
+        top: chatScroller.value.scrollHeight,
+        behavior: 'smooth',
+      })
+    })
+  },
+)
 
 // ── TTS ───────────────────────────────────────────────────────────────────
 
@@ -328,9 +381,87 @@ onUnmounted(_cleanupAudio)
     </div>
 
     <!-- Design Rationale tab -->
-    <div v-else-if="activeTab === 'design'" class="sp-body">
+    <div v-else-if="activeTab === 'design'" class="sp-body sp-body--design">
       <h3 class="sp-section-title">{{ t('part3.storyPanel.designRationale') }}</h3>
-      <p class="sp-text">{{ store.storyData.designRationale }}</p>
+      <p class="sp-text sp-design-text">{{ store.storyData.designRationale }}</p>
+
+      <div class="sp-chat-divider" />
+
+      <!-- AI co-revision chat -->
+      <h3 class="sp-section-title">{{ t('part3.storyPanel.chatTitle') }}</h3>
+      <p class="sp-subtext">{{ t('part3.storyPanel.chatHint') }}</p>
+
+      <div ref="chatScroller" class="sp-chat-scroller">
+        <p v-if="!store.designChatMessages.length" class="sp-chat-empty">
+          {{ t('part3.storyPanel.chatEmpty') }}
+        </p>
+
+        <div
+          v-for="(msg, idx) in store.designChatMessages"
+          :key="idx"
+          class="sp-chat-bubble"
+          :class="msg.role === 'user' ? 'sp-chat-bubble--user' : 'sp-chat-bubble--bot'"
+        >
+          <p class="sp-chat-text">{{ msg.text }}</p>
+
+          <!-- Inline revision proposal card -->
+          <div
+            v-if="msg.role === 'assistant' && msg.revisedStory"
+            class="sp-chat-revision"
+          >
+            <div class="sp-chat-revision-head">
+              <svg viewBox="0 0 16 16" fill="none" class="sp-chat-revision-icon">
+                <path d="M8 1.5l1.7 3.5 3.8.5-2.7 2.7.6 3.8L8 10.2 4.6 12l.6-3.8L2.5 5.5l3.8-.5L8 1.5z" fill="#16a34a"/>
+              </svg>
+              <span>{{ t('part3.storyPanel.chatRevisedTitle') }}</span>
+            </div>
+            <p class="sp-chat-revision-hint">{{ t('part3.storyPanel.chatRevisedHint') }}</p>
+            <button
+              class="sp-chat-apply-btn"
+              :disabled="msg.revisedStoryApplied"
+              @click="applyRevised(idx)"
+            >
+              {{ msg.revisedStoryApplied
+                ? t('part3.storyPanel.chatApplied')
+                : t('part3.storyPanel.chatApply') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="store.designChatLoading" class="sp-chat-bubble sp-chat-bubble--bot">
+          <div class="sp-chat-typing">
+            <span class="sp-chat-typing-dot" />
+            <span class="sp-chat-typing-dot" />
+            <span class="sp-chat-typing-dot" />
+          </div>
+        </div>
+
+        <p v-if="store.designChatError" class="sp-error sp-error--inline">
+          {{ store.designChatError }}
+        </p>
+      </div>
+
+      <div class="sp-chat-input-row">
+        <textarea
+          v-model="chatInput"
+          class="sp-chat-input"
+          :placeholder="t('part3.storyPanel.chatPlaceholder')"
+          :disabled="store.designChatLoading"
+          rows="2"
+          @keydown="onChatKeydown"
+        />
+        <button
+          class="sp-chat-send-btn"
+          :disabled="!chatInput.trim() || store.designChatLoading"
+          :aria-label="t('part3.storyPanel.chatSend')"
+          @click="sendDesignChat"
+        >
+          <svg v-if="!store.designChatLoading" viewBox="0 0 20 20" fill="none">
+            <path d="M3 10l14-7-5 16-2.5-6L3 10z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+          <div v-else class="sp-spinner sp-spinner--small" />
+        </button>
+      </div>
     </div>
 
     <!-- Sound Design tab -->
@@ -398,10 +529,10 @@ onUnmounted(_cleanupAudio)
         <p v-if="ttsError" class="sp-error sp-error--inline">{{ ttsError }}</p>
       </template>
 
-      <!-- AI ambient sound suggestions -->
-      <div class="sp-tts-divider" />
-      <h3 class="sp-section-title">{{ t('part3.storyPanel.aiSuggestionsTitle') }}</h3>
-      <p class="sp-text" style="white-space: pre-line;">{{ store.storyData.soundDesign }}</p>
+      <!-- 2026-05: legacy "AI Sound Suggestions" block removed. The
+           backend no longer generates the `soundDesign` story field
+           (it was unused by teachers in the pilot and the video model
+           has no audio output anyway), so this tab is now TTS-only. -->
     </div>
 
   </div>
@@ -661,4 +792,187 @@ onUnmounted(_cleanupAudio)
   background: #d1fae5;
   margin: 4px 0;
 }
+
+/* ── Design-Rationale chat ───────────────────────────────────────────── */
+
+/* Design tab gets a flex column with a scrolling chat history that
+   sticks to the bottom, plus a fixed input row. The outer `.sp-body`
+   already scrolls, so we make the chat history a self-contained
+   bounded box (max-height) to avoid double-scrollbars. */
+.sp-body--design { gap: 10px; }
+
+.sp-design-text { white-space: pre-wrap; }
+
+.sp-chat-divider {
+  height: 1px;
+  background: #d1fae5;
+  margin: 8px 0 4px;
+}
+
+.sp-chat-scroller {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px 4px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.sp-chat-empty {
+  margin: 8px 4px;
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.sp-chat-bubble {
+  max-width: 88%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  word-wrap: break-word;
+}
+
+.sp-chat-bubble--user {
+  align-self: flex-end;
+  background: #7FEC8F;
+  color: #064e3b;
+  border-bottom-right-radius: 4px;
+}
+
+.sp-chat-bubble--bot {
+  align-self: flex-start;
+  background: #f3f4f6;
+  color: #1f2937;
+  border-bottom-left-radius: 4px;
+}
+
+.sp-chat-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.sp-chat-revision {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #ecfdf5;
+  border: 1px dashed #6ee7b7;
+  border-radius: 10px;
+}
+
+.sp-chat-revision-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #047857;
+}
+
+.sp-chat-revision-icon { width: 14px; height: 14px; }
+
+.sp-chat-revision-hint {
+  margin: 4px 0 8px;
+  font-size: 11px;
+  color: #047857;
+  line-height: 1.5;
+}
+
+.sp-chat-apply-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: none;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.sp-chat-apply-btn:hover:not(:disabled) { background: #059669; }
+.sp-chat-apply-btn:disabled {
+  background: #d1fae5;
+  color: #065f46;
+  cursor: default;
+}
+
+.sp-chat-typing {
+  display: flex;
+  gap: 4px;
+  padding: 4px 2px;
+}
+
+.sp-chat-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9ca3af;
+  animation: chatTyping 1.2s infinite ease-in-out;
+}
+
+.sp-chat-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.sp-chat-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes chatTyping {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30%           { opacity: 1;   transform: translateY(-3px); }
+}
+
+.sp-chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sp-chat-input {
+  flex: 1;
+  resize: none;
+  padding: 10px 12px;
+  border: 1.5px solid #d1fae5;
+  border-radius: 12px;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #111827;
+  outline: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.sp-chat-input:focus { border-color: #7FEC8F; }
+.sp-chat-input:disabled { background: #f9fafb; cursor: not-allowed; }
+
+.sp-chat-send-btn {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: #7FEC8F;
+  color: #064e3b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+.sp-chat-send-btn:hover:not(:disabled) { background: #5de06f; }
+.sp-chat-send-btn:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.sp-chat-send-btn svg { width: 18px; height: 18px; }
 </style>

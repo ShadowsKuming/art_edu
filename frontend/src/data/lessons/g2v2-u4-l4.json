@@ -717,7 +717,9 @@
       "executor_b_prompt_hint_zh": "POV: 一位陌生的小访客顺着溪水进入桃花源,从外部世界踏入这个隐秘之地。叙述风格可以略带古风但仍要 7-8 岁儿童能懂。重点描写'蜿蜒'的视觉感与'好长好长'的延伸感。",
       "recommended_for_executor_b": true,
       "recommended_for_executor_c": true,
-      "narrative_richness": "high"
+      "narrative_richness": "high",
+      "animation_brief_zh": "镜头自左向右匀速平移横扫长卷，溪水缓缓流淌泛起细碎波纹，桃花瓣随微风纷纷飘落，一叶小舟顺水缓行漂向画面右侧，远处山峦轻覆薄雾。整体保持原作水彩与中国传统绘本的笔触与色彩。",
+      "animation_brief_en": "Camera pans steadily from left to right across the long scroll. The stream flows gently with subtle ripples, peach blossom petals drift down in a soft breeze, and a small boat glides slowly downstream toward the right edge of the frame. Distant mountains are veiled in thin mist. Preserve the watercolour brushwork and colour palette of the original Chinese picture-book illustration."
     },
     {
       "artwork_id": "G2V2-U4-L4-art02",
@@ -733,7 +735,9 @@
       "executor_b_prompt_hint_zh": "POV: 延续 art01 的小访客视角,讲述他/她进入桃花源后看到的另一个场景。基调依然是宁静悠远的古风。叙事可与 art01 形成上下篇关系,但每篇独立成段。",
       "recommended_for_executor_b": true,
       "recommended_for_executor_c": true,
-      "narrative_richness": "high"
+      "narrative_richness": "high",
+      "animation_brief_zh": "镜头从画面左侧幽暗山洞内向前推进穿过岩壁，前景渐亮；豁然开阔后田野、屋舍、人物依次进入视野，村民身影轻微摆动（劳作、行走），禾苗随风轻摆，远山薄雾缓缓流动。保留原作温润的水彩质感与暖色调。",
+      "animation_brief_en": "Camera pushes forward through a dark cave on the left of the frame, foreground gradually brightening. As it emerges, fields, houses, and figures come into view in sequence. Villagers move subtly as they work and walk, rice shoots sway in the breeze, and distant mist drifts slowly across the mountains. Preserve the warm tones and gentle watercolour texture of the original."
     },
     {
       "artwork_id": "G2V2-U4-L4-art03",
@@ -749,7 +753,9 @@
       "executor_b_prompt_hint_zh": "POV: 锁定女童视角(小真本人或她的同伴),围绕'我的头发能变得多长'展开想象。重点是'夸张'与'功能性联想'(头发变成晾衣绳/秋千/绳索…)。语气活泼俏皮,适合女孩为主的小学班级共鸣。",
       "recommended_for_executor_b": true,
       "recommended_for_executor_c": true,
-      "narrative_richness": "high"
+      "narrative_richness": "high",
+      "animation_brief_zh": "女孩长发以柔和的波浪节奏向左右两侧持续延展、加长，发丝末端逐渐演变为晾衣绳，绳上依次出现色彩各异的衣物随风轻摆。女孩面部表情和身体姿态保持稳定，背景纸张质感不变，整体保留原绘本的彩铅与水彩风格。",
+      "animation_brief_en": "The girl's long hair extends and lengthens to the left and right in a soft wave-like rhythm. The strands gradually transform into a clothesline at the ends, and colourful clothes appear in sequence along the line, swaying gently in the breeze. The girl's face and posture remain stable; the paper-textured background does not change. Preserve the coloured-pencil and watercolour style of the original picture book."
     }
   ],
   "default_executor_b_artwork_id": "G2V2-U4-L4-art01",

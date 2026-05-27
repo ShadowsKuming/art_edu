@@ -365,7 +365,25 @@ export default {
       ttsCrisp: 'Crisp',
       ttsDeep: 'Deep',
       ttsNatural: 'Natural',
-      aiSuggestionsTitle: 'AI Sound Suggestions',
+      // 2026-05: the legacy `aiSuggestionsTitle` + the `soundDesign`
+      // story field have been retired. The video model has no audio
+      // output and teachers told us in pilot interviews they never
+      // acted on the AI sound suggestions, so we removed it from
+      // both the story JSON schema and the Sound Design tab UI to
+      // shave 1-2 seconds off story generation latency. The Sound
+      // Design tab now hosts only the TTS narration controls.
+      // Design Rationale tab AI co-revision chat (2026-05 pilot).
+      chatTitle: 'Discuss & revise with AI',
+      chatHint: 'Try "make paragraph 2 more sensory" or "make branch 3 gentler".',
+      chatPlaceholder: 'What would you like to change?',
+      chatSend: 'Send',
+      chatSending: 'Thinking…',
+      chatEmpty: 'No conversation yet. Try one of the examples above, or ask me anything about the story.',
+      chatRevisedTitle: "I've prepared a revised version",
+      chatRevisedHint: 'Click apply to replace the story on the left. The old version stays in this chat for reference.',
+      chatApply: 'Apply this version',
+      chatApplied: 'Applied',
+      chatStoryUpdated: 'Story updated',
     },
     // Right-side panel that lets the teacher iterate on the
     // generated animation. Title intentionally reuses

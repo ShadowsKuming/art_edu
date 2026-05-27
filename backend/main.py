@@ -153,18 +153,18 @@ def _lang_suffix(language: str) -> str:
             "- 输出语言: 简体中文。\n"
             "- 所有 JSON value 必须使用简体中文，包括: "
             "part1 文本、choices[].label、choices[].desc、part3 文本、"
-            "designRationale、soundDesign。\n"
+            "designRationale。\n"
             "- JSON key 保持英文不变（part1 / choices / label / desc / part3 / "
-            "designRationale / soundDesign）—— 不要翻译这些字段名。\n"
+            "designRationale）—— 不要翻译这些字段名。\n"
             "- 不要混用英文单词、不要保留任何英文词条；外语人名/地名用中文译名。"
         )
     return (
         "\n\n[Language requirement]\n"
         "- Output language: English.\n"
         "- All JSON values must be written in English (part1, choices.label, "
-        "choices.desc, part3, designRationale, soundDesign).\n"
-        "- Keep JSON keys (part1, choices, label, desc, part3, designRationale, "
-        "soundDesign) in English."
+        "choices.desc, part3, designRationale).\n"
+        "- Keep JSON keys (part1, choices, label, desc, part3, designRationale) "
+        "in English."
     )
 
 
@@ -251,8 +251,8 @@ STORY_SYSTEM = (
     "an 7-8 year old can follow.\n"
     "Output: a single JSON object — no markdown fences, no preamble.\n"
     "The JSON keys MUST stay in English (part1 / choices / id / label / "
-    "desc / part3 / designRationale / soundDesign). The language of the "
-    "JSON *values* is dictated by the [Language requirement] block below."
+    "desc / part3 / designRationale). The language of the JSON *values* "
+    "is dictated by the [Language requirement] block below."
 )
 
 
@@ -274,8 +274,7 @@ def _story_user_text(language: str) -> str:
             '    {"id": 2, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"}\n'
             "  ],\n"
             '  "part3": "<2-3 段延续选项 0 的故事后半段>",\n'
-            '  "designRationale": "<2-3 句说明故事如何呼应这幅画作及其教学价值>",\n'
-            '  "soundDesign": "<建议 Part 1、选择时刻、Part 3 使用的环境声与音乐>"\n'
+            '  "designRationale": "<按 [设计理念字段生成要求] 中的 5 段结构生成>"\n'
             "}"
         )
     return (
@@ -294,11 +293,79 @@ def _story_user_text(language: str) -> str:
         "  ],\n"
         '  "part3": "<2-3 paragraph continuation following choice 0>",\n'
         '  "designRationale": "<2-3 sentences on how this story connects '
-        'to the artwork and its educational value>",\n'
-        '  "soundDesign": "<recommended ambient sounds and music for '
-        'Part 1, the choice moment, and Part 3>"\n'
+        'to the artwork and its educational value>"\n'
         "}"
     )
+
+
+# ── designRationale spec (curriculum-anchored, 5-paragraph) ─────────────
+#
+# Per pilot feedback (2026-05): the AI's designRationale was too short
+# and too generic — teachers couldn't see how the story actually mapped
+# to the unit big idea, three-tier objectives, or key art concepts in
+# the LKP. The curriculum team handed over a very specific spec (5
+# paragraphs, 330-360 Chinese characters, hard structural rules); the
+# block below ports it verbatim into the system prompt so the model
+# treats designRationale as a structured field, not free narration.
+#
+# Implementation notes:
+#   • ZH spec is the user's verbatim copy. Hard char range stays in
+#     the prompt (we accept the ~75% one-shot success rate instead of
+#     a 2-step polish that doubles latency).
+#   • EN mode keeps the legacy 2-3 sentence requirement (Q3 = option
+#     C) — the pilot is grade-2 Chinese, EN is for demo/screenshot.
+
+def _design_rationale_spec(language: str) -> str:
+    if language != "zh":
+        # English: keep the legacy short version. No structural rules.
+        return ""
+    return """
+
+[设计理念(designRationale) 字段生成要求]
+
+在主故事 JSON 输出中，designRationale 字段必须严格遵守以下规范。
+
+字数:严格 330-360 个中文字(不含标点)。低于 320 或超过 380 视为不合格。
+
+读者:本课的备课教师。语气专业、平实，不需要鼓励性辞令，不要写"这个故事会让孩子很喜欢"这类主观判断。
+
+内容结构(按此顺序，共 5 段，段间用 \\n\\n 空行分隔):
+
+【第 1 段 · 与单元大观念和学习任务的对应,约 60 字】
+开篇 1-2 句话:点明本故事与 [本课信息] 中"单元大概念"和"学习任务"的对应关系。必须**直接引用** [本课信息] 给出的"单元大概念"原句和"学习任务"原句中的关键词，不要用自己的话改写。
+
+【第 2 段 · 逐层回应学习目标,约 100 字】
+分别说明本故事在哪些具体情节、画面、人物选择上支撑 [学习目标] 中的"知道"、"理解"、"能做"这三层目标。每层目标至少对应故事中一个**具体情节锚点**，不能笼统说"故事呼应学习目标"。
+
+【第 3 段 · 回应教学重点、教学难点、关键概念,约 100 字】
+明确指出本故事如何呼应:
+(a) [教学重点] 中的具体动作（提取关键词）
+(b) [教学难点] 的攻克路径（故事的哪个场景帮助突破难点）
+(c) [关键艺术概念] 分别在哪个具体细节体现，每个概念**至少 1 处对应**
+
+【第 4 段 · 3 个分支对应教学不同侧面,约 60 字】
+说明 part1 后的 3 个分支选择各自对应本课的哪个具体侧面，让老师明白每个分支引导学生关注的角度不同，可在教学中根据课堂氛围选用。
+
+【第 5 段 · 邀请讨论与修改,严格 25-35 字】
+告知老师此故事并非定稿，可以继续讨论和修改，并给出 1 个**具体的**提问示例，引导老师向 AI 进一步追问。要求:
+- 语气是 AI 故事创作员对备课老师说话，用"我"指代自己，用"您"指代老师
+- 提问示例必须呼应本课的某个学习目标、教学重点、教学难点或关键概念，而不是泛泛的故事调整方向
+- 提问示例必须**针对前 4 段中具体提到的某个设计选择**(例如某个情节锚点对应某层目标、某个分支对应某教学侧面)，不要泛泛而谈
+- 提问示例用引号包裹，具体到老师可以直接复制使用
+- 严禁使用"老师您""请您"等过分客气的称谓
+- 第 5 段示例格式(供参考但不要逐字模仿):
+  "此故事并非定稿，您可继续与我讨论。例如可问我:『_________?』"
+
+写作约束(适用于全部 5 段):
+- 不要使用"通过""旨在""旨在让""有助于""能够"等空泛动词，改用具体动词(如"将……转化为""把……的概念落在……上""借助……场景呈现……""锚定在……")
+- 不要重复故事内容本身(老师已读过 part1 和 choices)，只解释设计意图
+- 第 1-4 段不要出现"我希望""我想要""建议老师""教师可以"等第一人称或指令性表达
+- 第 5 段是唯一可以用"我"和"您"的段落（AI 与老师对话）
+- 不要使用 markdown 格式(无标题、无列表、无加粗)，纯段落文字
+- 教材教参中出现的术语（如"审美感知""文化理解""艺术表现""创意实践""通感""依形创编"）可以使用，但不要堆砌
+- 必须引用 [本课信息] 中给出的实际目标和概念原文，不要泛泛而谈
+
+输出位置:designRationale 字段(故事主 JSON 的一部分)，保持现有 JSON schema 不变。各段之间用 \\n\\n 分隔(JSON 字符串里写成 \\n\\n)。"""
 
 
 def _build_story_lesson_context(req: StoryRequest) -> str:
@@ -380,7 +447,12 @@ def _build_story_lesson_context(req: StoryRequest) -> str:
 
 
 def _story_payload(req: StoryRequest, stream: bool = False) -> dict:
-    system = STORY_SYSTEM + _build_story_lesson_context(req) + _lang_suffix(req.language)
+    system = (
+        STORY_SYSTEM
+        + _build_story_lesson_context(req)
+        + _design_rationale_spec(req.language)
+        + _lang_suffix(req.language)
+    )
     return {
         "model": STORY_MODEL,
         "stream": stream,
@@ -457,19 +529,49 @@ class AnimationSubmitRequest(BaseModel):
     artwork_id: Optional[str] = None
 
 
-def _build_animation_prompt(user_prompt: str, lesson_mood: str = "") -> str:
-    base = (
-        "Transform this artwork into a gentle, looping animation. "
-        "Add subtle life to the painting: soft wind moving trees or flowers, "
-        "flowing water or drifting clouds where present, gradual light changes, "
-        "and delicate atmospheric particles such as petals or dust motes. "
-        "Preserve the original art style and colour palette throughout."
-    )
-    parts = [base]
-    if lesson_mood.strip():
-        parts.append(f"Mood: {lesson_mood.strip()}.")
+def _build_animation_prompt(
+    user_prompt: str,
+    lesson_mood: str = "",
+    animation_brief: str = "",
+) -> str:
+    """Compose the final text prompt sent to Doubao Seedance.
+
+    Preference order:
+      1. If the LKP supplies a per-artwork ``animation_brief`` (English,
+         curriculum-authored), use it verbatim. This is the only path
+         that gives the video model truly artwork-specific guidance —
+         it was written by the curriculum team after looking at the
+         picture, so it describes the actual visual motion.
+      2. Otherwise fall back to a generic "gentle looping life" base
+         plus the lesson-level ``mood`` string. Older LKPs without a
+         brief still work this way.
+
+    Teacher's free-text adjustment (``user_prompt``) is always appended
+    last so that any custom request overrides the defaults.
+
+    The video model does **not** generate audio, so we deliberately
+    never include music or sound-effect language — those words just
+    waste tokens and occasionally cause the model to render text/music
+    notation into the picture.
+    """
+    if animation_brief.strip():
+        parts = [
+            animation_brief.strip(),
+            "Preserve the original artwork's style, colour palette, and composition.",
+        ]
+    else:
+        base = (
+            "Transform this artwork into a gentle, looping animation. "
+            "Add subtle life to the painting: soft wind moving trees or flowers, "
+            "flowing water or drifting clouds where present, gradual light changes, "
+            "and delicate atmospheric particles such as petals or dust motes. "
+            "Preserve the original art style and colour palette throughout."
+        )
+        parts = [base]
+        if lesson_mood.strip():
+            parts.append(f"Mood: {lesson_mood.strip()}.")
     if user_prompt.strip():
-        parts.append(f"Additional instruction: {user_prompt.strip()}")
+        parts.append(f"Teacher's adjustment: {user_prompt.strip()}")
     return "  ".join(parts)
 
 
@@ -478,12 +580,18 @@ async def submit_animation(req: AnimationSubmitRequest):
     if not ARK_API_KEY:
         raise HTTPException(500, "ARK_API_KEY is not set")
 
-    # Inject LKP mood if a lesson_id is provided.
+    # Inject LKP brief / mood if a lesson_id is provided.
     lesson_mood = ""
+    animation_brief = ""
     if req.lesson_id:
         try:
             ctx = lesson_manager.build_executor_c_context(req.lesson_id, req.artwork_id)
             lesson_mood = ctx["mood"]
+            # Prefer the English brief (Doubao Seedance is multilingual
+            # but tokenises English more efficiently). If only a 中文
+            # brief is authored, fall back to that — still beats the
+            # generic mood string.
+            animation_brief = ctx.get("animation_brief_en") or ctx.get("animation_brief_zh") or ""
         except ValueError:
             # Bad artwork_id — fall back to default mood, don't fail.
             pass
@@ -497,7 +605,10 @@ async def submit_animation(req: AnimationSubmitRequest):
                     "url": f"data:{req.image_mime};base64,{req.image_base64}"
                 },
             },
-            {"type": "text", "text": _build_animation_prompt(req.prompt, lesson_mood)},
+            {
+                "type": "text",
+                "text": _build_animation_prompt(req.prompt, lesson_mood, animation_brief),
+            },
         ],
     }
 
@@ -775,6 +886,185 @@ async def stream_continue(req: StoryContinueRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ────────────────────────────────────────────────────────────────────────
+# 6b. Story revision chat — Executor B (iterative refinement)
+#
+# Pilot 2026-05: once Part 3 has a story, teachers want to discuss it
+# with the AI ("what if the third branch was less scary?" / "rewrite
+# part1 with more sensory detail") instead of regenerating from
+# scratch and losing the existing draft. This endpoint sits between
+# free-form chat (no story output) and `/api/story/stream` (full
+# regenerate) — it returns BOTH a conversational reply AND an
+# optional revised story JSON that the frontend can apply on demand.
+# ────────────────────────────────────────────────────────────────────────
+
+
+STORY_CHAT_SYSTEM = (
+    "You are an art-education assistant having a conversation with a "
+    "grade-2 art teacher who is iterating on an interactive story you "
+    "previously wrote together. The story (artwork image, current "
+    "JSON, lesson curriculum context) is below.\n\n"
+    "Your job has two modes — you pick based on the user's latest message:\n"
+    "\n"
+    "MODE A — Discussion only.\n"
+    "  Triggered when the teacher is asking a question, exploring ideas, "
+    "asking for advice, or making small/ambiguous suggestions.\n"
+    "  Action: reply conversationally (1-3 short paragraphs). Do NOT "
+    "include a revised_story field.\n"
+    "\n"
+    "MODE B — Concrete revision.\n"
+    "  Triggered when the teacher explicitly asks to rewrite, replace, "
+    "shorten, lengthen, or restructure one or more story fields "
+    "(part1 / choices / part3 / designRationale) — words "
+    "like 「请改写」「重新生成」「换成」「把…改成」「rewrite」「replace」「change … to».\n"
+    "  Action: return BOTH a brief reply (1-2 sentences acknowledging "
+    "what you changed and why) AND a complete revised_story object "
+    "with ALL FOUR fields (part1, choices[3], part3, designRationale) "
+    "— even fields you did not touch must be carried over verbatim "
+    "from the current story.\n"
+    "\n"
+    "Output: a single JSON object — no markdown fences, no preamble:\n"
+    "{\n"
+    '  "reply": "<conversational reply text>",\n'
+    '  "revised_story": null  // OR the full StoryData JSON in mode B\n'
+    "}\n"
+    "\n"
+    "When revised_story is non-null, it must follow the same schema as "
+    "the original story (English keys, values in the same language as "
+    "the conversation) and must respect the designRationale 5-paragraph "
+    "330-360-character spec already given above."
+)
+
+
+class StoryChatRequest(BaseModel):
+    image_base64: str
+    image_mime: str = "image/jpeg"
+    messages: list[ChatMsg]
+    current_story: dict
+    language: str = "zh"
+    lesson_id: Optional[str] = None
+    artwork_id: Optional[str] = None
+
+
+def _build_story_chat_context(req: StoryChatRequest) -> str:
+    """LKP context + current story snapshot, both injected into the
+    chat system prompt so the model has full grounding for every turn."""
+    # Reuse the same expanded LKP block used by /api/story/stream so
+    # the chat has identical pedagogical grounding (objectives,
+    # teaching focus/difficulty, key concepts, artwork notes).
+    if req.lesson_id:
+        try:
+            ctx = lesson_manager.build_executor_b_context(req.lesson_id, req.artwork_id)
+            lines = ["\n\n[本课信息 / Lesson context]"]
+            lines.append(f"课程: 《{ctx['lesson_title_zh']}》")
+            if ctx["unit_idea"]:
+                lines.append(f"单元大概念: {ctx['unit_idea']}")
+            if ctx["learning_task"]:
+                lines.append(f"学习任务: {ctx['learning_task']}")
+            objs = ctx.get("learning_objectives") or {}
+            if objs:
+                lines.append("[学习目标]")
+                if objs.get("know"):
+                    lines.append(f"- 知道: {objs['know']}")
+                if objs.get("understand"):
+                    lines.append(f"- 理解: {objs['understand']}")
+                if objs.get("do"):
+                    lines.append(f"- 能做: {objs['do']}")
+            if ctx.get("teaching_focus"):
+                lines.append(f"[教学重点] {ctx['teaching_focus']}")
+            if ctx.get("teaching_difficulty"):
+                lines.append(f"[教学难点] {ctx['teaching_difficulty']}")
+            concepts = ctx.get("key_concepts") or []
+            if concepts:
+                lines.append(f"[关键艺术概念] {'、'.join(concepts)}")
+            if ctx.get("story_hint"):
+                lines.append(f"故事方向提示: {ctx['story_hint']}")
+            lesson_block = "\n".join(lines)
+        except ValueError:
+            lesson_block = ""
+    else:
+        lesson_block = ""
+
+    story_json = json.dumps(req.current_story, ensure_ascii=False, indent=2)
+    story_block = f"\n\n[当前故事 / Current story JSON]\n{story_json}"
+
+    # When language is zh AND lesson_id is set, also pass the
+    # designRationale spec so MODE B revisions stay within the
+    # 5-paragraph 330-360 character contract.
+    spec_block = _design_rationale_spec(req.language)
+
+    return lesson_block + story_block + spec_block
+
+
+@app.post("/api/story/chat")
+async def story_chat(req: StoryChatRequest):
+    if not ARK_API_KEY:
+        raise HTTPException(500, "ARK_API_KEY is not set")
+
+    system = (
+        STORY_CHAT_SYSTEM
+        + _build_story_chat_context(req)
+        + _lang_suffix(req.language)
+    )
+    history = [{"role": m.role, "content": m.text} for m in req.messages]
+
+    # The artwork image is attached to the last user turn so the
+    # model can re-examine it when revising visual details. We do
+    # this by replacing the final user message's content with a
+    # multi-part [image, text] payload.
+    if history and history[-1]["role"] == "user":
+        last_text = history[-1]["content"]
+        history[-1] = {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{req.image_mime};base64,{req.image_base64}"
+                    },
+                },
+                {"type": "text", "text": last_text},
+            ],
+        }
+
+    payload = {
+        "model": STORY_MODEL,
+        "messages": [{"role": "system", "content": system}] + history,
+        "max_tokens": 2200,
+    }
+
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        resp = await client.post(
+            f"{ARK_BASE}/chat/completions",
+            json=payload,
+            headers=_ark_headers(),
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, f"Ark API error: {resp.text}")
+
+    raw = resp.json()["choices"][0]["message"]["content"].strip()
+    if raw.startswith("```"):
+        parts = raw.split("```")
+        raw = parts[1].lstrip("json").strip() if len(parts) >= 2 else raw
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Model didn't follow the JSON envelope — treat the whole
+        # response as a discussion-mode reply. This keeps the chat
+        # usable even when the model slips up.
+        return {"reply": raw, "revised_story": None}
+
+    reply = data.get("reply") or ""
+    revised = data.get("revised_story")
+    # Sanity-check: revised_story must include all 4 keys to be applied.
+    REQUIRED = {"part1", "choices", "part3", "designRationale"}
+    if isinstance(revised, dict) and REQUIRED.issubset(revised.keys()):
+        return {"reply": reply, "revised_story": revised}
+    return {"reply": reply, "revised_story": None}
 
 
 # ════════════════════════════════════════════════════════════════════════

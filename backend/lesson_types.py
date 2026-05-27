@@ -97,6 +97,15 @@ class TextbookArtwork(_LKPModel):
     recommended_for_executor_b: bool = True
     recommended_for_executor_c: bool = True
     narrative_richness: Literal["low", "medium", "high"] = "medium"
+    # Per-artwork animation brief used by Executor C (Doubao Seedance).
+    # Written by the curriculum team, focuses purely on *visual motion*
+    # (camera, primary subject, secondary subject, style preservation)
+    # — pedagogical filler and music descriptions deliberately removed
+    # because the video model can neither understand nor render them.
+    # Falls back to `animation_default_mood` when both are empty.
+    animation_brief_zh: str = ""
+    animation_brief_en: str = ""
+
 
 
 class ExecutorDStyle(_LKPModel):

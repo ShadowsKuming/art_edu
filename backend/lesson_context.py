@@ -178,6 +178,11 @@ class LessonContextManager:
         return {
             "artwork_url": artwork.image_url,
             "mood": seed.animation_default_mood,
+            # Per-artwork visual brief (preferred). Empty string when
+            # the LKP has not been authored with a brief yet, in which
+            # case the caller falls back to `mood`.
+            "animation_brief_en": artwork.animation_brief_en,
+            "animation_brief_zh": artwork.animation_brief_zh,
         }
 
     # ────────────────────────────────────────────────────────────────

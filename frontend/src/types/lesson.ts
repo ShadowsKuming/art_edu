@@ -74,6 +74,14 @@ export interface TextbookArtwork {
     recommended_for_executor_b?: boolean
     recommended_for_executor_c?: boolean
     narrative_richness?: 'low' | 'medium' | 'high'
+    /**
+     * 2026-05: per-artwork visual-motion brief written by the
+     * curriculum team. Drives Executor C (Doubao Seedance) — the
+     * lesson-level `animation_default_mood` is only used as a
+     * fallback when the brief is empty.
+     */
+    animation_brief_zh?: string
+    animation_brief_en?: string
 }
 
 export interface ExecutorDStyle {
