@@ -114,6 +114,14 @@ class ExecutorDStyle(_LKPModel):
     style_description_zh: str = ""
     linked_learning_objective: str = ""
     image_gen_prompt_template_en: str
+    # 2026-05: curriculum team now hand-writes a 95-105 Chinese-character
+    # equivalent of the English image-gen prompt. It is shown to the
+    # teacher in the Part-6 chat panel's "preview box" so they can review
+    # the prompt content in Chinese before applying the style (the English
+    # version is what actually goes to Doubao Seedream — teachers don't
+    # read it). Defaults to "" so older LKPs still load; the chat code
+    # falls back to `style_description_zh` in that case.
+    image_gen_prompt_template_zh: str = ""
     model_recommendation: str = ""
 
 

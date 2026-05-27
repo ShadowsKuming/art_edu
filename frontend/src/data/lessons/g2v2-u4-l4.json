@@ -768,23 +768,26 @@
         "style_name_zh": "更夸张",
         "style_description_zh": "把孩子画的'长'元素拉得更长更夸张,让主体延伸到画面之外",
         "linked_learning_objective": "大胆、夸张地表现主体",
-        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every line, character, and composition the child drew. Now exaggerate the defining 'long' feature of the main subject far beyond normal proportions — make the long element wind, stretch, and extend dramatically across the composition, even off the edges of the paper. Keep all original colors and shapes intact, but make the 'long' element 3x more elongated. Bright, cheerful, 7-year-old's sketchbook aesthetic. Simple background. Image-to-image strength: 0.55.",
+        "image_gen_prompt_template_zh": "保留孩子原画里所有线条和构图位置不变。识别主体的\"长\"元素（长尾巴、长楼梯、长面条等），沿原方向拉伸至 3 倍长度，让它弯曲蜿蜒、延伸到画面边缘外。其他元素维持原大小。如原画为线稿，请用明快童书风的彩色蜡笔为线稿上色；背景浅色单色铺底。Image-to-image 强度 0.5。",
+        "image_gen_prompt_template_en": "Preserve every line and the original composition of the child's drawing exactly. Identify the main 'long' element (a long tail, ladder, noodle, hair, road, etc.) and stretch it along its existing direction to ~3x the original length, letting it wind, curve, and extend dramatically — even off the edges of the paper. Keep all other elements at their original size. If the original is a black-and-white line sketch, fill the line work with bright children's-picture-book crayon colours; keep the background a single soft pale tint. Image-to-image strength: 0.5.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       },
       {
         "style_id": 2,
-        "style_name_zh": "更有故事性",
-        "style_description_zh": "在孩子画的主体周围添加更多场景细节、角色和情节元素,让画面像在讲故事",
+        "style_name_zh": "添画背景与角色",
+        "style_description_zh": "在孩子画的主体周围添加场景、角色和情节细节,让画面像在讲故事",
         "linked_learning_objective": "依据画面需要添画背景,让画面看起来更有趣",
-        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve the main subject the child drew exactly. Now add a rich narrative scene around it: small companion characters along the 'long' element (people, animals, or whimsical creatures interacting with it), background scenery that gives the long element context (a path, a sky, a river, a sequence of small events). Keep child-drawing aesthetic — colorful but simple. Image-to-image strength: 0.5.",
+        "image_gen_prompt_template_zh": "保留孩子原画的主体造型与所有线条不变。在主体周围添加丰富场景：小人物、小动物或拟人精灵沿着\"长\"元素互动（爬楼梯、追尾巴、走长路）；背景补充天空、云朵、花草、小屋等环境。所有新元素与原线稿统一上明亮多彩的童书蜡笔色，避免覆盖原画。Image-to-image 强度 0.45。",
+        "image_gen_prompt_template_en": "Preserve the main subject and every line of the child's drawing exactly. Now add a rich narrative scene around it: place small companion characters (people, animals, or whimsical creatures) interacting along the 'long' element — climbing the ladder, chasing the tail, walking the long road — and fill the background with thematic scenery (sky, clouds, flowers, little houses). Colour all new elements together with the original line work in bright, multicoloured children's-picture-book crayon tones; new elements must only fill empty space, never overlay the original drawing. Image-to-image strength: 0.45.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       },
       {
         "style_id": 3,
-        "style_name_zh": "色彩更鲜艳",
-        "style_description_zh": "把孩子未完成的画填上更鲜艳、更有层次的色彩,让画面更生动",
-        "linked_learning_objective": "让画面看起来更有趣、更丰富",
-        "image_gen_prompt_template_en": "Take the child's drawing as the base. Preserve every line and shape the child drew. Now fill in vibrant, saturated colors with playful color combinations (rainbow palette, bright pastels, or bold primary colors). Add subtle gradient shading and small color accents (dots, stripes) on the long element to make it visually engaging. Keep child-drawing aesthetic. Image-to-image strength: 0.45.",
+        "style_name_zh": "蜿蜒展开构图",
+        "style_description_zh": "把主体的'长'元素重新组织成 S 形蜿蜒走向,引导视线追随故事",
+        "linked_learning_objective": "蜿蜒构图与形式和内容的关系",
+        "image_gen_prompt_template_zh": "保留孩子原画里所有元素的形状和笔触不变。把主体的\"长\"元素重新组织成 S 形蜿蜒曲线，从画面一端柔软延伸到另一端，引导视线沿曲线追随故事。其他元素跟随蜿蜒线重排位置，保持画面平衡。如原画为线稿，请用清亮的童书水彩为线条上色，背景浅米色或淡蓝色单色。Image-to-image 强度 0.55。",
+        "image_gen_prompt_template_en": "Preserve the shape and brushwork of every element in the child's drawing. Now reorganise the main 'long' element into a flowing S-curve or winding path that gently meanders from one edge of the canvas to the other, guiding the viewer's eye along the story. Other elements may be repositioned slightly to follow this winding line, keeping the composition balanced. If the original is a line sketch, paint the line work with clean, watery children's-picture-book watercolour; keep the background a single pale beige or light blue tint. Image-to-image strength: 0.55.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       }
     ]

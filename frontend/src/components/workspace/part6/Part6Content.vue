@@ -2,11 +2,25 @@
 import { computed } from 'vue'
 import { usePart6Store } from '@/stores/part6'
 import { useSlideStore } from '@/stores/slides'
+import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
 
 const store      = usePart6Store()
 const slideStore = useSlideStore()
+const toast      = useToastStore()
 const { t }      = useI18n()
+
+// 2026-05 — toggle teacher-preview ↔ classroom mode. On switch we
+// surface a toast so the teacher knows the rule changed.
+function onModeToggle(toClassroom: boolean) {
+  if (toClassroom === !store.teacherPreviewMode) return  // no-op
+  store.setTeacherPreviewMode(!toClassroom)
+  if (toClassroom) {
+    toast.show(t('part6.classroomModeHint'))
+  } else {
+    toast.show(t('part6.teacherPreviewHint'))
+  }
+}
 
 const canConvert = computed(() =>
   store.selectedStyleIdx !== null &&
@@ -55,18 +69,20 @@ function saveAndNext() {
   <section class="p6-content">
 
     <!-- ── Result view ─────────────────────────────────────── -->
+    <!-- 2026-05: right panel ("result") is now 1.7× the left panel's
+         width via `.p6-compare-panel--result`. Original prompt caption
+         was removed earlier (老师看不懂英文). -->
     <div v-if="store.view === 'result' && store.latestResult" class="p6-result-view">
       <div class="p6-compare">
-        <div class="p6-compare-panel">
+        <div class="p6-compare-panel p6-compare-panel--original">
           <img :src="store.latestResult.originalUrl" class="p6-compare-img" />
-          <p class="p6-compare-caption">{{ store.latestResult.prompt }}</p>
         </div>
         <div class="p6-arrow">
           <svg viewBox="0 0 48 24" fill="none">
             <path d="M2 12h40M34 4l8 8-8 8" stroke="#7FEC8F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <div class="p6-compare-panel">
+        <div class="p6-compare-panel p6-compare-panel--result">
           <img :src="store.latestResult.resultUrl" class="p6-compare-img" />
         </div>
       </div>
@@ -127,18 +143,45 @@ function saveAndNext() {
       </div>
 
       <!-- Step 2: Pig style selectors.
-           2026-05: gate flipped from `sketchDataUrl` → `styles.length`.
-           Under the new chat-first UX the teacher can confirm a style
-           triple in the side panel before uploading a sketch, so the
-           pigs should appear as soon as the styles array is populated.
-           The Convert button itself stays disabled until a sketch is
-           uploaded (see `canConvert` above) and we surface that with
-           an explicit hint line below the pig row. -->
-      <div v-if="store.styles.length > 0" class="p6-step">
-        <p class="p6-step-label">
-          <span class="p6-dot" />
-          <strong v-html="t('part6.step2Label')" />
-        </p>
+           2026-05 v2: gate flipped from `styles.length` →
+           `confirmedMessageId !== null`. The 3 pigs only appear once
+           the teacher has actually CONFIRMED a set in the chat panel
+           — previewing a style in the preview box no longer triggers
+           the pigs. The header now also hosts a teacher-preview ↔
+           classroom mode toggle and a "重新讨论风格" reopen button. -->
+      <div v-if="store.confirmedMessageId !== null" class="p6-step">
+        <div class="p6-step-header">
+          <p class="p6-step-label">
+            <span class="p6-dot" />
+            <strong v-html="t('part6.step2Label')" />
+          </p>
+
+          <!-- Mode toggle: 老师预览 / 课堂模式 -->
+          <div class="p6-mode-toggle" role="group" :aria-label="t('part6.modeToggleAria')">
+            <button
+              class="p6-mode-btn"
+              :class="{ 'p6-mode-btn--active': store.teacherPreviewMode }"
+              @click="onModeToggle(false)"
+              :title="t('part6.previewModeHint')"
+            >
+              {{ t('part6.previewModeLabel') }}
+            </button>
+            <button
+              class="p6-mode-btn"
+              :class="{ 'p6-mode-btn--active': !store.teacherPreviewMode }"
+              @click="onModeToggle(true)"
+              :title="t('part6.classroomModeHint')"
+            >
+              {{ t('part6.classroomModeLabel') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- "重新讨论风格" — clears the lock so the teacher can iterate
+             on a new style set with the AI. -->
+        <button class="p6-unlock-btn" @click="store.unlockStyles()">
+          ↺ {{ t('part6.reopenDiscussion') }}
+        </button>
 
         <!-- Pig cards -->
         <div class="p6-pig-row">
@@ -260,6 +303,66 @@ function saveAndNext() {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Step-2 header row: label on the left + teacher/classroom toggle
+   on the right. Wraps to two lines on narrow screens so neither
+   element gets squashed. */
+.p6-step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Segmented toggle for 老师预览 / 课堂模式. */
+.p6-mode-toggle {
+  display: inline-flex;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.p6-mode-btn {
+  height: 28px;
+  padding: 0 14px;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.p6-mode-btn:hover { color: #374151; }
+.p6-mode-btn--active {
+  background: #fff;
+  color: #15803d;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+/* "重新讨论风格" reopen button — sits between the header and the pig
+   row. Subtle outline style so it doesn't compete with the main
+   Convert CTA at the bottom of the step. */
+.p6-unlock-btn {
+  align-self: flex-start;
+  height: 30px;
+  padding: 0 14px;
+  background: #fff;
+  border: 1px dashed #9ca3af;
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #4b5563;
+  cursor: pointer;
+}
+.p6-unlock-btn:hover {
+  border-color: #16a34a;
+  color: #15803d;
+  background: #f0fdf4;
 }
 
 .p6-dot {
@@ -539,12 +642,12 @@ function saveAndNext() {
   max-width: 820px;
 }
 
-.p6-compare-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+/* 2026-05 — Result view layout: left panel keeps the original size,
+   right panel (the transformed image) is enlarged to 1.7× width so
+   the conversion result is more prominent. Centre arrow stays put. */
+.p6-compare-panel { display: flex; flex-direction: column; gap: 10px; }
+.p6-compare-panel--original { flex: 1; }
+.p6-compare-panel--result   { flex: 1.7; }
 
 .p6-compare-img {
   width: 100%;
@@ -555,13 +658,6 @@ function saveAndNext() {
   display: block;
 }
 
-.p6-compare-caption {
-  margin: 0;
-  font-size: 12px;
-  color: #6b7280;
-  line-height: 1.5;
-  text-align: center;
-}
 
 .p6-arrow {
   flex-shrink: 0;

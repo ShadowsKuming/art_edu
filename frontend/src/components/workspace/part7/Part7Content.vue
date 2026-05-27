@@ -153,19 +153,16 @@ async function generate() {
                         <img :src="store.activeWork.imageDataUrl" alt="" />
                     </div>
 
-                    <label class="p7-note">
-                        <span>{{ t('part7.studentNote') }}</span>
-                        <textarea
-                            :value="store.activeWork.studentNote"
-                            :placeholder="t('part7.studentNotePh')"
-                            rows="2"
-                            @input="(e: any) =>
-                                store.setStudentNote(
-                                    store.activePair!.activeWorkIdx,
-                                    e.target.value,
-                                )"
-                        />
-                    </label>
+                    <!-- 2026-05: 学生备注 (studentNote) input box was
+                         removed. Pilot teachers said the LKP already
+                         encodes every objective / concept / criterion
+                         the AI needs, and asking a teacher to retype a
+                         description of the student's work duplicated
+                         effort (and was usually left blank anyway). The
+                         vision LLM looks at the image directly. The
+                         `studentNote` field is still in the store +
+                         /api/part7/comment payload for forward-compat;
+                         we just no longer let the teacher author it. -->
 
                     <div class="p7-actions">
                         <button

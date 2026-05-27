@@ -447,8 +447,12 @@ export default {
     selectWork: 'Select a student work on the left to begin.',
     studentNote: 'Student note (optional)',
     studentNotePh: 'e.g. "Bunny climbing a long ladder to pick the moon."',
-    generate: 'Generate AI Feedback',
-    regenerate: 'Regenerate Feedback',
+    // 2026-05 — re-labelled per pilot feedback. The button is the
+    // teacher's action ("get a critique"), not a system action
+    // ("generate AI feedback"). "Critique" matches how art teachers
+    // actually talk about evaluating student work.
+    generate: 'Get a Critique',
+    regenerate: 'Get a New Critique',
     generating: 'Generating…',
     feedbackHeading: 'AI Feedback',
     wordCount: '{n} words',
@@ -468,6 +472,14 @@ export default {
     // 2026-05: shown when the teacher has confirmed a style triple
     // via the chat panel but has not yet uploaded a sketch in Step 1.
     uploadFirst: 'Upload a student work above before starting the conversion.',
+    // 2026-05 v2 — Teacher preview vs Classroom mode toggle + toast.
+    previewModeLabel: 'Teacher Preview',
+    classroomModeLabel: 'Classroom Mode',
+    modeToggleAria: 'Choose teacher preview or classroom mode',
+    previewModeHint: 'In Teacher Preview you can re-test each style as many times as you like — perfect for lesson prep.',
+    classroomModeHint: 'Switched to Classroom Mode: each style can be transformed only once (stops students asking for endless retries).',
+    teacherPreviewHint: 'Switched to Teacher Preview: re-test each style freely.',
+    reopenDiscussion: 'Reopen style discussion',
     convertingOverlay: 'Converting...',
     convertAgain: 'Convert again',
     save: 'Save',
@@ -486,6 +498,12 @@ export default {
       },
       confirmStyles: 'Confirm this set',
       stylesConfirmed: 'Confirmed ✓',
+      // 2026-05 — "prompt preview" box rendered under the chips when
+      // the teacher clicks one. Shows the curriculum/AI-authored
+      // Chinese version of the prompt so the teacher can review it
+      // before applying. `{name}` is the chip's label.
+      previewLabel: 'Prompt preview · {name}',
+      previewEmpty: 'No Chinese prompt available for this style yet.',
       errorChat: 'Sorry, something went wrong. Please try again.',
     },
   },

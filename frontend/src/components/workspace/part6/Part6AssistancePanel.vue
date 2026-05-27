@@ -42,6 +42,39 @@ const selectedStyle = computed(() =>
   store.selectedStyleIdx !== null ? store.styles[store.selectedStyleIdx] : null,
 )
 
+// 2026-05 — id of the most-recent message that carries a proposed
+// style triple. Only this message's Confirm button is "active" while
+// the teacher is still in reviewing phase; earlier proposals' Confirm
+// buttons go grey to match the state machine.
+const latestProposalMsgId = computed<number | null>(() => {
+  for (let i = store.messages.length - 1; i >= 0; i--) {
+    const m = store.messages[i]
+    if (m.proposedStyles && m.proposedStyles.length > 0) return m.id
+  }
+  return null
+})
+
+// 2026-05 — whether to render a "为我推荐这节课的风格转换方案" chip
+// under an AI message. Only true when:
+//   • the message is an assistant turn (excluding the greeting which
+//     already shows its own intent chips), AND
+//   • we are still in pre-recommend phase, AND
+//   • the message did NOT itself bring proposed_styles (recommend turn).
+// In any other phase (reviewing / locked) no follow-up chip is shown,
+// which keeps the chat clean once the teacher has been recommended a
+// set or has already confirmed one.
+function showRecommendChipFor(msg: { id: number; role: string; intentChips?: any; proposedStyles?: any }) {
+  if (store.phase !== 'pre-recommend') return false
+  if (msg.role !== 'assistant') return false
+  if (msg.intentChips?.length) return false
+  if (msg.proposedStyles?.length) return false
+  return true
+}
+
+function onRecommendFollowUp() {
+  void send(t('part6.bot.intents.recommend'), 'recommend')
+}
+
 const input = ref('')
 const scrollEl = ref<HTMLElement | null>(null)
 
@@ -72,13 +105,28 @@ function onIntentChip(chip: { key: ChatIntent; label: string }) {
 }
 
 /**
- * Click handler for the chip-cluster of proposed styles on an
- * assistant message — flips the active style index so the small
- * green dot moves to the chosen chip (parity with the old UI).
+ * Click handler for the proposed-style chips on an assistant message.
+ *
+ * Behaviour (2026-05 redesign):
+ *   1. Open / switch / collapse the per-message preview box
+ *      (`store.setPreview` does the toggle bookkeeping).
+ *   2. After the teacher has confirmed THIS message's style set,
+ *      clicking a chip *also* moves the global `selectedStyleIdx`
+ *      so the matching pig in the middle canvas gets highlighted
+ *      (parity with the old UI).
+ *
+ * Crucially this works even before the set is confirmed — the
+ * preview box opens regardless. The pig highlight just doesn't
+ * fire because `store.styles` is still empty.
  */
-function selectChip(label: string) {
-  const idx = store.styles.findIndex(s => s.label === label)
-  if (idx !== -1) store.selectedStyleIdx = idx
+function selectChip(msgId: number, idx: number) {
+  store.setPreview(msgId, idx)
+  // Mirror to the confirmed selection only if the user has actually
+  // applied this set (i.e. the styles array matches this message).
+  const msg = store.messages.find(m => m.id === msgId)
+  if (msg?.confirmed && store.styles.length > idx) {
+    store.selectedStyleIdx = idx
+  }
 }
 
 function confirmFromMessage(msgId: number) {
@@ -88,6 +136,25 @@ function confirmFromMessage(msgId: number) {
   if (store.styles.length > 0 && store.selectedStyleIdx === null) {
     store.selectedStyleIdx = 0
   }
+}
+
+/**
+ * 2026-05 — should the Confirm button on this proposal message still
+ * be clickable? Rules:
+ *   • If the teacher has already locked a set (`confirmedMessageId`
+ *     non-null), ONLY that one message shows "已确认 ✓"; every other
+ *     Confirm button is disabled but visible (so the teacher can see
+ *     the history).
+ *   • While reviewing (no lock yet), only the LATEST proposal's
+ *     Confirm is clickable; earlier proposals show a greyed Confirm.
+ */
+function isConfirmActive(msg: { id: number; confirmed?: boolean }) {
+  if (store.confirmedMessageId !== null) {
+    // Locked: only the confirmed message reads "已确认 ✓"; the rest
+    // are disabled (msg.confirmed === false).
+    return false
+  }
+  return msg.id === latestProposalMsgId.value
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -137,31 +204,74 @@ function onKeydown(e: KeyboardEvent) {
             </button>
           </div>
 
-          <!-- Proposed-style chips + confirm button.
+          <!-- Proposed-style chips + preview box + confirm button.
                Rendered on every assistant message that came back from
-               /api/part6/chat with `proposed_styles` non-null. -->
+               /api/part6/chat with `proposed_styles` non-null. Chips
+               stay clickable (for the preview box) regardless of
+               phase, but the Confirm button follows the state machine
+               described in `isConfirmActive()` above. -->
           <template v-if="msg.proposedStyles?.length">
             <div class="ap-chips">
               <button
-                v-for="style in msg.proposedStyles"
-                :key="style.label"
+                v-for="(style, idx) in msg.proposedStyles"
+                :key="`${msg.id}-${style.label}-${idx}`"
                 class="ap-chip"
-                :class="{ 'ap-chip--active': msg.confirmed && selectedStyle?.label === style.label }"
-                :disabled="!msg.confirmed"
-                @click="selectChip(style.label)"
+                :class="{
+                  'ap-chip--preview': msg.previewIdx === idx,
+                  'ap-chip--active': msg.confirmed && selectedStyle?.label === style.label,
+                }"
+                @click="selectChip(msg.id, idx)"
               >
                 <span class="ap-chip-dot" />{{ style.label }}
               </button>
             </div>
+
+            <!-- 提示词预览 box. 2026-05: open chip click expands this; the
+                 teacher can review the Chinese prompt verbatim before
+                 deciding to apply. -->
+            <div
+              v-if="msg.previewIdx !== null && msg.previewIdx !== undefined"
+              class="ap-preview-box"
+            >
+              <p class="ap-preview-label">
+                {{ t('part6.bot.previewLabel', { name: msg.proposedStyles[msg.previewIdx]?.label }) }}
+              </p>
+              <p class="ap-preview-text">
+                {{
+                  msg.proposedStyles[msg.previewIdx]?.promptZh
+                    || t('part6.bot.previewEmpty')
+                }}
+              </p>
+            </div>
+
+            <!-- Confirm button. Only the *latest* proposal in
+                 reviewing phase is clickable; older proposals show
+                 grey-disabled. Once locked, the chosen message shows
+                 "已确认 ✓" and all others stay grey-disabled. -->
             <button
               class="ap-confirm-btn"
               :class="{ 'ap-confirm-btn--done': msg.confirmed }"
-              :disabled="msg.confirmed"
+              :disabled="!isConfirmActive(msg)"
               @click="confirmFromMessage(msg.id)"
             >
               {{ msg.confirmed ? t('part6.bot.stylesConfirmed') : t('part6.bot.confirmStyles') }}
             </button>
           </template>
+
+          <!-- 2026-05 — follow-up "为我推荐方案" chip. Appears under
+               every assistant reply during the pre-recommend phase
+               (except the initial greeting, which already shows its
+               own 3 intent chips). Disappears the moment the teacher
+               triggers a recommendation. -->
+          <div v-if="showRecommendChipFor(msg)" class="ap-chips ap-chips--followup">
+            <button
+              class="ap-chip ap-chip--intent ap-chip--followup"
+              :disabled="store.chatLoading"
+              @click="onRecommendFollowUp"
+            >
+              <span class="ap-chip-dot" />{{ t('part6.bot.intents.recommend') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -263,6 +373,11 @@ function onKeydown(e: KeyboardEvent) {
 
 .ap-chips { display: flex; flex-direction: column; gap: 7px; align-items: flex-start; margin-top: 10px; }
 .ap-chips--intents { margin-top: 12px; }
+/* Follow-up "为我推荐方案" chip rendered under non-greeting AI replies
+   during pre-recommend phase. Visually identical to the intent chips
+   but with a touch more breathing room above. */
+.ap-chips--followup { margin-top: 12px; }
+.ap-chip--followup  { font-weight: 600; }
 
 .ap-chip {
   display: inline-flex;
@@ -281,7 +396,38 @@ function onKeydown(e: KeyboardEvent) {
 
 .ap-chip:hover:not(:disabled) { background: #f0fdf4; border-color: #7FEC8F; }
 .ap-chip--active              { background: #7FEC8F; border-color: #7FEC8F; font-weight: 600; }
+/* Lighter "selected for preview" state — chip is the one currently
+   open in the preview box. Different from --active (the pig the
+   teacher is about to convert) because preview can be clicked
+   before any style set is confirmed. */
+.ap-chip--preview             { background: #f0fdf4; border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15); }
 .ap-chip:disabled             { opacity: 0.65; cursor: default; }
+
+/* 提示词预览 box — rendered under the chips when `msg.previewIdx`
+   is set. Soft white card so the (potentially long) Chinese
+   description has room to breathe without competing with the
+   bubble background. */
+.ap-preview-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #d1fadf;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.ap-preview-label {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #15803d;
+}
+.ap-preview-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #1f2937;
+  white-space: pre-line;
+}
 
 /* Intent chips look slightly more "button-like" — they are
    primary CTAs on the greeting bubble, not just toggles. */

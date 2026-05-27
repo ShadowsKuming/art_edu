@@ -4,7 +4,16 @@ import { useProjectsStore } from './projects'
 
 export interface Style {
   label: string
+  /** English image-gen prompt sent verbatim to Doubao Seedream. */
   prompt: string
+  /**
+   * 2026-05 — Chinese-version of the prompt, 95-105 中文字, shown in the
+   * Part-6 chat panel's "提示词预览" box so the teacher can review the
+   * actual prompt content in Chinese before applying the style. Optional
+   * for backward-compat with older API payloads; the panel falls back to
+   * an empty placeholder when missing.
+   */
+  promptZh?: string
 }
 
 export interface StyleResult {
@@ -46,6 +55,14 @@ export interface ChatMessage {
   // button right under the bubble. `proposedStyles` is null on every
   // other message.
   proposedStyles?: Style[]
+  /**
+   * 2026-05 — which proposed-style chip the teacher currently has
+   * "open" in the preview box of THIS message. `null` means the box
+   * is collapsed (no chip clicked yet). Clicking a chip flips this
+   * to that chip's index (0/1/2); clicking the same chip again
+   * collapses it back to `null`.
+   */
+  previewIdx?: number | null
   // Has the teacher clicked "Confirm" on this message yet? Used to
   // toggle the button label between "确认这套风格" and "已确认 ✓"
   // and to disable the button after click.
@@ -69,6 +86,25 @@ export const usePart6Store = defineStore('part6', () => {
   const selectedStyleIdx = ref<number | null>(null)
   const usedStyleIndices = ref<number[]>([])
 
+  /**
+   * 2026-05 — message id of whatever message the teacher confirmed.
+   * Driving state machine:
+   *   null AND no msg has proposedStyles → phase = 'pre-recommend'
+   *   null AND some msg has proposedStyles → phase = 'reviewing'
+   *   non-null → phase = 'locked'  (Step 2 pigs shown, no more chips)
+   */
+  const confirmedMessageId = ref<number | null>(null)
+
+  /**
+   * 2026-05 — teacher preview vs classroom mode toggle (Q1: default
+   * teacher preview).
+   *   true  → 老师预览模式: each pig is reusable; convertAgain doesn't
+   *           mark the style as used. Lets the teacher iterate.
+   *   false → 课堂模式: classic behaviour, each pig is one-shot to
+   *           prevent students from monopolising the transform.
+   */
+  const teacherPreviewMode = ref(true)
+
   // Legacy fields kept so the panel / content components still
   // compile during the transition. `generatingStyles` is now wired
   // to `chatLoading` (the only "in-flight" state we surface), and
@@ -81,6 +117,17 @@ export const usePart6Store = defineStore('part6', () => {
   const chatLoading = ref(false)
   const chatError = ref<string | null>(null)
   let _msgIdSeq = 1
+
+  // 2026-05 — derive the wire-format `phase` string from current
+  // confirmation + history state. Sent in every /api/part6/chat call
+  // so the backend knows whether to emit proposed_styles.
+  const phase = computed<'pre-recommend' | 'reviewing' | 'locked'>(() => {
+    if (confirmedMessageId.value !== null) return 'locked'
+    if (messages.value.some(m => m.proposedStyles && m.proposedStyles.length > 0)) {
+      return 'reviewing'
+    }
+    return 'pre-recommend'
+  })
 
   // ── Conversion state ───────────────────────────────────────────
   const view = ref<'steps' | 'converting' | 'result'>('steps')
@@ -156,6 +203,11 @@ export const usePart6Store = defineStore('part6', () => {
       .map(m => ({ role: m.role, text: m.text }))
 
     try {
+      // 2026-05 — compute phase BEFORE we add the new user message
+      // above (the messages list now already has the user message we
+      // just pushed). We want the request's phase to describe the
+      // state the model is reacting to. confirmedMessageId still
+      // reflects the latest confirm action, so phase.value is current.
       const res = await fetch(`${API_BASE}/api/part6/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -164,6 +216,7 @@ export const usePart6Store = defineStore('part6', () => {
           messages: history,
           language,
           intent: intent ?? null,
+          phase: phase.value,
         }),
       })
       if (!res.ok) {
@@ -172,9 +225,15 @@ export const usePart6Store = defineStore('part6', () => {
       }
       const data = await res.json()
       // Backend returns `{reply, proposed_styles}` (proposed_styles
-      // may be null). Map snake_case → camelCase for the bubble.
+      // may be null). Map snake_case → camelCase for the bubble; the
+      // new `prompt_zh` field carries the curriculum/AI-authored
+      // Chinese version of the prompt for the preview box.
       const proposed: Style[] | null = Array.isArray(data.proposed_styles)
-        ? data.proposed_styles.map((s: any) => ({ label: String(s.label), prompt: String(s.prompt) }))
+        ? data.proposed_styles.map((s: any) => ({
+          label: String(s.label),
+          prompt: String(s.prompt),
+          promptZh: typeof s.prompt_zh === 'string' ? s.prompt_zh : '',
+        }))
         : null
 
       messages.value.push({
@@ -182,6 +241,11 @@ export const usePart6Store = defineStore('part6', () => {
         role: 'assistant',
         text: String(data.reply ?? ''),
         proposedStyles: proposed ?? undefined,
+        // 2026-05 — auto-expand the preview box to the first chip so
+        // the teacher immediately sees the prompt content without
+        // having to click. They can switch chips or click the same
+        // chip again to collapse.
+        previewIdx: proposed && proposed.length > 0 ? 0 : null,
         confirmed: false,
       })
     } catch (e: any) {
@@ -216,11 +280,71 @@ export const usePart6Store = defineStore('part6', () => {
     view.value = 'steps'
     conversionError.value = null
 
+    // 2026-05 — flip to the LOCKED phase. After this:
+    //   • The Step 2 card (3 pigs) renders in the middle.
+    //   • All historical Confirm buttons go grey-disabled.
+    //   • Any further /api/part6/chat call sends phase=locked, so
+    //     proposed_styles is never returned again.
+    //   • The teacher can click "重新讨论风格" (in Step 2) → unlock.
+    confirmedMessageId.value = messageId
+
     // Mark THIS message as confirmed; clear the flag on any earlier
     // message so only one Confirm button reads "已确认 ✓" at a time.
     messages.value.forEach(m => {
       if (m.proposedStyles) m.confirmed = m.id === messageId
     })
+  }
+
+  /**
+   * 2026-05 — "重新讨论风格" / "Reopen the discussion" button on the
+   * Step 2 card. Clears the lock and any confirmed-style state so the
+   * teacher can iterate on a new set with the AI. The chat history
+   * is intentionally preserved so the teacher can refer back to what
+   * they discussed before.
+   */
+  function unlockStyles() {
+    confirmedMessageId.value = null
+    styles.value = []
+    selectedStyleIdx.value = null
+    usedStyleIndices.value = []
+    latestResult.value = null
+    view.value = 'steps'
+    conversionError.value = null
+    // Clear the per-message `confirmed` flag too so the chat reverts
+    // to "reviewing" with the latest proposal's Confirm enabled.
+    messages.value.forEach(m => {
+      if (m.proposedStyles) m.confirmed = false
+    })
+  }
+
+  /**
+   * 2026-05 — toggle teacher preview ↔ classroom mode. When switching
+   * to classroom mode we also reset usedStyleIndices so a fresh
+   * classroom session starts with all 3 pigs intact (the teacher may
+   * have "used" them during preview).
+   */
+  function setTeacherPreviewMode(on: boolean) {
+    teacherPreviewMode.value = on
+    if (!on) {
+      // Entering classroom mode — reset the "used" tracker so the
+      // class gets a clean slate of 3 pigs.
+      usedStyleIndices.value = []
+    }
+  }
+
+  /**
+   * 2026-05 — toggle the "提示词预览" box on a specific assistant
+   * message. Clicking a chip in message N flips that message's
+   * `previewIdx` to the chip's index; clicking the same chip again
+   * collapses the box back to null. Other messages' preview state
+   * is untouched, so the teacher can have multiple turns expanded
+   * if they want to compare versions.
+   */
+  function setPreview(messageId: number, idx: number | null) {
+    const msg = messages.value.find(m => m.id === messageId)
+    if (!msg || !msg.proposedStyles) return
+    // Click-to-toggle: same chip closes the box.
+    msg.previewIdx = msg.previewIdx === idx ? null : idx
   }
 
   /**
@@ -274,7 +398,14 @@ export const usePart6Store = defineStore('part6', () => {
   }
 
   function convertAgain() {
-    if (selectedStyleIdx.value !== null && !usedStyleIndices.value.includes(selectedStyleIdx.value)) {
+    // 2026-05 — only mark a pig as "used" in classroom mode. In
+    // teacher-preview mode the teacher can test the same style over
+    // and over while iterating, so we never lock pigs.
+    if (
+      !teacherPreviewMode.value &&
+      selectedStyleIdx.value !== null &&
+      !usedStyleIndices.value.includes(selectedStyleIdx.value)
+    ) {
       usedStyleIndices.value = [...usedStyleIndices.value, selectedStyleIdx.value]
     }
     selectedStyleIdx.value = null
@@ -288,8 +419,9 @@ export const usePart6Store = defineStore('part6', () => {
     styles, lessonSummary, selectedStyleIdx, usedStyleIndices,
     generatingStyles, stylesError,
     // chat
-    messages, chatLoading, chatError,
-    initChat, sendChat, confirmStyles,
+    messages, chatLoading, chatError, phase,
+    confirmedMessageId, teacherPreviewMode,
+    initChat, sendChat, confirmStyles, unlockStyles, setPreview, setTeacherPreviewMode,
     // conversion
     view, latestResult, conversionError,
     // actions

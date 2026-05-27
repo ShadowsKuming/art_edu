@@ -1377,6 +1377,36 @@ async def style_transfer(req: StyleTransferRequest):
 # proposed_styles is non-null, so the teacher can lock in the final
 # set whenever discussion has converged.
 
+# Phase-specific instruction blocks. The frontend tells us which
+# phase the teacher is in (pre-recommend / reviewing / locked) and we
+# swap in the matching block so the model knows whether to output
+# `proposed_styles` at all this turn.
+_PHASE_BLOCK_PRE_RECOMMEND = (
+    "当前对话阶段 (phase): pre-recommend —— 老师还没让你推荐过 3 个风格方案，本轮"
+    "**不要**输出 proposed_styles。`reply` 用一句话或几句话回答老师的问题即可。\n"
+    "  - 这一轮 proposed_styles 必须是 null（前端会自己在你的回复下挂一个「为我推荐方案」按钮，"
+    "    引导老师下一步触发推荐）。\n"
+    "  - 不要在 reply 里列出风格名字清单，也不要主动建议老师"
+    "    「我可以推荐 3 个方案」——前端会用一个按钮提示。"
+)
+_PHASE_BLOCK_REVIEWING = (
+    "当前对话阶段 (phase): reviewing —— 老师已经看过推荐方案，正在审阅 / 修改 3 个风格。"
+    "**本轮必须输出完整的 proposed_styles**（恰好 3 项，每项含 label / prompt / prompt_zh）。\n"
+    "  - 状态维护：老师只是问问题且没提具体修改 → 沿用上一轮的同一组；老师要求改某一项 → "
+    "    只动那一项，另外 2 项原样保留；老师要求全部重做 → 可同时改写但最终仍是 3 项；"
+    "    老师明确说 OK/好的/就这样/确认 → 原样返回当前 3 项。\n"
+    "  - 不要把英文 prompt 或整段 prompt_zh 粘进 reply——预览框会展示，`reply` 只描述"
+    "    本轮做了什么调整或回答老师的问题，1-3 句话即可。"
+)
+_PHASE_BLOCK_LOCKED = (
+    "当前对话阶段 (phase): locked —— 老师已经点了「确认这套风格」，这套风格已锁定，"
+    "中间编辑区已经出现了 3 只小猪。**本轮绝对不要**输出 proposed_styles。\n"
+    "  - 这一轮 proposed_styles 必须是 null。前端不会再渲染任何风格 chip / 确认按钮。\n"
+    "  - `reply` 用 1-3 句话回答老师任何问题（关于本课、关于已锁定的风格如何用、关于"
+    "    课堂操作等），但不要再提出新的风格方案。如果老师明确说要换风格，请回复"
+    "    「如果想换风格，请点中间区域的『重新讨论风格』按钮重新开始 ☺」。"
+)
+
 PART6_CHAT_SYSTEM_TEMPLATE = (
     "You are 艺芽 (ArtBloom), an AI co-teacher helping a Chinese primary-school art "
     "teacher prepare Part 6 (风格创作 / personalised style transfer of student artwork) "
@@ -1394,47 +1424,56 @@ PART6_CHAT_SYSTEM_TEMPLATE = (
     "默认的 3 个风格转换方案（教研团队基于教材教参预设；老师可保留、调整文案，或要求重新设计）：\n"
     "{default_styles_text}\n"
     "════════════════════════════════════════════\n\n"
-    "对话规则（2026-05 更新；务必严格遵守）：\n"
+    "════════ PHASE INSTRUCTION ════════\n"
+    "{phase_block}\n"
+    "═══════════════════════════════════\n\n"
+    "通用规则（无论 phase 如何都适用）：\n"
     "\n"
-    "1) 你始终在维护「当前的一套 3 个风格」。每一轮回复都必须把这套风格的最新状态完整"
-    "   返回到 `proposed_styles` 字段。`proposed_styles` 任何时候都不能为 null、不能为空、"
-    "   也不能只返回 1 或 2 条——必须始终是恰好 3 项。\n"
+    "1) 关键术语澄清——「美术风格」在本系统里**特指上方「默认的 3 个风格转换方案」**，"
+    "   不是艺术史意义上的「印象派 / 立体派 / 国画 / 油画」这类大类。当老师问"
+    "   「这节课重点学习的美术风格是什么」时，你**必须**从上方那 3 个预设方向的"
+    "   描述、视觉表现技巧、关联的学习目标来介绍它们。**严禁回答**「本课没有指定"
+    "   特定的传统美术风格」或类似措辞——本课已经有 3 个预设风格方案，它们就是答案。\n"
     "\n"
-    "2) 状态维护规则：\n"
-    "   - 老师只是在问问题（如「这节课要掌握什么技能」「重点学习的美术风格」等）且没有提出"
-    "     任何具体修改 → `proposed_styles` 保持上一轮的同一组（首轮则使用上面的「默认 3 个"
-    "     风格方案」）。\n"
-    "   - 老师要求调整某一个风格（如「把更夸张改得更具体」「第三个方向再温和一点」「色彩"
-    "     再鲜艳一点」）→ 在原来 3 项的基础上**只修改对应那一项**的 label 和/或 prompt，"
-    "     另外 2 项保持原样、字段不动。\n"
-    "   - 老师要求全部重做 / 重新推荐 → 你可以同时改写多项，但最终输出仍是恰好 3 项。\n"
-    "   - 老师确认满意（OK / 好的 / 就这样 / 确认 等）→ 原样返回当前 3 项，不要再改动。\n"
-    "\n"
-    "3) `proposed_styles[i]` 字段格式：\n"
+    "2) 当 phase = reviewing 且老师要求修改风格时，`proposed_styles[i]` 字段格式——"
+    "   **每一项必须包含 3 个字段**：`label`, `prompt`, `prompt_zh`：\n"
     "   - `label`：中文短名，4-10 字，对老师可读、对小学生友好。\n"
     "   - `prompt`：完整英文 image-to-image 生成 prompt，沿用默认 prompt 的结构（preserve"
-    "     child's drawing、image-to-image strength: 0.55 等），不少于 60 词。**该 prompt"
-    "     是给后续图像模型的，老师不会直接看到。**\n"
+    "     child's drawing、image-to-image strength: 0.45-0.65 区间、如孩子作品为黑白线稿则要"
+    "     给出明确上色指令等），不少于 60 词。**该 prompt 是给图像模型的，老师不会直接看到。**\n"
+    "   - `prompt_zh`：与 `prompt` **逐项对应的中文版**，95-105 个中文字。这是老师在「提示词"
+    "     预览」框里实际会看到的内容——必须忠实复述 `prompt` 的关键内容；当 `prompt` 改写时"
+    "     `prompt_zh` 必须同步更新。\n"
     "\n"
-    "4) `reply` 字段——绝对要求：\n"
-    "   - 用 {lang_name} 与老师对话，简洁、亲切、专业，**1-3 句话**即可。\n"
-    "   - **严禁**把英文的 image-gen prompt（无论原文还是改写后的）粘进 `reply` 里。`reply`"
-    "     只能是给老师看的中文（或英文）说明，比如「我把『更夸张』的 prompt 调得更具体了：聚焦"
-    "     孩子作品里最突出的『长元素』并让它蜿蜒延伸到画面之外。这样可以吗？」\n"
-    "   - 老师能看到 chip 标签和「确认这套风格」按钮，所以**不要在 reply 里列出 3 个风格的名"
-    "     字清单**——重复信息没意义。只需要简短描述你做了什么调整，或者回答老师的问题。\n"
+    "3) `reply` 字段：用 {lang_name} 与老师对话，简洁、亲切、专业；不要把英文 prompt 或整段"
+    "   prompt_zh 粘进 `reply` 里——预览框会展示。\n"
     "\n"
-    "5) 每一轮回复必须是单个合法 JSON 对象，不要 markdown 代码块、不要前后多余文字。结构：\n"
-    '   {{"reply": "<short string in {lang_name}>", "proposed_styles": [{{"label": "<zh>", "prompt": "<en, 60+ words>"}}, {{"label": "<zh>", "prompt": "<en>"}}, {{"label": "<zh>", "prompt": "<en>"}}]}}\n'
+    "4) 每一轮回复必须是单个合法 JSON 对象，不要 markdown 代码块、不要前后多余文字。结构：\n"
+    '   {{"reply": "<string in {lang_name}>", "proposed_styles": null | [{{"label": "<zh>", "prompt": "<en, 60+ words>", "prompt_zh": "<zh, 95-105 chars>"}}, ..., ...]}}\n'
+    "   （是否输出 proposed_styles 由上方 PHASE INSTRUCTION 决定。）\n"
 )
 
 
-def _format_part6_chat_system(ctx: dict, language: str) -> str:
+# Map the wire-format phase string to the corresponding instruction
+# block. Unknown values fall back to pre-recommend (the safest mode
+# — model won't accidentally re-propose styles).
+_PHASE_BLOCKS = {
+    "pre-recommend": _PHASE_BLOCK_PRE_RECOMMEND,
+    "reviewing": _PHASE_BLOCK_REVIEWING,
+    "locked": _PHASE_BLOCK_LOCKED,
+}
+
+
+def _format_part6_chat_system(ctx: dict, language: str, phase: str = "pre-recommend") -> str:
     """Stitch the LKP context dict into the Part-6 chat system prompt.
 
     All multi-value fields are flattened to readable lines because Doubao
     follows hand-written prose more reliably than nested JSON dumped via
     `json.dumps(..., ensure_ascii=False)`.
+
+    `phase` tells the model whether to output proposed_styles this turn:
+    pre-recommend / locked → must be null; reviewing → must contain 3
+    items. The backend also enforces this server-side after the call.
     """
 
     # learning_objectives in the current LKP schema is
@@ -1467,12 +1506,18 @@ def _format_part6_chat_system(ctx: dict, language: str) -> str:
             label = s.get("style_name_zh", "")
             desc = s.get("style_description_zh", "")
             obj = s.get("linked_learning_objective", "")
-            prompt = s.get("image_gen_prompt_template_en", "")
+            prompt_en = s.get("image_gen_prompt_template_en", "")
+            # 2026-05: also expose the curriculum-team's Chinese-version
+            # prompt so the model has a reference for how to keep the
+            # `prompt_zh` field aligned with `prompt` (English) when
+            # iterating on a style.
+            prompt_zh = s.get("image_gen_prompt_template_zh", "") or desc
             default_styles_lines.append(
                 f"  {i}. {label}\n"
                 f"     - 描述: {desc}\n"
                 f"     - 关联目标: {obj}\n"
-                f"     - 默认 prompt: {prompt}"
+                f"     - 默认 prompt (英文,给图像模型): {prompt_en}\n"
+                f"     - 默认 prompt_zh (中文,给老师审阅): {prompt_zh}"
             )
         default_styles_text = "\n".join(default_styles_lines)
     else:
@@ -1481,6 +1526,8 @@ def _format_part6_chat_system(ctx: dict, language: str) -> str:
         default_styles_text = "  （本课没有预设风格，请基于学习目标自行设计 3 个方向）"
 
     lang_name = "中文" if language.lower().startswith("zh") else "English"
+
+    phase_block = _PHASE_BLOCKS.get(phase, _PHASE_BLOCK_PRE_RECOMMEND)
 
     return PART6_CHAT_SYSTEM_TEMPLATE.format(
         lesson_title_zh=ctx.get("lesson_title_zh") or "—",
@@ -1493,6 +1540,7 @@ def _format_part6_chat_system(ctx: dict, language: str) -> str:
         assessment_criteria=ctx.get("assessment_criteria") or "—",
         default_styles_text=default_styles_text,
         lang_name=lang_name,
+        phase_block=phase_block,
     )
 
 
@@ -1506,6 +1554,14 @@ class Part6ChatRequest(BaseModel):
     messages: list[Part6ChatMessage] = []
     language: str = "zh"
     intent: Optional[str] = None  # "recommend" | "skills" | "styles" | None
+    # 2026-05 — conversation phase, driven by the frontend.
+    #   pre-recommend → teacher hasn't asked for a recommendation yet;
+    #                   we never output proposed_styles.
+    #   reviewing     → recommend has fired (or LKP styles came in);
+    #                   teacher may be tweaking; output 3 styles every turn.
+    #   locked        → teacher clicked Confirm; styles are committed
+    #                   to the middle canvas; no further style output.
+    phase: str = "pre-recommend"
 
 
 @app.post("/api/part6/chat")
@@ -1534,10 +1590,19 @@ async def part6_chat(req: Part6ChatRequest):
                 ),
                 "proposed_styles": None,
             }
+        # 2026-05: include both the English prompt (sent verbatim to
+        # Doubao Seedream when the teacher hits Convert) AND the
+        # curriculum-team-authored Chinese version (shown to the teacher
+        # in the chat panel's preview box). Falls back to the short
+        # description if the LKP hasn't been backfilled with `_zh` yet.
         proposed = [
             {
                 "label": s["style_name_zh"],
                 "prompt": s["image_gen_prompt_template_en"],
+                "prompt_zh": (
+                    s.get("image_gen_prompt_template_zh")
+                    or s.get("style_description_zh", "")
+                ),
             }
             for s in ctx["styles"]
         ]
@@ -1562,11 +1627,13 @@ async def part6_chat(req: Part6ChatRequest):
     if not ARK_API_KEY:
         raise HTTPException(500, "ARK_API_KEY is not set")
 
-    # When the teacher just clicked one of the canned intent chips
-    # with no prior conversation, we synthesise the first user message
-    # so the model gets a clean question instead of an empty turn.
+    # Build the phase-aware system prompt so the model knows whether
+    # to output proposed_styles this turn.
     api_messages = [
-        {"role": "system", "content": _format_part6_chat_system(ctx, req.language)},
+        {
+            "role": "system",
+            "content": _format_part6_chat_system(ctx, req.language, req.phase),
+        },
     ]
     for m in req.messages:
         # Map our "assistant"/"user" roles straight to OpenAI roles.
@@ -1611,13 +1678,45 @@ async def part6_chat(req: Part6ChatRequest):
     reply = data.get("reply") or ""
     proposed = data.get("proposed_styles")
 
-    # Validate `proposed_styles`: must be a 3-item list of {label, prompt}.
+    # ── Phase enforcement (server-side) ─────────────────────────────
+    #
+    # The PHASE INSTRUCTION block in the system prompt asks the model
+    # to honour the phase, but Doubao is not perfectly compliant. We
+    # also drop proposed_styles server-side whenever phase is NOT
+    # `reviewing`, regardless of what the model returned. This is the
+    # single source of truth for the UI state machine — the frontend
+    # can trust that pre-recommend / locked turns will never contain
+    # a phantom proposal.
+    if req.phase != "reviewing":
+        return {"reply": reply, "proposed_styles": None}
+
+    # Validate `proposed_styles`: must be a 3-item list of
+    # {label, prompt, prompt_zh}. `prompt_zh` is *required* under the
+    # 2026-05 schema, but to keep the chat usable if the model
+    # occasionally omits it we fall back to a best-effort source:
+    # whichever LKP default style sits at the same index (for an
+    # un-modified style this carries the curriculum copy through),
+    # or finally an empty string.
     if isinstance(proposed, list) and len(proposed) == 3 and all(
         isinstance(s, dict) and "label" in s and "prompt" in s for s in proposed
     ):
+        default_zh_by_idx = [
+            (
+                (ds.get("image_gen_prompt_template_zh") or "")
+                or ds.get("style_description_zh", "")
+            )
+            for ds in ctx["styles"]
+        ] if ctx.get("styles") else ["", "", ""]
         proposed_styles = [
-            {"label": str(s["label"]), "prompt": str(s["prompt"])}
-            for s in proposed
+            {
+                "label": str(s["label"]),
+                "prompt": str(s["prompt"]),
+                "prompt_zh": str(
+                    s.get("prompt_zh")
+                    or (default_zh_by_idx[i] if i < len(default_zh_by_idx) else "")
+                ),
+            }
+            for i, s in enumerate(proposed)
         ]
     else:
         proposed_styles = None

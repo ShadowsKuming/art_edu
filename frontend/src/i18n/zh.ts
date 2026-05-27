@@ -390,7 +390,10 @@ export default {
     // `chatbot.title`（创意助手）以保持品牌一致，所以这里只放
     // 问候语、建议词条与输入区文案。
     animationPanel: {
-      greeting: '每张图片有 3 次生成动画的机会。点击「生成动画」可创建第一个版本，或在下方输入自定义指令。',
+      // 2026-05 — 老师反馈：原 greeting 太"系统化"，对二年级老师不够
+      // 引导性。新文案给出具体的提示词示例，帮老师建立"如何向 AI
+      // 描述想要的动画"的心智模型。
+      greeting: '每张插图有 3 次生成动画的机会。点击「生成动画」让我来为你创建适合这节课的动画内容，或在下方输入你想要的动画提示词，例如：让这张风景画活起来，让水流开始缓慢流动，树叶在风中轻轻摇晃，天空中的云朵慢慢变形。添加一两只小昆虫或小鸟在空中飞舞，增加趣味性，画面要温馨平和。',
       suggestionsLabel: '想要修改并重新生成吗？例如：',
       suggestions: [
         '让动画整体氛围更明亮欢快',
@@ -436,8 +439,11 @@ export default {
     selectWork: '请先在左侧选择一张学生作品。',
     studentNote: '学生备注（选填）',
     studentNotePh: '例如："兔子爬着长长的梯子去摘月亮。"',
-    generate: '生成 AI 评价',
-    regenerate: '重新生成评价',
+    // 2026-05 — 老师反馈：用「获得作品点评」替代「生成 AI 评价」。
+    // "点评" 一词更贴合美术老师评语的语义；"获得" 也比 "生成" 更
+    // 像老师对自己的动作而非系统操作。
+    generate: '获得作品点评',
+    regenerate: '重新获得点评',
     generating: '生成中…',
     feedbackHeading: 'AI 评价',
     wordCount: '{n} 字',
@@ -457,6 +463,14 @@ export default {
     // 2026-05 新增：当老师已在右侧聊天中确认了一套风格、但还没在 Step 1
     // 上传学生作品时，3 只小猪上方提示需要先完成上传。
     uploadFirst: '请先在上方上传学生作品后再开始转换。',
+    // 2026-05 v2 — 老师预览 / 课堂模式 segmented toggle 与配套 toast。
+    previewModeLabel: '老师预览',
+    classroomModeLabel: '课堂模式',
+    modeToggleAria: '选择老师预览或课堂模式',
+    previewModeHint: '老师预览模式下，可反复测试每种风格，方便备课。',
+    classroomModeHint: '已切换到课堂模式：每种风格只能转换一次（防止学生反复要求转换）。',
+    teacherPreviewHint: '已切换到老师预览模式：可反复测试每种风格效果。',
+    reopenDiscussion: '重新讨论风格',
     convertingOverlay: '转换中...',
     convertAgain: '再次转换',
     save: '保存',
@@ -478,6 +492,10 @@ export default {
       },
       confirmStyles: '确认这套风格',
       stylesConfirmed: '已确认 ✓',
+      // 2026-05: 风格 chip 下方的「提示词预览」框 — 老师点击 chip
+      // 后，该框展开显示对应风格的中文 prompt（95-105 字）。
+      previewLabel: '提示词预览 · {name}',
+      previewEmpty: '该风格暂无中文提示词。',
       errorChat: '抱歉，出了些问题，请重试。',
     },
   },

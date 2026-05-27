@@ -164,26 +164,29 @@
     "styles": [
       {
         "style_id": 1,
-        "style_name_zh": "字形夸张",
-        "style_description_zh": "把孩子写的字按主题进行夸张变形（字形跟随含义）",
+        "style_name_zh": "字形随义",
+        "style_description_zh": "把每个字的字形按它的含义夸张变形,让字本身就在讲故事",
         "linked_learning_objective": "根据文字的含义来装饰、改变字形笔画",
-        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character and the basic layout. Now exaggerate each character's shape to MATCH ITS MEANING — make 'long' characters elongated, 'small' characters tiny, 'tall' characters towering, 'round' characters bulbous. Keep the child's pen style. Vivid colors. Image-to-image strength: 0.55.",
+        "image_gen_prompt_template_zh": "保留孩子手写标题每一个字的位置和整体布局不变。让每个字的字形跟随它的含义变形：\"长\"字拉得很长，\"小\"字缩得很小，\"高\"字向上耸立，\"圆\"字鼓成圆球，\"飞\"字加上翅膀的弧度。如原稿为黑白线条或留白，请为每个字填上鲜亮饱和的童书蜡笔色，整体保持留白背景。Image-to-image 强度 0.5。",
+        "image_gen_prompt_template_en": "Preserve every character of the child's hand-written title and the overall layout exactly. Now exaggerate each character's shape to match its meaning: a 'long' character stretches very long, a 'small' character shrinks tiny, a 'tall' character towers upward, a 'round' character bulges into a sphere, a 'flying' character curves with wing-like arcs. If the original is black-and-white line work, fill each character with bright, saturated children's-picture-book crayon colours; keep the background blank. Image-to-image strength: 0.5.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       },
       {
         "style_id": 2,
-        "style_name_zh": "色彩更情绪化",
-        "style_description_zh": "根据标题情绪选择颜色（开心=暖色、安静=冷色、紧张=对比强烈）",
+        "style_name_zh": "情绪色彩",
+        "style_description_zh": "根据标题情绪选择颜色,让色彩本身就传递故事的心情",
         "linked_learning_objective": "根据文字的含义改变字的颜色",
-        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character's shape exactly. Now re-color each character with an emotionally appropriate palette: bright warm tones for happy/exciting titles, cool blues/greens for calm/quiet titles, high-contrast clashing colors for tense/dramatic titles. Apply gradient fills inside each stroke. Image-to-image strength: 0.4.",
+        "image_gen_prompt_template_zh": "保留孩子写的每个字的形状和位置不变。即使原稿是黑白线条，也根据标题情绪为每个字重新着色：欢快/热闹的标题用饱和的橙、红、黄暖色；安静/梦幻的用柔和的蓝绿、淡紫冷色；紧张/惊险的用高对比撞色。在每个笔画内部加入轻微渐变，让色彩有层次。Image-to-image 强度 0.4。",
+        "image_gen_prompt_template_en": "Preserve the shape and position of every character the child wrote. Even if the original is black-and-white line work, re-colour each character based on the title's mood: use saturated warm oranges/reds/yellows for happy/exciting titles; soft cool blue-greens or lavenders for calm/dreamy ones; high-contrast clashing pairs for tense/dramatic ones. Add a subtle gradient inside each stroke so the colour has depth. Image-to-image strength: 0.4.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       },
       {
         "style_id": 3,
-        "style_name_zh": "添加装饰图案",
-        "style_description_zh": "在字的笔画里或周围添加与故事内容相关的装饰图案",
-        "linked_learning_objective": "在文字周围添加装饰细节，让标题更有吸引力",
-        "image_gen_prompt_template_en": "Take the child's hand-drawn title as the base. Preserve every character's outline. Now embellish: replace selected strokes with thematic illustrations (e.g., a water droplet becomes part of a stroke for a water-themed title; small flowers grow from strokes for a spring title). Add small thematic decorations floating around the title. Keep readability. Image-to-image strength: 0.5.",
+        "style_name_zh": "笔画装饰",
+        "style_description_zh": "在字的笔画里和周围添加与故事内容相关的装饰图案",
+        "linked_learning_objective": "在文字周围添加装饰细节,让标题更有吸引力",
+        "image_gen_prompt_template_zh": "保留孩子每个字的轮廓和布局不变。挑选几个字的笔画替换成与故事相关的小图案：水主题把横画变成水滴或水波，花主题让笔画里钻出花朵藤蔓，星空主题点缀星星与月亮。其余笔画原样保留以维持可读性。所有装饰与字一起填上贴合主题的彩色（水蓝、花粉、靛蓝）。Image-to-image 强度 0.5。",
+        "image_gen_prompt_template_en": "Preserve the outline and layout of every character the child wrote. Pick a few strokes from selected characters and replace them with small thematic illustrations: for a water theme turn a horizontal stroke into water droplets or waves; for a flower theme let blossoms and vines sprout from a stroke; for a starry theme dot stars and a moon along the strokes. All remaining strokes stay intact to preserve readability. Fill the decorations and characters together in colours that fit the theme (water blue, flower pink, starry indigo). Image-to-image strength: 0.5.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       }
     ]
