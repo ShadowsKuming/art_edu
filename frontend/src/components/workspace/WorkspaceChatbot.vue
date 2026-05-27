@@ -16,11 +16,35 @@ const projectsStore = useProjectsStore()
 const slideStore = useSlideStore()
 const chatbotStore = useChatbotStore()
 
+/**
+ * Build the locale + part-aware welcome bubble.
+ *
+ * 2026-05 — Pilot feedback: when every Part shared the same greeting
+ * and three chips, the model's answers also felt interchangeable.
+ * The i18n table now exposes `chatbot.byPart.{1|2|4|5}` per the
+ * Slide-design chatbot scope (Parts 3/6/7 each use a dedicated side
+ * panel, so they fall back to the generic copy here on the off
+ * chance this chatbot ever surfaces on them).
+ *
+ * The lookup is forgiving: if `activePart` is null or the partId
+ * doesn't have its own block (currently 3/6/7), we use
+ * `chatbot.fallback.*`. The previous flat `chatbot.greeting` /
+ * `chatbot.suggestions` keys were removed, so any leftover caller
+ * binding to them now reads from `fallback` automatically via this
+ * helper rather than producing missing-key warnings.
+ */
 function makeWelcome() {
+  const partId = slideStore.activePart
+  // Parts 1/2/4/5 each have a dedicated namespace under
+  // `chatbot.byPart.<n>`. Anything else (null partId or 3/6/7)
+  // resolves to `chatbot.fallback`.
+  const hasPartCopy =
+    partId === 1 || partId === 2 || partId === 4 || partId === 5
+  const ns = hasPartCopy ? `chatbot.byPart.${partId}` : 'chatbot.fallback'
   return {
     role: 'assistant' as const,
-    text: t('chatbot.greeting'),
-    suggestions: (tm('chatbot.suggestions') as string[]).map(s => String(s)),
+    text: t(`${ns}.greeting`),
+    suggestions: (tm(`${ns}.suggestions`) as string[]).map(s => String(s)),
   }
 }
 
@@ -31,10 +55,30 @@ onMounted(() => {
   }
 })
 
-// Reset to new welcome when locale changes
+// Reset to new welcome when the locale changes OR when the teacher
+// navigates to a different Part. We only reset the bubble stack
+// (clobbering the in-progress conversation) when the teacher is at
+// the initial welcome state — i.e. they haven't sent any user
+// messages yet. If they're mid-conversation we leave history alone
+// and just let the next welcome show next time the chatbot remounts.
 watch(locale, () => {
   chatbotStore.setMessages([makeWelcome()])
 })
+
+watch(
+  () => slideStore.activePart,
+  () => {
+    const onlyWelcome =
+      chatbotStore.messages.length === 0 ||
+      (chatbotStore.messages.length === 1 &&
+        chatbotStore.messages[0].role === 'assistant' &&
+        !!chatbotStore.messages[0].suggestions)
+    if (onlyWelcome) {
+      chatbotStore.setMessages([makeWelcome()])
+    }
+  },
+)
+
 
 const input    = ref('')
 const loading  = ref(false)

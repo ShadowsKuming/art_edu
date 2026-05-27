@@ -88,9 +88,11 @@ export default {
         firstNamePlaceholder: '名',
         lastNamePlaceholder: '姓',
         emailLabel: '邮箱',
-        emailPlaceholder: 'b*************.com',
+        // 2026-05 — 占位提示更新为真实示例联系方式（脱敏后的）。原
+        // 文本是 Figma 模板自带的英美格式占位，对国内老师不够直观。
+        emailPlaceholder: '1234567890@163.com',
         phoneLabel: '电话',
-        phonePlaceholder: '+1(480) 555-0103',
+        phonePlaceholder: '+86 12345678900',
         messageLabel: '留言',
         send: '发送消息',
         required: '必填',
@@ -412,15 +414,64 @@ export default {
     // header (the title itself is now "创意助手"). Key kept for
     // forward compatibility with any future surface.
     subtitle: '创意助手',
-    greeting: '你好，我是 艺芽！有任何关于幻灯片设计的问题都可以问我，例如：',
-    suggestions: [
-      '这节课的学习目标是什么？',
-      '这套幻灯片适合什么色调？',
-      '我在哪里可以找到适合本课的图片？',
-    ],
     placeholder: '输入关于幻灯片设计的问题…',
     error: '抱歉，出现了错误，请重试。',
+    // 兜底欢迎语 — 当无法解析 partId（例如 Part 3/6/7 这种有自己
+    // 专用面板的 part，或 Sidebar 还没初始化好），fallback 给一组
+    // 通用提示，避免出现空白。
+    fallback: {
+      greeting: '你好，我是 艺芽！有任何关于幻灯片设计的问题都可以问我，例如：',
+      suggestions: [
+        '这节课的学习目标是什么？',
+        '这套幻灯片适合什么色调？',
+        '如何把课件做得更吸引学生？',
+      ],
+    },
+    // 2026-05 — 老师反馈：以前所有 Part 共用同一组开场白和初始
+    // 选项，导致 AI 回答经常"泛泛而谈"。现在按 Part 1/2/4/5 各自的
+    // 教学环节定制 greeting + 3 个 chips，每个问题都要求 AI 真的
+    // 能给出有针对性的答案（避免"我在哪里找图"这种 AI 无法回答的
+    // 系统层问题）。Part 3/6/7 走自己的右侧面板，不在此处。
+    byPart: {
+      1: {
+        greeting:
+          '你好，我是 艺芽！有任何关于课程导入页设计的问题都可以问我，例如：',
+        suggestions: [
+          '如何设计一个能吸引学生的课程导入页？',
+          '课程导入页可以采用什么样的视觉元素和配色？',
+          '怎样在导入页里抛出能激发学生好奇心的提问？',
+        ],
+      },
+      2: {
+        greeting:
+          '你好，我是 艺芽！有任何关于新知讲授页设计的问题都可以问我，例如：',
+        suggestions: [
+          '这节课要重点讲授的艺术概念有哪些？',
+          '怎样把核心知识点拆解成学生能理解的步骤？',
+          '新知讲授页上文字、图片、示范画的比例怎么搭配？',
+        ],
+      },
+      4: {
+        greeting:
+          '你好，我是 艺芽！有任何关于课堂实践页设计的问题都可以问我，例如：',
+        suggestions: [
+          '这节课的课堂实践活动可以怎样设计？',
+          '实践环节需要哪些工具与材料准备？',
+          '怎样在实践页上写清楚分步指令，让学生自己也能看懂？',
+        ],
+      },
+      5: {
+        greeting:
+          '你好，我是 艺芽！有任何关于创意示范页设计的问题都可以问我，例如：',
+        suggestions: [
+          '老师演示创作过程时，最该突出哪些关键步骤？',
+          '示范页上可以加入哪些细节，让学生看清创作要点？',
+          '怎样用语言描述示范过程，引导学生跟着操作？',
+        ],
+      },
+    },
   },
+
   // 第五部分 — 制作示例。当前嵌入 Bilibili 示范视频（取消了
   // 教师本地上传 UI），保留 store 以兼容旧课件。
   part5: {
@@ -468,7 +519,7 @@ export default {
     classroomModeLabel: '课堂模式',
     modeToggleAria: '选择老师预览或课堂模式',
     previewModeHint: '老师预览模式下，可反复测试每种风格，方便备课。',
-    classroomModeHint: '已切换到课堂模式：每种风格只能转换一次（防止学生反复要求转换）。',
+    classroomModeHint: '已切换到课堂模式：每种风格只能转换一次。',
     teacherPreviewHint: '已切换到老师预览模式：可反复测试每种风格效果。',
     reopenDiscussion: '重新讨论风格',
     convertingOverlay: '转换中...',

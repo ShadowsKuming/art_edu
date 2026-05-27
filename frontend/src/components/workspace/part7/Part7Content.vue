@@ -187,12 +187,14 @@ async function generate() {
                     </p>
 
                     <article v-if="store.activeWork.feedbackText" class="p7-feedback">
-                        <header>
-                            <h3>{{ t('part7.feedbackHeading') }}</h3>
-                            <span class="p7-wc">
-                                {{ t('part7.wordCount', { n: store.activeWork.feedbackWordCount }) }}
-                            </span>
-                        </header>
+                        <!-- 2026-05: 老师反馈：「AI 评价」标题 + 「xxx 字」
+                             字数统计被认为是不必要的「系统装饰」——卡片
+                             的语境（按了"获得作品点评"按钮、下面就是
+                             一段文字）已经足够清楚，多余的标签反而干扰
+                             阅读评语。两者均移除；底部「已覆盖维度」chip
+                             仍保留，因为它是真正能传达评价覆盖度的信号。
+                             `feedbackWordCount` 在 store 中仍计算，
+                             以便日后做导出/统计用。 -->
                         <p class="p7-feedback-body">{{ store.activeWork.feedbackText }}</p>
                         <footer v-if="store.activeWork.feedbackDimensions.length">
                             <span class="p7-dim-label">{{ t('part7.dimensionsCovered') }}</span>

@@ -90,9 +90,12 @@ export default {
         firstNamePlaceholder: 'First Name',
         lastNamePlaceholder: 'Last Name',
         emailLabel: 'Email',
-        emailPlaceholder: 'b*************.com',
+        // 2026-05 — placeholder examples updated to a Chinese mailbox
+        // + +86 mobile-format example so the form mirrors the
+        // pilot's actual users. Pure cosmetic placeholder copy.
+        emailPlaceholder: '1234567890@163.com',
         phoneLabel: 'Phone',
-        phonePlaceholder: '+1(480) 555-0103',
+        phonePlaceholder: '+86 12345678900',
         messageLabel: 'Comment or Message',
         send: 'Send Message',
         required: 'Required',
@@ -418,15 +421,66 @@ export default {
     // itself is now "Creative Assistant"), but the key is kept so any
     // future surface that needs a secondary line still has a string.
     subtitle: 'Creative Assistant',
-    greeting: 'Hi, I am ArtBloom! Ask me anything about the slide design. For example:',
-    suggestions: [
-      'What are the learning objectives of this lesson?',
-      'What colour tone works best for this slide deck?',
-      'Where can I find images for this lesson?',
-    ],
     placeholder: 'Ask questions about the slide design…',
     error: 'Sorry, something went wrong. Please try again.',
+    // Fallback greeting/chips for parts that don't have their own
+    // tailored copy yet (e.g. when activePart hasn't been resolved,
+    // or for parts 3/6/7 which use dedicated side panels but still
+    // share this string table).
+    fallback: {
+      greeting: 'Hi, I am ArtBloom! Ask me anything about the slide design. For example:',
+      suggestions: [
+        'What are the learning objectives of this lesson?',
+        'What colour tone works best for this slide deck?',
+        'How can I make this slide deck more engaging for students?',
+      ],
+    },
+    // 2026-05 — Pilot feedback: the previous shared greeting + chips
+    // pushed the model toward generic answers. Each of parts 1/2/4/5
+    // now has its own greeting + 3 chips scoped to the actual
+    // pedagogical role of that page. We deliberately avoid asking
+    // questions the model cannot answer (e.g. "where can I find
+    // images") so suggestions and replies stay coherent.
+    byPart: {
+      1: {
+        greeting:
+          'Hi, I am ArtBloom! Ask me anything about designing the lesson-opening slide. For example:',
+        suggestions: [
+          'How do I design an opening slide that grabs students\' attention?',
+          'Which visual elements and colour palettes work well for a lesson opener?',
+          'What kinds of curiosity-sparking questions should the opening slide pose?',
+        ],
+      },
+      2: {
+        greeting:
+          'Hi, I am ArtBloom! Ask me anything about designing the new-content slide. For example:',
+        suggestions: [
+          'Which art concepts are the focus of this lesson?',
+          'How do I break the core knowledge into steps students can follow?',
+          'How should I balance text, images and demo art on the new-content slide?',
+        ],
+      },
+      4: {
+        greeting:
+          'Hi, I am ArtBloom! Ask me anything about designing the classroom-practice slide. For example:',
+        suggestions: [
+          'How can I structure the hands-on activity for this lesson?',
+          'What tools and materials should be prepared for the practice?',
+          'How do I write step-by-step instructions students can follow on their own?',
+        ],
+      },
+      5: {
+        greeting:
+          'Hi, I am ArtBloom! Ask me anything about designing the creative-demo slide. For example:',
+        suggestions: [
+          'Which steps of the teacher\'s demo should be highlighted most clearly?',
+          'What close-up details should the demo slide include so students see key techniques?',
+          'How do I narrate the demo so students can follow along step by step?',
+        ],
+      },
+    },
   },
+
   // Part 5 — Making Example. Slide now embeds a curated Bilibili
   // tutorial via iframe; the local-upload UI was retired during the
   // pilot but the store still exists for legacy projects.
@@ -477,7 +531,7 @@ export default {
     classroomModeLabel: 'Classroom Mode',
     modeToggleAria: 'Choose teacher preview or classroom mode',
     previewModeHint: 'In Teacher Preview you can re-test each style as many times as you like — perfect for lesson prep.',
-    classroomModeHint: 'Switched to Classroom Mode: each style can be transformed only once (stops students asking for endless retries).',
+    classroomModeHint: 'Switched to Classroom Mode: each style can be transformed only once.',
     teacherPreviewHint: 'Switched to Teacher Preview: re-test each style freely.',
     reopenDiscussion: 'Reopen style discussion',
     convertingOverlay: 'Converting...',

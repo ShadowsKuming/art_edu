@@ -446,7 +446,10 @@ function backToVolumes() {
     aspect-ratio: 1000 / 1200;
     object-fit: cover;
     border-radius: 6px;
-    box-shadow: var(--shadow-photo);
+    /* 2026-05 — 老师反馈：教材封面的投影让弹窗显得"过装饰"。整套
+       系统现在用浅灰描边卡片为主，封面下方有阴影会和后面的卡片
+       结构打架。移除 box-shadow，保留 hover 时的 drop-shadow
+       作为微交互即可。 */
     user-select: none;
     -webkit-user-drag: none;
 }
@@ -521,7 +524,8 @@ function backToVolumes() {
     aspect-ratio: 1000 / 1200;
     object-fit: cover;
     border-radius: 6px;
-    box-shadow: var(--shadow-photo);
+    /* 2026-05 — 同 .lsm__cover：移除投影，与重新设计的扁平卡片
+       风格保持一致。 */
     user-select: none;
     -webkit-user-drag: none;
 }

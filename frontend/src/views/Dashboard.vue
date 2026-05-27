@@ -301,13 +301,23 @@ function onLessonSelect(payload: {
 
 .dashboard__cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    /* 2026-05 — 在 13" 笔记本（约 1280–1440px 视口）上原 minmax(260px,1fr)
+       会把第 5 张卡片换到下一排。改为显式 5 列 + 缩小 min-width，
+       让 5 张卡始终一横排显示；窄屏（≤ 1100px）走下面的 media
+       query 回到自适应。 */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: var(--space-5);
 }
 
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 1100px) {
+    /* On tablets / small laptops fall back to wrap-friendly auto-fit so
+       cards re-flow gracefully instead of being squashed. */
+    .dashboard__cards {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
     .dashboard__intro {
         grid-template-columns: 1fr;
         gap: var(--space-6);
