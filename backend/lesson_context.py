@@ -120,6 +120,18 @@ class LessonContextManager:
     def build_executor_b_context(
         self, lesson_id: str, artwork_id: Optional[str] = None
     ) -> dict:
+        """
+        Build the full lesson context dict for Executor B (story generation).
+
+        v2 (2026-05): expanded to include the three-tier learning
+        objectives, teaching focus/difficulty, assessment criteria, and
+        per-artwork visual description + teacher-guide notes. Without
+        these the model only had the unit big idea + a one-line story
+        hint, which made stories drift away from the curriculum.
+
+        Returns are flat enough that ``main.py._build_story_lesson_context``
+        can just template-format them into the system prompt.
+        """
         seed = self.load(lesson_id)
         chosen = artwork_id or seed.default_executor_b_artwork_id
 
@@ -130,12 +142,21 @@ class LessonContextManager:
             raise ValueError(f"Artwork {chosen!r} not in lesson {lesson_id}")
 
         return {
+            # Artwork-level
             "artwork": artwork.model_dump(),
             "story_hint": artwork.executor_b_prompt_hint_zh,
+            "visual_description": artwork.visual_description_zh,
+            "teacher_guide_notes": artwork.teacher_guide_notes_zh,
+            # Lesson-level metadata
             "learning_task": seed.learning_task_zh,
             "unit_idea": seed.unit_big_idea_zh,
             "key_concepts": seed.key_art_concepts,
             "lesson_title_zh": seed.lesson_title_zh,
+            # Pedagogy (new in v2)
+            "learning_objectives": seed.learning_objectives or {},
+            "teaching_focus": seed.teaching_focus_zh,
+            "teaching_difficulty": seed.teaching_difficulty_text(),
+            "assessment_criteria": seed.assessment_criteria_text(),
         }
 
     # ────────────────────────────────────────────────────────────────

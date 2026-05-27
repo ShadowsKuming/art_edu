@@ -136,9 +136,36 @@ def _ark_headers() -> dict:
 
 
 def _lang_suffix(language: str) -> str:
+    """
+    Strongly-worded language directive appended to story system prompts.
+
+    The earlier one-liner ("请用简体中文写所有内容") got drowned out by
+    the English STORY_SYSTEM / STORY_USER blocks above it, so the model
+    fell back to English for the JSON *values* even when called with
+    `language='zh'`. This version explicitly enumerates every value
+    field that must be in the target language while keeping the JSON
+    *keys* (part1, choices, etc.) in English so the frontend parser
+    can still find them.
+    """
     if language == "zh":
-        return "\n请用简体中文写所有内容，包括故事文本、选项标签和所有其他字段。"
-    return "\nWrite all content in English."
+        return (
+            "\n\n[语言强约束 / Language requirement]\n"
+            "- 输出语言: 简体中文。\n"
+            "- 所有 JSON value 必须使用简体中文，包括: "
+            "part1 文本、choices[].label、choices[].desc、part3 文本、"
+            "designRationale、soundDesign。\n"
+            "- JSON key 保持英文不变（part1 / choices / label / desc / part3 / "
+            "designRationale / soundDesign）—— 不要翻译这些字段名。\n"
+            "- 不要混用英文单词、不要保留任何英文词条；外语人名/地名用中文译名。"
+        )
+    return (
+        "\n\n[Language requirement]\n"
+        "- Output language: English.\n"
+        "- All JSON values must be written in English (part1, choices.label, "
+        "choices.desc, part3, designRationale, soundDesign).\n"
+        "- Keep JSON keys (part1, choices, label, desc, part3, designRationale, "
+        "soundDesign) in English."
+    )
 
 
 async def _stream_ark(payload: dict) -> AsyncIterator[str]:
@@ -200,31 +227,95 @@ class StoryRequest(BaseModel):
     artwork_id: Optional[str] = None
 
 
+# ── Story prompts ────────────────────────────────────────────────────────
+#
+# v2 (2026-05): Doubao kept producing English JSON values even when
+# `language='zh'`. Root cause was that STORY_SYSTEM and STORY_USER were
+# both English blocks (closer to the model's "voice"), and the single
+# Chinese line at the end of `_lang_suffix` lost the tug-of-war.
+#
+# The fix has two parts:
+#   1. STORY_SYSTEM stays English (it's the high-level role description
+#      for the model; vendor-side fine-tuning is also English-biased),
+#      but `_lang_suffix` now spells out exactly which value fields
+#      must be Chinese, leaving the JSON *keys* in English so the
+#      frontend `JSON.parse` still finds them.
+#   2. STORY_USER is now language-aware via `_story_user_text()` — the
+#      block of text immediately preceding the model's reply is in the
+#      target language, which is the strongest pull on output language.
+
 STORY_SYSTEM = (
-    "You are an art education assistant helping teachers create interactive story-based lessons. "
-    "Analyse the artwork and write an engaging, age-appropriate interactive story for elementary students. "
-    "Respond ONLY with a valid JSON object — no markdown fences, no extra text."
+    "You are an art-education assistant working inside a primary-school "
+    "(grade 2) art lesson tool. Given a textbook artwork (sent as an image) "
+    "and the lesson's pedagogical context, write an interactive story that "
+    "an 7-8 year old can follow.\n"
+    "Output: a single JSON object — no markdown fences, no preamble.\n"
+    "The JSON keys MUST stay in English (part1 / choices / id / label / "
+    "desc / part3 / designRationale / soundDesign). The language of the "
+    "JSON *values* is dictated by the [Language requirement] block below."
 )
 
-STORY_USER = """\
-Based on this artwork, generate an interactive story.
 
-Return exactly this JSON structure:
-{
-  "part1": "<3-4 paragraph opening narrative immersing the child in the world of the painting>",
-  "choices": [
-    {"id": 0, "label": "<short action title>", "desc": "<one sentence describing this path>"},
-    {"id": 1, "label": "<short action title>", "desc": "<one sentence describing this path>"},
-    {"id": 2, "label": "<short action title>", "desc": "<one sentence describing this path>"}
-  ],
-  "part3": "<2-3 paragraph continuation following choice 0>",
-  "designRationale": "<2-3 sentences on how this story connects to the artwork and its educational value>",
-  "soundDesign": "<recommended ambient sounds and music for Part 1, the choice moment, and Part 3>"
-}"""
+def _story_user_text(language: str) -> str:
+    """
+    Localised user-turn text for `/api/story/generate` and
+    `/api/story/stream`. JSON shape stays identical across locales so
+    the frontend parser doesn't care which language was used.
+    """
+    if language == "zh":
+        return (
+            "请根据这幅画作为二年级学生创作一个互动故事。\n\n"
+            "必须返回如下结构的 JSON（key 保持英文，value 用简体中文）:\n"
+            "{\n"
+            '  "part1": "<3-4 段开篇叙事，让孩子沉浸在画作的世界里>",\n'
+            '  "choices": [\n'
+            '    {"id": 0, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"},\n'
+            '    {"id": 1, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"},\n'
+            '    {"id": 2, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"}\n'
+            "  ],\n"
+            '  "part3": "<2-3 段延续选项 0 的故事后半段>",\n'
+            '  "designRationale": "<2-3 句说明故事如何呼应这幅画作及其教学价值>",\n'
+            '  "soundDesign": "<建议 Part 1、选择时刻、Part 3 使用的环境声与音乐>"\n'
+            "}"
+        )
+    return (
+        "Based on this artwork, generate an interactive story for grade-2 students.\n\n"
+        "Return exactly this JSON structure:\n"
+        "{\n"
+        '  "part1": "<3-4 paragraph opening narrative immersing the child '
+        'in the world of the painting>",\n'
+        '  "choices": [\n'
+        '    {"id": 0, "label": "<short action title>", "desc": "<one '
+        'sentence describing this path>"},\n'
+        '    {"id": 1, "label": "<short action title>", "desc": "<one '
+        'sentence describing this path>"},\n'
+        '    {"id": 2, "label": "<short action title>", "desc": "<one '
+        'sentence describing this path>"}\n'
+        "  ],\n"
+        '  "part3": "<2-3 paragraph continuation following choice 0>",\n'
+        '  "designRationale": "<2-3 sentences on how this story connects '
+        'to the artwork and its educational value>",\n'
+        '  "soundDesign": "<recommended ambient sounds and music for '
+        'Part 1, the choice moment, and Part 3>"\n'
+        "}"
+    )
 
 
 def _build_story_lesson_context(req: StoryRequest) -> str:
-    """Return a `[Lesson context]` block to inject into STORY_SYSTEM."""
+    """
+    Return a `[本课信息]` block to inject into STORY_SYSTEM.
+
+    v2: now includes the three-tier learning objectives, teaching focus,
+    teaching difficulty, key art concepts, and per-artwork visual
+    description + teacher-guide notes — every field the curriculum
+    team encoded into the LKP. The model uses these to ground the
+    story in the actual lesson rather than free-wheeling off the image.
+
+    No hard constraints are written into the prompt about how each
+    output field should be filled — the model is trusted to weave the
+    pedagogy into the narrative naturally. The richer context is what
+    moves the needle, not more rules.
+    """
     if not req.lesson_id:
         return ""
     try:
@@ -232,17 +323,59 @@ def _build_story_lesson_context(req: StoryRequest) -> str:
     except ValueError as exc:
         raise HTTPException(404, str(exc))
 
-    concepts = "、".join(ctx["key_concepts"]) if ctx["key_concepts"] else ""
-    lines = [
-        "\n\n[本课信息 / Lesson context]",
-        f"课程: 《{ctx['lesson_title_zh']}》",
-        f"单元大概念: {ctx['unit_idea']}",
-        f"学习任务: {ctx['learning_task']}",
-    ]
+    lines = ["\n\n[本课信息 / Lesson context]"]
+    lines.append(f"课程: 《{ctx['lesson_title_zh']}》")
+    if ctx["unit_idea"]:
+        lines.append(f"单元大概念: {ctx['unit_idea']}")
+    if ctx["learning_task"]:
+        lines.append(f"学习任务: {ctx['learning_task']}")
+
+    # Three-tier objectives — render only the keys that exist.
+    objs = ctx.get("learning_objectives") or {}
+    if objs:
+        lines.append("[学习目标]")
+        if objs.get("know"):
+            lines.append(f"- 知道: {objs['know']}")
+        if objs.get("understand"):
+            lines.append(f"- 理解: {objs['understand']}")
+        if objs.get("do"):
+            lines.append(f"- 能做: {objs['do']}")
+
+    if ctx.get("teaching_focus"):
+        lines.append(f"[教学重点] {ctx['teaching_focus']}")
+    if ctx.get("teaching_difficulty"):
+        lines.append(f"[教学难点] {ctx['teaching_difficulty']}")
+
+    concepts = ctx.get("key_concepts") or []
     if concepts:
-        lines.append(f"关键概念: {concepts}")
-    if ctx["story_hint"]:
+        lines.append(f"[关键艺术概念] {'、'.join(concepts)}")
+
+    criteria = ctx.get("assessment_criteria") or []
+    if criteria:
+        lines.append("[评价标准]")
+        for c in criteria:
+            lines.append(f"- {c}")
+
+    # Artwork-level context.
+    art = ctx.get("artwork") or {}
+    title = art.get("title_zh") or ""
+    artist = art.get("artist_zh") or ""
+    year = art.get("year")
+    art_header_parts = [title]
+    if artist:
+        art_header_parts.append(artist)
+    if year:
+        art_header_parts.append(str(year))
+    art_header = " / ".join(p for p in art_header_parts if p)
+    if art_header:
+        lines.append(f"\n[本画作] 《{art_header}》")
+    if ctx.get("visual_description"):
+        lines.append(f"画面描述: {ctx['visual_description']}")
+    if ctx.get("teacher_guide_notes"):
+        lines.append(f"教参解读: {ctx['teacher_guide_notes']}")
+    if ctx.get("story_hint"):
         lines.append(f"故事方向提示: {ctx['story_hint']}")
+
     return "\n".join(lines)
 
 
@@ -262,7 +395,7 @@ def _story_payload(req: StoryRequest, stream: bool = False) -> dict:
                             "url": f"data:{req.image_mime};base64,{req.image_base64}"
                         },
                     },
-                    {"type": "text", "text": STORY_USER},
+                    {"type": "text", "text": _story_user_text(req.language)},
                 ],
             },
         ],
@@ -496,21 +629,41 @@ async def chat(req: ChatRequest):
 # ════════════════════════════════════════════════════════════════════════
 
 
+# ── Continuation prompts ────────────────────────────────────────────────
+#
+# Same v2 fix as STORY_SYSTEM / STORY_USER: the system is English (role
+# description), the user-turn is localised. Continuation returns plain
+# text (not JSON) so there are no field-name pitfalls — the
+# `_lang_suffix` is still appended to pin the language hard.
+
 STORY_CONTINUE_SYSTEM = (
-    "You are an art education assistant helping teachers create interactive story-based lessons. "
-    "Given the first half of an interactive story and the child's chosen path, "
-    "write a vivid, engaging continuation for elementary school students. "
-    "Respond with ONLY the continuation text — no JSON, no labels, no extra formatting."
+    "You are an art-education assistant working inside a primary-school "
+    "(grade 2) art lesson tool. Given the first half of an interactive "
+    "story and the child's chosen path, write a vivid, engaging "
+    "continuation for a 7-8 year old. "
+    "Respond with ONLY the continuation text — no JSON, no labels, no "
+    "extra formatting, no markdown."
 )
 
-STORY_CONTINUE_USER = """\
-First half of the story:
-{part1}
 
-The child chose: {choice_label} — {choice_desc}
-
-Write a 2–3 paragraph continuation that follows this choice. \
-Keep the same imaginative tone, use sensory details, and bring the story to a satisfying close."""
+def _continue_user_text(req: "StoryContinueRequest") -> str:
+    """Localised user-turn text for `/api/story/continue[/stream]`."""
+    if req.language == "zh":
+        return (
+            "故事的前半段:\n"
+            f"{req.part1}\n\n"
+            f"孩子选择了:「{req.choice_label}」—— {req.choice_desc}\n\n"
+            "请承接这个选择，写 2-3 段故事后半段。"
+            "保持同样的想象力和叙事语气，多用感官细节，给故事一个令人满意的结尾。"
+        )
+    return (
+        "First half of the story:\n"
+        f"{req.part1}\n\n"
+        f"The child chose: {req.choice_label} — {req.choice_desc}\n\n"
+        "Write a 2-3 paragraph continuation that follows this choice. "
+        "Keep the same imaginative tone, use sensory details, and bring "
+        "the story to a satisfying close."
+    )
 
 
 class StoryContinueRequest(BaseModel):
@@ -526,17 +679,43 @@ class StoryContinueRequest(BaseModel):
 
 
 def _build_continue_lesson_context(req: StoryContinueRequest) -> str:
+    """
+    Same expansion as `_build_story_lesson_context` — we want the
+    continuation to keep grounding in the LKP, not drift into generic
+    storybook prose just because Part 3 narrowed to one branch.
+    """
     if not req.lesson_id:
         return ""
     try:
         ctx = lesson_manager.build_executor_b_context(req.lesson_id, req.artwork_id)
     except ValueError:
         return ""
-    return (
-        "\n\n[本课信息 / Lesson context]"
-        f"\n学习任务: {ctx['learning_task']}"
-        f"\n单元大概念: {ctx['unit_idea']}"
-    )
+
+    lines = ["\n\n[本课信息 / Lesson context]"]
+    lines.append(f"课程: 《{ctx['lesson_title_zh']}》")
+    if ctx["unit_idea"]:
+        lines.append(f"单元大概念: {ctx['unit_idea']}")
+    if ctx["learning_task"]:
+        lines.append(f"学习任务: {ctx['learning_task']}")
+
+    objs = ctx.get("learning_objectives") or {}
+    if objs:
+        lines.append("[学习目标]")
+        if objs.get("know"):
+            lines.append(f"- 知道: {objs['know']}")
+        if objs.get("understand"):
+            lines.append(f"- 理解: {objs['understand']}")
+        if objs.get("do"):
+            lines.append(f"- 能做: {objs['do']}")
+
+    if ctx.get("teaching_focus"):
+        lines.append(f"[教学重点] {ctx['teaching_focus']}")
+    concepts = ctx.get("key_concepts") or []
+    if concepts:
+        lines.append(f"[关键艺术概念] {'、'.join(concepts)}")
+    if ctx.get("story_hint"):
+        lines.append(f"故事方向提示: {ctx['story_hint']}")
+    return "\n".join(lines)
 
 
 def _continue_payload(req: StoryContinueRequest, stream: bool = False) -> dict:
@@ -559,14 +738,7 @@ def _continue_payload(req: StoryContinueRequest, stream: bool = False) -> dict:
                             "url": f"data:{req.image_mime};base64,{req.image_base64}"
                         },
                     },
-                    {
-                        "type": "text",
-                        "text": STORY_CONTINUE_USER.format(
-                            part1=req.part1,
-                            choice_label=req.choice_label,
-                            choice_desc=req.choice_desc,
-                        ),
-                    },
+                    {"type": "text", "text": _continue_user_text(req)},
                 ],
             },
         ],

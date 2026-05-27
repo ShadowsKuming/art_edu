@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import { usePart3Store } from '@/stores/part3'
+import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
 
 type Tab = 'story' | 'design' | 'sound'
@@ -40,8 +41,15 @@ const ttsSpeaking      = ref(false)
 const ttsPaused        = ref(false)
 const ttsError         = ref<string | null>(null)
 
+// Two playback paths: backend MP3 stream (preferred) vs. browser
+// Web Speech API (fallback when the backend returns 403/5xx — which
+// happens when edge-tts is rate-limited from a datacenter IP).
 let ttsAudio:     HTMLAudioElement | null = null
 let ttsObjectUrl: string | null           = null
+let ttsUtterance: SpeechSynthesisUtterance | null = null
+let ttsUsingFallback = false
+
+const toastStore = useToastStore()
 
 const ttsReadText = computed(() => {
   const sd = store.storyData
@@ -71,23 +79,108 @@ function _cleanupAudio() {
     URL.revokeObjectURL(ttsObjectUrl)
     ttsObjectUrl = null
   }
+  // Cancel any in-flight Web Speech utterance too.
+  if (ttsUtterance && typeof window !== 'undefined' && window.speechSynthesis) {
+    window.speechSynthesis.cancel()
+    ttsUtterance.onstart = null
+    ttsUtterance.onpause = null
+    ttsUtterance.onresume = null
+    ttsUtterance.onend = null
+    ttsUtterance.onerror = null
+    ttsUtterance = null
+  }
+  ttsUsingFallback = false
   ttsSpeaking.value = false
   ttsPaused.value   = false
+}
+
+/**
+ * Pick a sensible browser voice for the current text language. We
+ * read the first character to decide ZH-vs-EN, then prefer ZH-CN /
+ * ZH-TW voices that match the selected edge-tts voice's locale.
+ */
+function _pickFallbackVoice(text: string): SpeechSynthesisVoice | null {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return null
+  const voices = window.speechSynthesis.getVoices()
+  if (!voices.length) return null
+  const wantsZh = /[\u4e00-\u9fff]/.test(text.slice(0, 50))
+  if (!wantsZh) {
+    return voices.find(v => v.lang.startsWith('en')) ?? voices[0]
+  }
+  // Match cn vs tw if possible (the edge-tts voice IDs are 'zh-CN-…'
+  // and 'zh-TW-…'; we just look at the leading 5 chars).
+  const wantTw = TTS_VOICES[selectedVoiceIdx.value].id.startsWith('zh-TW')
+  const exact = voices.find(v => v.lang.toLowerCase() === (wantTw ? 'zh-tw' : 'zh-cn'))
+  if (exact) return exact
+  return voices.find(v => v.lang.toLowerCase().startsWith('zh')) ?? voices[0]
+}
+
+/**
+ * Browser-native fallback. Called when the backend `/api/tts`
+ * endpoint returns an error (typically 403 — edge-tts rate-limited
+ * from a datacenter IP). Uses `window.speechSynthesis` so no server
+ * round-trip and no MS dependency. Voice is OS-provided so the
+ * tone won't exactly match the edge-tts voice, but every modern
+ * Mac / Windows / iOS / Android browser ships a usable zh-CN voice.
+ */
+async function _playWithSpeechSynthesis(text: string) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) {
+    throw new Error('speechSynthesis not available')
+  }
+  // Safari sometimes returns an empty voice list until the
+  // `voiceschanged` event fires — give it one tick.
+  if (window.speechSynthesis.getVoices().length === 0) {
+    await new Promise<void>((resolve) => {
+      const handler = () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', handler)
+        resolve()
+      }
+      window.speechSynthesis.addEventListener('voiceschanged', handler)
+      setTimeout(() => {
+        window.speechSynthesis.removeEventListener('voiceschanged', handler)
+        resolve()
+      }, 500)
+    })
+  }
+  const utt = new SpeechSynthesisUtterance(text)
+  utt.lang = TTS_VOICES[selectedVoiceIdx.value].id.startsWith('zh-TW') ? 'zh-TW' : 'zh-CN'
+  utt.rate = 0.95
+  utt.pitch = 1.0
+  const voice = _pickFallbackVoice(text)
+  if (voice) utt.voice = voice
+  utt.onstart  = () => { ttsSpeaking.value = true;  ttsPaused.value = false }
+  utt.onpause  = () => { ttsPaused.value = true }
+  utt.onresume = () => { ttsPaused.value = false }
+  utt.onend    = () => { ttsSpeaking.value = false; ttsPaused.value = false; ttsUtterance = null }
+  utt.onerror  = () => { ttsSpeaking.value = false; ttsPaused.value = false; ttsUtterance = null }
+  ttsUtterance = utt
+  ttsUsingFallback = true
+  window.speechSynthesis.speak(utt)
 }
 
 async function ttsPlay() {
   ttsError.value = null
 
-  // resume if paused
-  if (ttsPaused.value && ttsAudio) {
-    await ttsAudio.play()
-    ttsPaused.value = false
-    return
+  // resume if paused — works for both the MP3 audio and the
+  // Web Speech utterance branches.
+  if (ttsPaused.value) {
+    if (ttsUsingFallback && ttsUtterance) {
+      window.speechSynthesis.resume()
+      ttsPaused.value = false
+      return
+    }
+    if (ttsAudio) {
+      await ttsAudio.play()
+      ttsPaused.value = false
+      return
+    }
   }
 
   _cleanupAudio()
   ttsLoading.value = true
 
+  // ── Branch A: try the backend /api/tts (edge-tts) ─────────────
+  let backendFailed = false
   try {
     const res = await fetch(`${API_BASE}/api/tts`, {
       method:  'POST',
@@ -99,7 +192,7 @@ async function ttsPlay() {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }))
-      throw new Error(err.detail ?? 'TTS request failed')
+      throw new Error(err.detail ?? `TTS request failed (${res.status})`)
     }
     const blob    = await res.blob()
     ttsObjectUrl  = URL.createObjectURL(blob)
@@ -110,14 +203,29 @@ async function ttsPlay() {
     ttsAudio.onerror = () => { ttsSpeaking.value = false; ttsPaused.value = false }
     await ttsAudio.play()
   } catch (e: any) {
-    ttsError.value = e.message
-    _cleanupAudio()
-  } finally {
-    ttsLoading.value = false
+    backendFailed = true
+    console.warn('[tts] backend failed, falling back to speechSynthesis:', e?.message)
   }
+
+  // ── Branch B: Web Speech fallback ─────────────────────────────
+  if (backendFailed) {
+    try {
+      await _playWithSpeechSynthesis(ttsReadText.value)
+      toastStore.show('已切换到本机朗读（服务器朗读暂不可用）', 'warning')
+    } catch (e: any) {
+      ttsError.value = e?.message ?? 'TTS failed'
+      _cleanupAudio()
+    }
+  }
+
+  ttsLoading.value = false
 }
 
 function ttsPause() {
+  if (ttsUsingFallback && ttsUtterance) {
+    window.speechSynthesis.pause()
+    return
+  }
   ttsAudio?.pause()
 }
 
