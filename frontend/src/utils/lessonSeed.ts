@@ -116,7 +116,9 @@ function buildSlides(seed: LessonSeedData, locale: 'en' | 'zh'): Slide[] {
             elements: buildElements(entry, locale),
             background: entry.default_background,
             bgColor: undefined,
-            isLocalBackground: !!entry.default_background,
+            // 2026-05-28: `isLocalBackground` is a legacy flag from
+            // the retired master-slide feature. Not set on new seeds
+            // — the slide store no longer reads it.
         }))
 }
 
@@ -175,8 +177,7 @@ export function hydrateProjectFromLesson(
         slides,
         activePart: 1,
         maxUnlockedPart: 7, // hydrated lessons unlock every Part immediately
-        globalBackground: undefined,
-        globalBgColor: undefined,
+        // 2026-05-28: no globalBackground / globalBgColor — feature retired.
         activeSlideId: null,
     }
 

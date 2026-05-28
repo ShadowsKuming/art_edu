@@ -331,11 +331,16 @@ export default {
     imageMenu: {
       addAsElement: '添加为元素',
       uploadImage: '上传图片',
-      generateImage: '生成图片',
+      // 2026-05-28: `generateImage` removed site-wide — no backend, was a
+      // no-op stub. See note in `WorkspaceContent.vue` next to the deleted
+      // `generateImage()` handler. Restore here + matching button in the
+      // template if/when a real image-gen service ships.
       slideBackground: '幻灯片背景',
       uploadBackground: '上传背景',
       solidColor: '纯色',
-      resetToGlobal: '重置为全局主题',
+      // 2026-05-28: `resetToGlobal` removed together with the
+      // master-slide / global-theme feature. Each slide's background
+      // is now independent; there is no theme to revert to.
     },
   },
   part3: {

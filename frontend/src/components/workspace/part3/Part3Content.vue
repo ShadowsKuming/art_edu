@@ -51,10 +51,12 @@ async function onAnimationClick() {
   if (!hasAnim.value) await store.generateAnimation()
 }
 
-function saveAndNext() {
-  if (activeVideoUrl.value) store.saveChosenVideo(activeVideoUrl.value)
-  slideStore.navigateToNextPart()
-}
+// 2026-05-28: `saveAndNext()` retired together with the footer
+// "保存" / "下一部分" buttons. Teachers now jump between Parts via
+// the sidebar; the chosen animation can be persisted directly from
+// `store.saveChosenVideo()` wherever future code needs it. The
+// `slideStore.navigateToNextPart()` callee was also retired — see
+// the matching deletion in `stores/slides.ts`.
 </script>
 
 <template>
@@ -168,10 +170,12 @@ function saveAndNext() {
 
       </div>
 
-      <div class="p3-footer">
-        <span v-if="mode === 'animation' && !activeVideoUrl" class="p3-footer-hint">{{ t('part3.selectVersionHint') }}</span>
-        <button class="p3-save-plain-btn" @click="() => {}">{{ t('part3.save') }}</button>
-        <button class="p3-save-btn" :disabled="!activeVideoUrl" @click="saveAndNext">{{ t('part3.saveNext') }}</button>
+      <!-- 2026-05-28: footer "保存" / "下一部分" buttons removed.
+           The "select an animation version" hint is the only
+           footer affordance left, and the whole row collapses when
+           there is no hint to show. -->
+      <div v-if="mode === 'animation' && !activeVideoUrl" class="p3-footer">
+        <span class="p3-footer-hint">{{ t('part3.selectVersionHint') }}</span>
       </div>
     </template>
   </section>
@@ -314,19 +318,7 @@ function saveAndNext() {
 }
 .p3-footer-hint { font-size: 13px; color: #9ca3af; flex: 1; }
 
-.p3-save-plain-btn {
-  height: 44px; padding: 0 24px; background: #e6e6e6;
-  color: #374151; border: none; border-radius: 999px;
-  font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
-}
-.p3-save-plain-btn:hover { background: #d8d8d8; }
-
-.p3-save-btn {
-  height: 44px; padding: 0 28px; background: #7FEC8F;
-  color: #000; border: none; border-radius: 999px;
-  font-size: 15px; font-weight: 600; font-family: inherit;
-  cursor: pointer; box-shadow: 2px 3px 6px rgba(0,0,0,0.12);
-}
-.p3-save-btn:hover:not(:disabled) { transform: translateY(-1px) scale(1.02); }
-.p3-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* 2026-05-28: `.p3-save-plain-btn` / `.p3-save-btn` retired together
+   with the per-part footer buttons. Dated comment kept so a future
+   reviewer searching for the class names lands here. */
 </style>

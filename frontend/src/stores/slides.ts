@@ -56,7 +56,12 @@ export interface Slide {
   elements: SlideElement[]
   background?: string    // image data URL
   bgColor?: string       // solid color
-  isLocalBackground?: boolean  // true = teacher override, false/undefined = follows global theme
+  // 2026-05-28: `isLocalBackground` retired together with the
+  // "master slide / global theme" feature. The field is kept on the
+  // type as `?: boolean` purely so legacy snapshots (localStorage,
+  // Render DB) deserialise without TypeScript narrowing complaints.
+  // Nothing reads it any more; new slides do not write it.
+  isLocalBackground?: boolean
   audioBg?: string       // audio data URL played when this slide is active in teaching mode
 }
 
@@ -80,10 +85,24 @@ export const useSlideStore = defineStore('slides', () => {
    */
   const locale = ref<Locale>('en')
 
-
-  // Global theme — set implicitly by Part 1 background changes
-  const globalBackground = ref<string | undefined>(undefined)
-  const globalBgColor = ref<string | undefined>(undefined)
+  // 2026-05-28: the "master slide / global theme" feature was
+  // retired site-wide. Each slide now owns its own `background` /
+  // `bgColor` and no longer follows a project-level default.
+  //
+  // The previous behaviour was: changing background on the first
+  // Part-1 slide implicitly populated `globalBackground` /
+  // `globalBgColor`, which was then propagated by `_propagateGlobal()`
+  // to every other slide whose `isLocalBackground` flag was false.
+  // Teachers found this confusing — uploading an opening cover image
+  // would silently take over Part 2-7 canvases.
+  //
+  // The refs and propagation logic have been removed. Legacy
+  // snapshots that still carry `snapshot.globalBackground` are
+  // silently ignored on load (no crash, no rehydrate). Slides that
+  // had previously inherited the global value retain it on their own
+  // `slide.background` field — `_propagateGlobal()` had eagerly
+  // materialised it, so existing projects look unchanged after the
+  // rollout. See `loadSnapshot()` for the ignore site.
 
   const activeSlide = computed(() =>
     slides.value.find(s => s.id === activeSlideId.value) ?? null
@@ -100,11 +119,12 @@ export const useSlideStore = defineStore('slides', () => {
   function addSlide(partId: number): string {
     checkpoint()
     const id = `slide-${Date.now()}`
+    // 2026-05-28: new slides start with no background at all.
+    // Previously this seeded `background = globalBackground.value`
+    // so the slide would inherit the project-level theme; that
+    // behaviour was removed together with the master-slide feature.
     slides.value.push({
       id, partId, elements: [],
-      background: globalBackground.value,
-      bgColor: globalBgColor.value,
-      isLocalBackground: false,
     })
     activeSlideId.value = id
     selectedElementId.value = null
@@ -239,69 +259,38 @@ export const useSlideStore = defineStore('slides', () => {
     selectedElementId.value = id
   }
 
-  function _propagateGlobal() {
-    slides.value.forEach(s => {
-      if (!s.isLocalBackground) {
-        s.background = globalBackground.value
-        s.bgColor = globalBgColor.value
-      }
-    })
-  }
+  // 2026-05-28: `_propagateGlobal()` and `resetSlideToGlobal()` were
+  // deleted with the master-slide feature. Setting a background on
+  // any slide — including the first Part-1 slide — now affects ONLY
+  // that slide. No fan-out, no project-level state.
 
   function setSlideBackground(slideId: string, bg: string) {
     checkpoint()
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
-    if (slide.partId === 1) {
-      globalBackground.value = bg
-      globalBgColor.value = undefined
-      slide.background = bg
-      slide.bgColor = undefined
-      slide.isLocalBackground = false
-      _propagateGlobal()
-    } else {
-      slide.isLocalBackground = true
-      slide.background = bg
-      slide.bgColor = undefined
-    }
+    slide.background = bg
+    slide.bgColor = undefined
   }
 
   function setSlideBgColor(slideId: string, color: string) {
     checkpoint()
     const slide = slides.value.find(s => s.id === slideId)
     if (!slide) return
-    if (slide.partId === 1) {
-      globalBgColor.value = color
-      globalBackground.value = undefined
-      slide.bgColor = color
-      slide.background = undefined
-      slide.isLocalBackground = false
-      _propagateGlobal()
-    } else {
-      slide.isLocalBackground = true
-      slide.bgColor = color
-      slide.background = undefined
-    }
+    slide.bgColor = color
+    slide.background = undefined
   }
 
-  function resetSlideToGlobal(slideId: string) {
-    checkpoint()
-    const slide = slides.value.find(s => s.id === slideId)
-    if (!slide) return
-    slide.isLocalBackground = false
-    slide.background = globalBackground.value
-    slide.bgColor = globalBgColor.value
-  }
-
-  function navigateToNextPart() {
-    const next = activePart.value + 1
-    if (next > 7) return
-    activePart.value = next
-    if (next > maxUnlockedPart.value) maxUnlockedPart.value = next
-  }
+  // 2026-05-28: `navigateToNextPart()` retired together with the
+  // per-part "下一部分" / "保存" buttons. The workspace no longer
+  // gates progression — teachers can jump to any Part from the
+  // sidebar at any time. `navigateToPart()` below does the same
+  // job without the bump-the-fence-and-go-forward semantics.
 
   function navigateToPart(partId: number) {
-    if (partId >= 1 && partId <= maxUnlockedPart.value) {
+    if (partId >= 1 && partId <= 7) {
+      // 2026-05-28: `maxUnlockedPart` no longer gates navigation.
+      // The field stays in the snapshot for backwards compat but
+      // every Part is reachable unconditionally.
       activePart.value = partId
       // 2026-05 — Part 5 ("创意示范") now hosts BOTH the legacy video
       // upload UI AND user-added blank canvas slides. The first
@@ -340,7 +329,9 @@ export const useSlideStore = defineStore('slides', () => {
             part5First.elements = []
             part5First.background = undefined
             part5First.bgColor = undefined
-            part5First.isLocalBackground = false
+            // 2026-05-28: `isLocalBackground` is a legacy field from
+            // the retired master-slide feature; nothing reads it any
+            // more. Left unset on purpose.
           }
         }
       }
@@ -378,22 +369,30 @@ export const useSlideStore = defineStore('slides', () => {
   }
 
   function getSnapshot() {
+    // 2026-05-28: `globalBackground` / `globalBgColor` no longer
+    // serialised — feature retired. Legacy snapshots keep the keys
+    // but they're ignored on load (see `loadSnapshot` below).
     return {
       slides: JSON.parse(JSON.stringify(slides.value)) as Slide[],
       activePart: activePart.value,
       maxUnlockedPart: maxUnlockedPart.value,
-      globalBackground: globalBackground.value,
-      globalBgColor: globalBgColor.value,
       activeSlideId: activeSlideId.value,
     }
   }
 
-  function loadSnapshot(snap: ReturnType<typeof getSnapshot>) {
+  function loadSnapshot(snap: ReturnType<typeof getSnapshot> & {
+    // Legacy fields tolerated for backwards-compatibility with
+    // pre-2026-05-28 snapshots saved in localStorage / Render DB.
+    globalBackground?: string
+    globalBgColor?: string
+  }) {
     slides.value = snap.slides
     activePart.value = snap.activePart
     maxUnlockedPart.value = snap.maxUnlockedPart
-    globalBackground.value = snap.globalBackground
-    globalBgColor.value = snap.globalBgColor
+    // `snap.globalBackground` / `globalBgColor` deliberately ignored.
+    // Their previous side-effect (propagation to every slide) had
+    // already materialised the value into each individual
+    // `slide.background`, so dropping them here is a no-op visually.
     activeSlideId.value = snap.activeSlideId ?? snap.slides[0]?.id ?? null
     selectedElementId.value = null
   }
@@ -444,19 +443,20 @@ export const useSlideStore = defineStore('slides', () => {
     selectedElementId.value = null
     activePart.value = 1
     maxUnlockedPart.value = 1
-    globalBackground.value = undefined
-    globalBgColor.value = undefined
+    // (no globalBackground/globalBgColor to clear — feature retired)
   }
 
   return {
     slides, activeSlideId, selectedElementId, activePart, maxUnlockedPart,
-    globalBackground, globalBgColor,
+    // 2026-05-28: `globalBackground`, `globalBgColor`, `resetSlideToGlobal`
+    // no longer exported — master-slide feature retired.
     locale, setLocale,
     activeSlide, selectedElement,
     slidesForPart, addSlide, selectSlide,
     addElement, addImageElement, addVideoElement, setSlideAudio, updateElement, removeElement, selectElement,
-    setSlideBackground, setSlideBgColor, resetSlideToGlobal,
-    navigateToNextPart, navigateToPart,
+    setSlideBackground, setSlideBgColor,
+    // 2026-05-28: `navigateToNextPart` removed — see retirement note above.
+    navigateToPart,
     part5VideoSlideId, isPart5VideoSlide,
     removeSlide, getSnapshot, loadSnapshot, reset,
     checkpoint, undo, redo,

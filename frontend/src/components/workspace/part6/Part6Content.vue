@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { usePart6Store } from '@/stores/part6'
-import { useSlideStore } from '@/stores/slides'
+// 2026-05-28: `useSlideStore` import retired together with the
+// footer "保存" / "下一部分" buttons — was only used by `saveAndNext()`.
 import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
 
 const store      = usePart6Store()
-const slideStore = useSlideStore()
 const toast      = useToastStore()
 const { t }      = useI18n()
 
@@ -60,9 +60,9 @@ function openFilePicker() {
   input.click()
 }
 
-function saveAndNext() {
-  slideStore.navigateToNextPart()
-}
+// 2026-05-28: `saveAndNext()` retired together with the footer
+// "保存" / "下一部分" buttons. Teachers navigate via the sidebar.
+// `slideStore.navigateToNextPart()` was also removed.
 </script>
 
 <template>
@@ -251,11 +251,9 @@ function saveAndNext() {
       </div>
     </div>
 
-    <!-- ── Footer ──────────────────────────────────────────── -->
-    <div class="p6-footer">
-      <button class="p6-save-plain-btn" @click="() => {}">{{ t('part6.save') }}</button>
-      <button class="p6-save-btn" @click="saveAndNext">{{ t('part6.saveNext') }}</button>
-    </div>
+    <!-- 2026-05-28: Part 6 footer + "保存" / "下一部分" buttons
+         removed site-wide along with all other per-part progression
+         buttons. -->
 
   </section>
 </template>

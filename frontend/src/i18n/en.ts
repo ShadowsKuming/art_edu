@@ -339,7 +339,10 @@ export default {
     imageMenu: {
       addAsElement: 'Add as element',
       uploadImage: 'Upload image',
-      generateImage: 'Generate an image',
+      // 2026-05-28: `generateImage` removed site-wide — no backend, was a
+      // no-op stub. See note in `WorkspaceContent.vue` next to the deleted
+      // `generateImage()` handler. Restore here + matching button in the
+      // template if/when a real image-gen service ships.
       slideBackground: 'Slide background',
       uploadBackground: 'Upload background',
       solidColor: 'Solid color',

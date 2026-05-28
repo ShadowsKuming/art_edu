@@ -30,7 +30,11 @@ function migrateProjects(projects: Project[]): Project[] {
     ...p,
     snapshot: {
       ...p.snapshot,
-      globalBackground: p.snapshot.globalBackground ? fix(p.snapshot.globalBackground) : p.snapshot.globalBackground,
+      // 2026-05-28: `globalBackground` is no longer part of the
+      // SlideSnapshot type — the master-slide / global-theme feature
+      // was retired. Legacy snapshots may still carry the field
+      // under `...p.snapshot` spread above; it is harmless on read
+      // (slide store ignores unknown keys) and no longer migrated.
       slides: p.snapshot.slides.map(slide => ({
         ...slide,
         background: slide.background ? fix(slide.background) : slide.background,
@@ -47,17 +51,10 @@ export interface SlideSnapshot {
   slides: Slide[]
   activePart: number
   maxUnlockedPart: number
-  /**
-   * Global theme background image (data URL) for the project.
-   * Required key, value may be `undefined` when no theme is set.
-   * Mirrors the shape returned by `useSlideStore().getSnapshot()`.
-   */
-  globalBackground: string | undefined
-  /**
-   * Global theme solid background colour (CSS color string).
-   * Required key, value may be `undefined` when no theme is set.
-   */
-  globalBgColor: string | undefined
+  // 2026-05-28: `globalBackground` and `globalBgColor` removed
+  // together with the "master slide" feature. Legacy snapshots that
+  // still carry these keys are silently ignored on hydrate — see
+  // `useSlideStore().loadSnapshot()` for the tolerant signature.
   activeSlideId: string | null
   /** Chatbot histories keyed by partId string (e.g. "1", "3"). Stored here
    *  so they travel with the project to any device when synced to the DB. */
@@ -162,8 +159,7 @@ export const useProjectsStore = defineStore('projects', () => {
         slides: [],
         activePart: 1,
         maxUnlockedPart: 1,
-        globalBackground: undefined,
-        globalBgColor: undefined,
+        // 2026-05-28: no globalBackground / globalBgColor — feature retired.
         activeSlideId: null,
       },
       meta,

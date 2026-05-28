@@ -29,16 +29,17 @@ const slideStore = useSlideStore()
 const part3Store = usePart3Store()
 const projectsStore = useProjectsStore()
 
-type Status = 'active' | 'completed' | 'inactive'
+// 2026-05-28: lock / unlock progression retired. The sidebar now
+// only distinguishes the active Part from the rest — there is no
+// "completed" (green-check) or "locked" (greyed-out, not-allowed)
+// state any more. Teachers can jump to any Part at any time.
+type Status = 'active' | 'idle'
 
 const parts = computed(() =>
   PART_IDS.map(id => ({
     id,
     label: (tm('sidebar.parts') as string[])[id - 1],
-    status: (
-      id === slideStore.activePart ? 'active' :
-      id <= slideStore.maxUnlockedPart ? 'completed' : 'inactive'
-    ) as Status,
+    status: (id === slideStore.activePart ? 'active' : 'idle') as Status,
   }))
 )
 
@@ -51,10 +52,12 @@ const part3CuratedArtworks = computed(() => {
   return getLesson(lessonId)?.textbook_artworks ?? []
 })
 
-function selectPart(partId: number, status: Status) {
-  if (status !== 'inactive') {
-    slideStore.navigateToPart(partId)
-  }
+// 2026-05-28: every Part is reachable now — drop the `status`
+// guard. Signature kept (still takes `status`) so any future caller
+// that wants to short-circuit can; the body is just the unconditional
+// navigation now.
+function selectPart(partId: number, _status: Status) {
+  slideStore.navigateToPart(partId)
 }
 
 function addSlide() {
@@ -150,27 +153,15 @@ function uploadNewArtwork() {
           class="part-row"
           :class="{
             'part-row--active': part.status === 'active',
-            'part-row--completed': part.status === 'completed',
-            'part-row--inactive': part.status === 'inactive',
+            'part-row--idle': part.status === 'idle',
           }"
           @click="selectPart(part.id, part.status)"
         >
           <span class="part-label">{{ part.label }}</span>
-          <svg
-            v-if="part.status === 'completed'"
-            class="check-icon"
-            viewBox="0 0 20 20"
-            fill="none"
-          >
-            <circle cx="10" cy="10" r="9" fill="#22c55e" />
-            <path
-              d="M6 10.5l3 3 5-5"
-              stroke="#fff"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <!-- 2026-05-28: green check icon removed — was rendered
+               when `status === 'completed'` to indicate an unlocked
+               Part. With the lock/unlock progression retired, every
+               Part shares neutral styling and no completion mark. -->
         </div>
 
         <!-- Part 3: artwork list instead of slide thumbnails -->
@@ -301,10 +292,13 @@ function uploadNewArtwork() {
   user-select: none;
 }
 
-.part-row--active    { background: #B2F4BC; }
-.part-row--completed { background: #E6E6E6; }
-.part-row--inactive  { background: #E6E6E6; cursor: not-allowed; }
-.part-row--completed:hover { background: #d9d9d9; }
+.part-row--active { background: #B2F4BC; }
+/* 2026-05-28: `.part-row--completed` (grey unlocked row) and
+   `.part-row--inactive` (locked, cursor: not-allowed) classes
+   retired with the lock/unlock progression. All non-active rows
+   now use the same neutral `.part-row--idle` style below. */
+.part-row--idle { background: #E6E6E6; }
+.part-row--idle:hover { background: #d9d9d9; }
 
 .part-label {
   font-size: 14px;
@@ -312,9 +306,9 @@ function uploadNewArtwork() {
   color: #111827;
   line-height: 1.4;
 }
-.part-row--inactive .part-label { color: #9ca3af; font-weight: 400; }
 
-.check-icon { width: 20px; height: 20px; flex-shrink: 0; }
+/* 2026-05-28: `.check-icon` retired alongside the completed-state
+   green check mark. No replacement — the part row is now icon-less. */
 
 /* Slide / artwork thumbnails list */
 .slides-list {

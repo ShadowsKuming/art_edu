@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { useSlideStore } from '@/stores/slides'
-const slideStore = useSlideStore()
+// 2026-05-28: this placeholder component is the legacy Part-7 stub —
+// `Part7Content.vue` is the real implementation. The footer "Save"
+// and "Save & Next" buttons were removed here as part of the
+// site-wide retirement of per-part progression buttons. The
+// `slideStore` import is no longer needed and `navigateToNextPart`
+// has been retired in the store.
 </script>
 
 <template>
@@ -16,10 +20,9 @@ const slideStore = useSlideStore()
       </div>
     </div>
 
-    <div class="p7-footer">
-      <button class="p7-save-plain-btn" @click="() => {}">Save</button>
-      <button class="p7-save-btn" @click="slideStore.navigateToNextPart()">Save &amp; Next</button>
-    </div>
+    <!-- 2026-05-28: Part 7 placeholder footer + "Save" / "Save & Next"
+         buttons removed site-wide along with all per-part
+         progression buttons. -->
   </section>
 </template>
 

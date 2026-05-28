@@ -59,9 +59,11 @@ const showBgColorPicker = ref(false)
 const bgColorDraft = ref('#ffffff')
 const imageMenuAnchorEl = ref<HTMLElement | null>(null)
 
-const hasLocalBackground = computed(() =>
-  (slideStore.activeSlide?.isLocalBackground ?? false) && slideStore.activeSlide?.partId !== 1
-)
+// 2026-05-28: `hasLocalBackground` and `resetToGlobal()` were removed
+// alongside the master-slide / global-theme feature. Each slide's
+// background is now fully independent — there is no "global theme"
+// for an individual slide to override or revert to. See the
+// matching deletion in `stores/slides.ts`.
 
 function openBgColorPicker() {
   bgColorDraft.value = slideStore.activeSlide?.bgColor ?? '#ffffff'
@@ -78,11 +80,6 @@ function applyBgColor() {
 function toggleImageMenu() {
   showImageMenu.value = !showImageMenu.value
   if (showImageMenu.value) activeTool.value = 'image'
-}
-
-function resetToGlobal() {
-  if (slideStore.activeSlideId) slideStore.resetSlideToGlobal(slideStore.activeSlideId)
-  showImageMenu.value = false
 }
 
 function onDocClick(e: MouseEvent) {
@@ -138,9 +135,14 @@ function uploadImageElement() {
   })
 }
 
-function generateImage() {
-  showImageMenu.value = false
-}
+// 2026-05-28: removed `generateImage()` — the "Generate image" entry in
+// the image dropdown has been retired site-wide. There was never a
+// backend for it (the handler was a stub that just closed the menu),
+// and surfacing the button gave teachers the false impression the
+// feature was coming. If/when a real image-gen service ships, restore
+// both the function and the matching `<button class="image-menu-item">`
+// in the template, plus the `content.imageMenu.generateImage` strings
+// in `frontend/src/i18n/{zh,en}.ts`.
 
 function uploadVideo() {
   const slideId = slideStore.activeSlideId
@@ -268,12 +270,10 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
             </svg>
             <span class="image-menu-label">{{ t('content.imageMenu.uploadImage') }}</span>
           </button>
-          <button class="image-menu-item" @click="generateImage">
-            <svg viewBox="0 0 20 20" fill="none" class="image-menu-icon">
-              <path d="M10 2l1.5 4H16l-3.5 2.5 1.5 4L10 10l-4 2.5 1.5-4L4 6h4.5L10 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-            </svg>
-            <span class="image-menu-label">{{ t('content.imageMenu.generateImage') }}</span>
-          </button>
+          <!-- 2026-05-28: "Generate image" button removed site-wide
+               (no backend, was a no-op stub). See the corresponding
+               note next to the deleted `generateImage()` handler in
+               the <script> block above. -->
           <div class="image-menu-divider" />
           <p class="image-menu-section">{{ t('content.imageMenu.slideBackground') }}</p>
           <button class="image-menu-item" @click="uploadBackground">
@@ -290,13 +290,10 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
             </svg>
             <span class="image-menu-label">{{ t('content.imageMenu.solidColor') }}</span>
           </button>
-          <button v-if="hasLocalBackground" class="image-menu-item image-menu-item--reset" @click="resetToGlobal">
-            <svg viewBox="0 0 20 20" fill="none" class="image-menu-icon">
-              <path d="M4 10a6 6 0 1012 0 6 6 0 00-12 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M4 6v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span class="image-menu-label">{{ t('content.imageMenu.resetToGlobal') }}</span>
-          </button>
+          <!-- 2026-05-28: "Reset to global theme" button removed
+               site-wide together with the master-slide feature. See
+               note next to the deleted `hasLocalBackground` /
+               `resetToGlobal()` in the <script> block above. -->
         </div>
 
         <ColorPicker
@@ -430,7 +427,13 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
             </div>
           </template>
 
-          <button class="btn-save-next" @click="slideStore.navigateToNextPart()">{{ t('content.saveNext') }}</button>
+          <!-- 2026-05-28: Per-part "保存" / "下一部分" footer buttons
+               retired site-wide. The workspace no longer gates
+               progression — teachers navigate via the sidebar. The
+               previous `<button class="btn-save-next">` lived here
+               and called `slideStore.navigateToNextPart()` (also
+               retired). See matching deletions in part3/5/6/7
+               content components. -->
         </div>
       </div>
     </div>
@@ -690,43 +693,13 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
   padding: 8px 0;
 }
 
-.btn-save {
-  height: 44px;
-  padding: 0 24px;
-  background: #e6e6e6;
-  color: #374151;
-  border: none;
-  border-radius: 999px;
-  font-size: 15px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
+/* 2026-05-28: `.btn-save` and `.btn-save-next` CSS retired together
+   with the per-part footer buttons. Kept as dated comment so any
+   reviewer searching for the class names lands here instead of
+   thinking they were accidentally lost. */
 
-.btn-save:hover { background: #d8d8d8; }
-
-.btn-save-next {
-  height: 44px;
-  padding: 0 28px;
-  background: #7FEC8F;
-  color: #000000;
-  border: none;
-  border-radius: 999px;
-  font-size: 15px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  box-shadow: 2px 3px 6px rgba(0, 0, 0, 0.12), 11px 4px 16px 0px rgba(0, 0, 0, 0.12);
-}
-
-.btn-save-next:hover { transform: translateY(-1px) scale(1.02); }
-
-.image-menu-item--reset { color: #6b7280; }
-.image-menu-item--reset:hover { background: #f3f4f6; }
+/* 2026-05-28: `.image-menu-item--reset` styling retired with the
+   "Reset to global theme" button. */
 
 .toolbar-area {
   position: relative;

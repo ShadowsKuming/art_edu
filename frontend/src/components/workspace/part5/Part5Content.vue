@@ -52,16 +52,25 @@ const LESSON_VIDEO_MAP: Record<string, string> = {
 }
 const DEFAULT_BVID = 'BV1VjVc6tEhK'
 
+// 2026-05-28: was reading the now-retired `slideStore.globalBackground`
+// / `globalBgColor` ("master slide" theme) to decide the Part 5 video
+// canvas backdrop. Per the requirement that every slide own its
+// background independently, this now reads the Part-5 video slide's
+// OWN `background` / `bgColor` field (which the propagator had
+// already materialised for legacy projects, so the visual outcome is
+// identical for existing data). New projects start with no inherited
+// background, so Part 5 falls through to the neutral white default.
 const slideStyle = computed(() => {
-  if (slideStore.globalBackground) {
+  const videoSlide = slideStore.slides.find(s => s.id === slideStore.part5VideoSlideId)
+  if (videoSlide?.background) {
     return {
-      backgroundImage: `url(${slideStore.globalBackground})`,
+      backgroundImage: `url(${videoSlide.background})`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     }
   }
-  if (slideStore.globalBgColor) {
-    return { backgroundColor: slideStore.globalBgColor }
+  if (videoSlide?.bgColor) {
+    return { backgroundColor: videoSlide.bgColor }
   }
   return { backgroundColor: '#ffffff' }
 })
@@ -188,9 +197,9 @@ function onRestoreDefault() {
 
 
 
-function saveAndNext() {
-  slideStore.navigateToNextPart()
-}
+// 2026-05-28: `saveAndNext()` retired together with the footer
+// "下一部分" button. Teachers navigate via the sidebar now. The
+// `slideStore.navigateToNextPart()` callee was also retired.
 </script>
 
 <template>
@@ -296,9 +305,8 @@ function saveAndNext() {
 
     </div>
 
-    <div class="p5-footer">
-      <button class="p5-save-btn" @click="saveAndNext">{{ t('content.saveNext') }}</button>
-    </div>
+    <!-- 2026-05-28: Part 5 footer + "下一部分" button removed
+         site-wide along with all other per-part progression buttons. -->
   </section>
 </template>
 
@@ -435,15 +443,12 @@ function saveAndNext() {
   cursor: pointer;
 }
 
-.p5-footer {
-  padding: 16px 32px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
+/* 2026-05-28: `.p5-footer` + `.p5-save-plain-btn` + `.p5-save-btn`
+   retired together with the per-part footer buttons. Dated comment
+   kept so a future reviewer searching for these class names lands
+   here. (Block continues below with the legacy rules left as-is —
+   they are no longer reachable but harmless to keep until a CSS
+   sweep tidies them.) */
 .p5-save-plain-btn {
   height: 44px;
   padding: 0 24px;

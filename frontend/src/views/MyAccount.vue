@@ -123,10 +123,26 @@ function onBack() {
                 </header>
             </div>
 
+            <!-- 2026-05-28: Sign-out moved from a standalone row under the
+                 feedback card up here to the right of the welcome heading.
+                 Pilot feedback flagged the old position as easy to miss
+                 (it sat between "Send Feedback" and the Picasso quote
+                 banner). Anchoring it to the greeting makes it a clear
+                 "account-level" action without leaning on a header-menu
+                 dropdown that would require a separate component. -->
             <section class="acc-welcome">
-                <h2 class="acc-welcome__heading">
-                    {{ t('account.welcome', { name: userStore.displayLabel }) }}
-                </h2>
+                <div class="acc-welcome__row">
+                    <h2 class="acc-welcome__heading">
+                        {{ t('account.welcome', { name: userStore.displayLabel }) }}
+                    </h2>
+                    <button type="button" class="acc-signout-btn" @click="signOut">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        {{ t('account.signOut') }}
+                    </button>
+                </div>
                 <p class="acc-welcome__subtitle">{{ t('account.subtitle') }}</p>
             </section>
 
@@ -199,16 +215,9 @@ function onBack() {
                 </button>
             </section>
 
-            <!-- Sign out ────────────────────────────────────────────── -->
-            <div class="acc-signout-row">
-                <button type="button" class="acc-signout-btn" @click="signOut">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    {{ t('account.signOut') }}
-                </button>
-            </div>
+            <!-- 2026-05-28: standalone sign-out row removed — the button
+                 now lives inside `.acc-welcome` next to the greeting
+                 heading. See note above the welcome section. -->
 
             <!-- Quote card ───────────────────────────────────────────── -->
             <figure class="acc-quote">
@@ -320,12 +329,28 @@ function onBack() {
     margin: var(--space-5) 0 var(--space-5);
 }
 
+/* 2026-05-28: flex row so the sign-out pill sits to the right of
+   the welcome heading instead of under the feedback card. Wrap
+   keeps it from clipping on narrow viewports — at <600px the
+   button falls below the heading on its own line. */
+.acc-welcome__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
 .acc-welcome__heading {
     margin: 0 0 8px;
     font-weight: 600;
     font-size: clamp(28px, 3.2vw, 40px);
     line-height: 1.3;
     color: #000;
+    /* Allow shrinking inside the flex row without forcing wrap on
+       short greetings. */
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .acc-welcome__subtitle {
@@ -567,13 +592,19 @@ function onBack() {
         0 24px 30px -5px rgba(47, 51, 52, 0.15);
 }
 
-.acc-signout-row {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: -8px;
-}
+/* `.acc-signout-row` was retired on 2026-05-28 — the button is now
+   a direct child of `.acc-welcome__row` and inherits its baseline
+   alignment. The standalone row class is intentionally not kept as
+   a stub: any leftover usage will fail loudly during vue-tsc
+   instead of silently rendering an empty hidden row. */
 
 .acc-signout-btn {
+    /* Match the heading's vertical rhythm: the heading has 8px
+       bottom-margin so the button reads aligned with its text
+       baseline rather than its tight cap-height. */
+    align-self: center;
+    margin-bottom: 8px;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 8px;
