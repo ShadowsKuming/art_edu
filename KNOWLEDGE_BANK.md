@@ -4,10 +4,60 @@
 > Repo: https://github.com/ShadowsKuming/art_edu
 > Local path: `/Users/kevinlee/Downloads/art_edu`
 > Latest commit at time of writing: `3162456` (Update .env.example)
-> Last in-session update: 2026-05-25 (Pilot LKP integration —
-> backend Commander + Part 7 commenter + frontend LKP wiring).
+> Last in-session update: 2026-05-28 (Contact form bugfix —
+> fieldset+grid rendering bug caused inputs to disappear on the
+> homepage; rewritten with plain div containers + simplified to
+> single Name field per pilot spec).
 
 ---
+
+## Bugfix log
+
+### 2026-05-28 — Homepage "Contact Us" form inputs were invisible
+
+**Symptom.** The right column of the `#contact` section on the homepage
+rendered as an empty area: the heading + banner row showed correctly,
+but the form (name / email / phone / message / send) was completely
+missing. Left column ("How We Can Help" + email/WeChat card) rendered
+fine.
+
+**Root cause.** `frontend/src/components/home/ContactForm.vue` wrapped
+each row of inputs in a `<fieldset>` element and then applied
+`display: grid` (`.contact-form__fieldset--row`) or `display: flex`
+(`.contact-form__fieldset`) to that fieldset. `<fieldset>` historically
+forces its anonymous content box to `display: block` in Chrome/Safari
+regardless of the author's `display` declaration — applying `grid` to
+the fieldset itself silently collapses the row layout and, combined
+with the second column using an `sr-only` label, made the inputs
+render with zero effective height in our pages.
+
+**Fix.** Replaced every `<fieldset>` in `ContactForm.vue` with a plain
+`<div>` container; the email/phone two-column row now uses
+`.contact-form__row { display: grid; grid-template-columns: 1fr 1fr }`
+on a `<div>`, which honours grid layout correctly. Each input still
+has its own `<label for="">` so accessibility semantics are preserved.
+
+While there, the form was also simplified per the pilot Figma:
+- Single 姓名 / Name field (the previous First + Last split was a
+  Figma-template carryover that wasn't used on the Chinese site).
+- Send button label shortened from "发送消息" → "发送" (and
+  "Send Message" → "Send" in English) to match the spec.
+- Added `messagePlaceholder` and `namePlaceholder` i18n keys in
+  both `frontend/src/i18n/zh.ts` and `frontend/src/i18n/en.ts`.
+- Legacy `firstNamePlaceholder` / `lastNamePlaceholder` keys are
+  kept in both i18n files (commented as "legacy") so any
+  half-stale import doesn't trigger a missing-key warning.
+
+**Files touched.**
+- `frontend/src/components/home/ContactForm.vue`
+- `frontend/src/i18n/zh.ts` (`home.contact.form.*`)
+- `frontend/src/i18n/en.ts` (`home.contact.form.*`)
+
+Verified with `npx vue-tsc --noEmit` (clean) and `npx vite build`
+(~530ms, no errors).
+
+---
+
 
 ## 0. Pilot LKP integration status (2026-05-25)
 
@@ -1751,3 +1801,167 @@ DNS zone (kevin's CF account)
 - [ ] Onboard remaining 24 lessons (LKP JSON authoring is the bottleneck, not code).
 - [ ] Tighten `CORS_ALLOW_ORIGINS` from `*` to the actual Pages domain once a custom domain is locked in.
 - [ ] Decide on a TTS migration story (current `edge-tts` is free but unofficial Microsoft endpoint; Volcengine TTS keys are already in `.env.example`).
+
+---
+
+## 21. Part 3 story prompt v3 + TTS segment picker (2026-05-27)
+
+> Source: discussion thread reviewing the Part 3 "故事预览" output against
+> the教材/教参 (teacher's edition) knowledge encoded in the LKP. Three
+> teacher-facing issues raised; all three landed in the `5.27update*`
+> commit train (`a178b68` … `4c5d9b2`).
+
+### 21.1 What teachers said was wrong
+
+| # | Pilot teacher feedback (paraphrased) | Where it manifested |
+|---|---|---|
+| **Q1** | "第三部分: 故事后半段" reads much shorter than "第一部分: 故事前半段" — pace breaks during read-aloud. | `STORY_USER` prompt only said *"2-3 paragraphs"* for `part3` while `part1` was free-form. Models defaulted to a 90-110 字 tail vs. a 200-字 opener. |
+| **Q2** | Story is generic — could be about any landscape painting; teacher can't see the lesson's unit big idea / learning objectives / key art concepts surfacing. | `STORY_SYSTEM` only got the artwork image + a thin English role description. The LKP fields (`unit_big_idea_zh`, `learning_objectives.{know,understand,do}`, `key_art_concepts`, `teaching_focus_zh`, `teaching_difficulty_zh`, per-artwork `visual_description_zh` / `teacher_guide_notes_zh` / `story_hint_zh`) existed in the JSON but weren't being threaded into the system prompt. |
+| **Q3** | "音效设计" panel's TTS only ever reads `part1`; teachers can't preview-read the post-choice continuation aloud. | The TTS `read` button hard-coded `storyData.part1` as the text source; `part3` was unreachable. |
+
+### 21.2 Q1 — Word-count alignment (180-200 字 for both halves)
+
+**Shipped in:** `backend/main.py` → `_story_user_text(language)`
+(rewrite landed in `a178b68` / `5.27update2`).
+
+The ZH prompt now carries **hard structural rules** in a `[故事正文生成要求]` block, separated into three sub-blocks:
+
+- **`【part1 · 开篇, 3-4 段】`**
+  - "字数: 严格 180-200 个中文字 (不含标点). 低于 170 或超过 210 视为不合格."
+  - Must include ≥ 2 visual keywords from `[本画作] 画面描述`.
+  - Must enact the verb in `[学习任务]` (e.g. 「依形创编」 → 先呈现一个长形的具体物, 再由形状引出联想).
+  - 7-8 岁口语化; **must not** name teaching concepts directly (「夸张」「联想」「构图」 must be *felt*, not stated).
+
+- **`【choices · 3 个分支】`**
+  - `label` 4-10 字; `desc` ≤ 30 字.
+  - Three branches must map to **three different** facets of `[关键艺术概念]` (e.g. composition / main-subject details / 联想 / 夸张). The prompt explicitly forbids parallel plot directions ("往左走 / 往右走 / 往前走").
+  - "每条分支应当让备课老师一眼识别出它对应哪个艺术概念."
+
+- **`【part3 · 后半段, 2-3 段, 承接 choice 0】`**
+  - "字数: 严格 180-200 个中文字 (不含标点). **必须与 part1 字数对齐**, 低于 170 或超过 210 视为不合格."
+  - Same imaginative tone + sensory richness as part1.
+  - Ending **must** loop back to the 能做 (do) tier of `[学习目标]` — so the story has **pedagogical closure**, not just narrative closure.
+  - Forbids fourth-wall breaks ("同学们", "小朋友们").
+
+The English path mirrors the structure at ~120-150 English words with the same hard constraints. `STORY_SYSTEM` stays English (vendor fine-tuning is English-biased) but `_story_user_text` is fully language-aware so the model gets pulled into the right output language by the immediately-preceding user turn.
+
+**Side-effect:** `_story_payload` had to bump `max_tokens` `2000 → 3500`. Combined budget for part1 (180-200 字 ≈ 300-400 tokens) + choices (~120 tokens) + part3 (180-200 字 ≈ 300-400 tokens) + designRationale (330-360 字 ≈ 550-700 tokens) + JSON keys/punctuation (~150 tokens) + reasoning headroom = ~1400-1800 content tokens; 3500 gives ~2× headroom. Before the bump, the model occasionally truncated mid-`designRationale` string and the frontend `JSON.parse` blew up with *"Unexpected end of JSON input"*.
+
+### 21.3 Q2 — Curriculum grounding (LKP fields → system prompt)
+
+**Shipped in:** `_build_story_lesson_context(req)` in `backend/main.py` +
+`_design_rationale_spec(language)`. The story `payload.system` is now:
+
+```python
+system = (
+    STORY_SYSTEM
+    + _build_story_lesson_context(req)   # ← [本课信息] block
+    + _design_rationale_spec(language)   # ← 5-段 spec for designRationale field
+    + _lang_suffix(req.language)         # ← ZH/EN value-language directive
+)
+```
+
+`_build_story_lesson_context` walks `LessonContextManager.build_executor_b_context(lesson_id, artwork_id)` and emits a `[本课信息]` block containing every curriculum field the LKP team encoded:
+
+| Prompt line | LKP source field | Why the model needs it |
+|---|---|---|
+| `课程: 《<lesson_title_zh>》` | `lesson_title_zh` | Frames the writing voice for primary-school art class. |
+| `单元大概念: …` | `unit_big_idea_zh` | The 5-段 designRationale must **directly cite** this string. |
+| `学习任务: …` | `learning_task_zh` | The opening of `part1` must enact this task's verb. |
+| `[学习目标] - 知道 / - 理解 / - 能做` | `learning_objectives.{know, understand, do}` | Each tier must be anchored by a concrete plot moment; `part3` ending must close on the 能做 action. |
+| `[教学重点] …` | `teaching_focus_zh` | designRationale §3 must explicitly map to it. |
+| `[教学难点] …` | `teaching_difficulty_zh` | designRationale §3 must describe which scene helps overcome it. |
+| `[关键艺术概念] A、B、C` | `key_art_concepts[]` | The 3 choices must each foreground a different concept. |
+| `[评价标准] - …` | `assessment_criteria[]` | (Available but not heavily used by the story prompt — leveraged by Part 7's commenter prompt.) |
+| `[本画作] 《…》 / 画面描述 / 教参解读 / 故事方向提示` | `textbook_artworks[<id>].executor_b_per_artwork.{visual_description_zh, teacher_guide_notes_zh, story_hint_zh}` | The model must include ≥ 2 visual keywords from `visual_description` literally in `part1`. `teacher_guide_notes` and `story_hint` give the writing room to land on the curriculum's preferred reading of the artwork. |
+
+This is what fixes the "stories feel generic" complaint — the model can no longer write a free-floating landscape vignette, because half its system prompt is now the actual lesson's pedagogy.
+
+#### 21.3.1 The 5-段 `designRationale` spec (curriculum-anchored)
+
+`_design_rationale_spec("zh")` ports the curriculum team's verbatim spec into the prompt. The `designRationale` field is no longer free-form — it must produce **330-360 中文字 (320-380 hard range), 5 paragraphs separated by `\n\n`**, with this exact structure:
+
+| 段 | 字数 | Content |
+|---|---|---|
+| 1 | ~60 | 与"单元大概念"和"学习任务"的对应 — must *directly quote* keywords from those LKP fields. |
+| 2 | ~100 | Three-tier 学习目标 ("知道" / "理解" / "能做") — each tier must be anchored by a **concrete plot moment** (情节锚点), not a generic gesture. |
+| 3 | ~100 | (a) `教学重点` keywords (b) the scene that **breaks** `教学难点` (c) each `关键艺术概念` at least once with the detail it lives in. |
+| 4 | ~60 | What each of the 3 `choices` foregrounds pedagogically — so the teacher can pick a branch by the room's energy. |
+| 5 | **strict 25-35 字** | One-line invitation to the teacher to keep iterating, with a **specific** follow-up question example (must reference a design choice from §1-4, not "do you want a different story?"). Uses 「我」 (AI) and 「您」 (teacher). |
+
+Banned vocabulary (across all 5 段): 「通过」「旨在」「有助于」「能够」 — replaced with concrete verbs like 「将…转化为」「锚定在」「借助…场景呈现」. Markdown is forbidden (no headers, no bullets, no bold). The English code path keeps the legacy "2-3 sentences" requirement (`_design_rationale_spec` returns `""`) because the pilot ships in Chinese; the English mode is for screenshots/demos.
+
+> One-shot success rate: ~75% (the model occasionally drifts to 290-320 字, which we accept rather than spending a second LLM call on polishing — that would double Part 3 latency).
+
+### 21.4 Q3 — TTS segment picker (part1 vs part3)
+
+**Shipped in:** `frontend/src/components/workspace/part3/Part3StoryPanel.vue`
+(commit `d8739d1` / `5.27update3`, +284 lines in that file).
+
+UI change in the "音效设计" panel:
+
+```
+   故事朗读                     [当前段落]
+   ─────────────────         ┌──────────────┐
+                              │ 第一部分 ●  │  ← single-select pill row
+                              │ 第三部分     │
+                              └──────────────┘
+   [声音类型] [▶ 播放] [⏸ 暂停] [⏹ 停止]
+```
+
+Implementation details:
+
+```ts
+type TtsSegment = 'part1' | 'part3'
+const selectedSegment = ref<TtsSegment>('part1')
+
+// part3 has a fallback ladder: live continuation → choice-0 default
+const part3Text = computed(() => {
+  const pair = store.activePair
+  if (!pair) return ''
+  return store.activeContinuation
+      ?? pair.generatedContinuations?.[0]
+      ?? ''
+})
+
+const ttsReadText = computed(() => {
+  const sd = store.storyData
+  if (!sd) return ''
+  if (selectedSegment.value === 'part3') return part3Text.value
+  return sd.part1
+})
+
+// Stop any in-flight audio when the user toggles segments so
+// the UI never shows "playing" against the wrong text.
+watch(selectedSegment, () => { ttsStop() })
+
+// Disable Play + show a hint when part3 isn't generated yet
+const part3NotReady = computed(() =>
+  selectedSegment.value === 'part3' && !part3Text.value.trim()
+)
+```
+
+Notes / decisions:
+
+- **Part 2 (互动选项) is intentionally not in the picker.** Choices are UI affordance, not narrative content — reading "选项1: 跟着溪水走" out loud during a classroom recap is awkward.
+- **Sensible default for part3 text** — when no branch has been clicked yet, `activeContinuation` is `null` but the original story payload always pre-fills choice-0's continuation in `generatedContinuations[0]`. So a teacher who jumps straight from the cover to the audio panel can still hear the post-choice half.
+- **Both TTS backends respect the segment.** `edge-tts` (primary, via `POST /api/tts`) and `window.speechSynthesis` (fallback when the datacenter IP is rate-limited by Microsoft) both read whatever `ttsReadText.value` resolves to.
+- **i18n keys** added in `frontend/src/i18n/{en,zh}.ts`:
+  `part3.storyPanel.ttsSegmentLabel`, `…ttsSegmentPart1`, `…ttsSegmentPart3`.
+
+### 21.5 Acceptance check (how to verify this in the running app)
+
+1. Open `/create-lesson` → pick **G2V2-U4-L4 《好长好长……》** from the dashboard.
+2. Navigate to **Part 3**. Trigger story generation (the painting will be the LKP default `art01-taohuayuan1`).
+3. In "故事预览" — confirm both **part1** and **part3** read ~180-200 字 and feel paced the same.
+4. In `designRationale` — confirm 5 paragraphs separated by blank lines; §1 quotes the unit big idea **literally** (look for 「童话故事 / 想象 / 长形」-style strings drawn from `unit_big_idea_zh`).
+5. In "音效设计" — toggle the pill row between **第一部分** / **第三部分**, hit **▶ 播放** for each. The audio content should match the visible text in "故事预览" for that segment. Toggle mid-playback → audio cuts cleanly to the new segment on the next Play press.
+6. (Backend-only) Hit `POST /api/story/generate` with `{lesson_id: 'g2v2-u4-l4'}` and **without** it — the no-lesson_id response will read as generic storybook prose; the with-lesson_id response should reference 「桃花林」「溪水」「依形创编」-style keywords from the LKP.
+
+### 21.6 Open work after this pass
+
+- [ ] The 字数 hard rules are enforced **only in the prompt**; we don't post-validate. If Doubao drifts (especially over the part3 180-200 band), the only fallback is regenerate. A `validate_story_length(payload)` helper that flags drift in the streamed JSON would let the UI show "the model wrote a 145-字 ending — regenerate?" without a server round-trip.
+- [ ] designRationale §5's "specific follow-up question" sometimes regresses to a generic prompt ("您想换一个画风吗?"). Consider adding a 1-shot example pair inside the spec to anchor the format.
+- [ ] TTS segment picker is currently part1/part3 only. If a teacher generates **multiple** branch continuations (clicks choice-0, then choice-1, etc.), only the last one is reachable through the picker. A "branch dropdown" inside the part3 pill would surface them all — deferred until the pilot teachers ask.
+- [ ] Per-artwork `story_hint_zh` is wired but the curriculum team has only filled it for 2/3 artworks per lesson. The third falls back to the generic visual description.
+

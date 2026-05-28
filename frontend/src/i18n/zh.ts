@@ -85,16 +85,19 @@ export default {
       wechatValue: 'chi_chi_131',
       form: {
         nameLabel: '姓名',
+        namePlaceholder: '请输入您的姓名',
+        // 兼容旧 key（暂留以防其他组件引用）。
         firstNamePlaceholder: '名',
         lastNamePlaceholder: '姓',
         emailLabel: '邮箱',
         // 2026-05 — 占位提示更新为真实示例联系方式（脱敏后的）。原
         // 文本是 Figma 模板自带的英美格式占位，对国内老师不够直观。
         emailPlaceholder: '1234567890@163.com',
-        phoneLabel: '电话',
+        phoneLabel: '手机',
         phonePlaceholder: '+86 12345678900',
-        messageLabel: '留言',
-        send: '发送消息',
+        messageLabel: '信息',
+        messagePlaceholder: '请输入您的留言',
+        send: '发送',
         required: '必填',
       },
     },

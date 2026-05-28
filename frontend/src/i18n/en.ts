@@ -87,6 +87,8 @@ export default {
       wechatValue: 'chi_chi_131',
       form: {
         nameLabel: 'Name',
+        namePlaceholder: 'Your full name',
+        // Legacy keys kept for backwards compatibility (no longer rendered).
         firstNamePlaceholder: 'First Name',
         lastNamePlaceholder: 'Last Name',
         emailLabel: 'Email',
@@ -96,8 +98,9 @@ export default {
         emailPlaceholder: '1234567890@163.com',
         phoneLabel: 'Phone',
         phonePlaceholder: '+86 12345678900',
-        messageLabel: 'Comment or Message',
-        send: 'Send Message',
+        messageLabel: 'Message',
+        messagePlaceholder: 'Write your message…',
+        send: 'Send',
         required: 'Required',
       },
     },

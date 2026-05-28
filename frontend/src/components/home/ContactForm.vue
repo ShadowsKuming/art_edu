@@ -5,8 +5,7 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
 const form = reactive({
-  firstName: '',
-  lastName: '',
+  name: '',
   email: '',
   phone: '',
   message: '',
@@ -21,44 +20,44 @@ function onSubmit() {
 </script>
 
 <template>
+  <!--
+    2026-05 — Contact form rewrite.
+    The previous markup wrapped each row of inputs in a `<fieldset>` and
+    applied `display: grid` / `display: flex` to the fieldset itself.
+    In Chrome ≤ ~123 and Safari, `<fieldset>` does NOT honour grid/flex
+    layout on the element itself (it forces `display: block` on the
+    anonymous fieldset content box), which on this page caused the
+    inputs to collapse to zero height and effectively disappear from the
+    contact section.
+
+    Switched to plain `<div>` containers — semantics are still good
+    (real `<form>` + `<label>` per field) and the inputs now render
+    reliably across browsers.
+
+    Also simplified to a single "Name" field (down from First / Last)
+    so the form mirrors the Figma spec (姓名 / 邮箱 / 手机 / 信息 / 发送).
+  -->
   <form class="contact-form" novalidate @submit.prevent="onSubmit">
-    <!-- Name (first / last) -->
-    <fieldset class="contact-form__fieldset contact-form__fieldset--row">
-      <legend class="sr-only">{{ t('home.contact.form.nameLabel') }}</legend>
-
-      <div class="contact-form__field">
-        <label class="contact-form__label" for="cf-first-name">
-          {{ t('home.contact.form.nameLabel') }}
-          <span class="contact-form__required" aria-hidden="true">⁕</span>
-          <span class="sr-only">({{ t('home.contact.form.required') }})</span>
-        </label>
-        <input
-          id="cf-first-name"
-          v-model="form.firstName"
-          type="text"
-          class="contact-form__input"
-          :placeholder="t('home.contact.form.firstNamePlaceholder')"
-          required
-        />
-      </div>
-
-      <div class="contact-form__field">
-        <label class="contact-form__label sr-only" for="cf-last-name">
-          {{ t('home.contact.form.lastNamePlaceholder') }}
-        </label>
-        <input
-          id="cf-last-name"
-          v-model="form.lastName"
-          type="text"
-          class="contact-form__input"
-          :placeholder="t('home.contact.form.lastNamePlaceholder')"
-          required
-        />
-      </div>
-    </fieldset>
+    <!-- Name -->
+    <div class="contact-form__field">
+      <label class="contact-form__label" for="cf-name">
+        {{ t('home.contact.form.nameLabel') }}
+        <span class="contact-form__required" aria-hidden="true">⁕</span>
+        <span class="sr-only">({{ t('home.contact.form.required') }})</span>
+      </label>
+      <input
+        id="cf-name"
+        v-model="form.name"
+        type="text"
+        class="contact-form__input"
+        :placeholder="t('home.contact.form.namePlaceholder')"
+        autocomplete="name"
+        required
+      />
+    </div>
 
     <!-- Email + Phone -->
-    <fieldset class="contact-form__fieldset contact-form__fieldset--row">
+    <div class="contact-form__row">
       <div class="contact-form__field">
         <label class="contact-form__label" for="cf-email">
           {{ t('home.contact.form.emailLabel') }}
@@ -70,6 +69,7 @@ function onSubmit() {
           type="email"
           class="contact-form__input"
           :placeholder="t('home.contact.form.emailPlaceholder')"
+          autocomplete="email"
           required
         />
       </div>
@@ -85,25 +85,25 @@ function onSubmit() {
           type="tel"
           class="contact-form__input"
           :placeholder="t('home.contact.form.phonePlaceholder')"
+          autocomplete="tel"
           required
         />
       </div>
-    </fieldset>
+    </div>
 
     <!-- Message -->
-    <fieldset class="contact-form__fieldset">
-      <div class="contact-form__field">
-        <label class="contact-form__label" for="cf-message">
-          {{ t('home.contact.form.messageLabel') }}
-        </label>
-        <textarea
-          id="cf-message"
-          v-model="form.message"
-          class="contact-form__input contact-form__textarea"
-          rows="4"
-        />
-      </div>
-    </fieldset>
+    <div class="contact-form__field">
+      <label class="contact-form__label" for="cf-message">
+        {{ t('home.contact.form.messageLabel') }}
+      </label>
+      <textarea
+        id="cf-message"
+        v-model="form.message"
+        class="contact-form__input contact-form__textarea"
+        :placeholder="t('home.contact.form.messagePlaceholder')"
+        rows="4"
+      />
+    </div>
 
     <button type="submit" class="contact-form__submit">
       {{ t('home.contact.form.send') }}
@@ -117,25 +117,13 @@ function onSubmit() {
   flex-direction: column;
   gap: var(--space-5);
   width: 100%;
+  min-width: 0;
 }
 
-.contact-form__fieldset {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.contact-form__fieldset--row {
+.contact-form__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-5);
-  /* The first column has a visible label, the second uses an `sr-only`
-     label — without this rule the second input would float to the top
-     of its track. Aligning the grid items to the bottom forces both
-     `<input>` elements onto the same baseline. */
   align-items: end;
 }
 
@@ -174,6 +162,7 @@ function onSubmit() {
   color: var(--color-text);
   outline: none;
   transition: border-color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
 }
 
 .contact-form__input::placeholder {
@@ -187,7 +176,7 @@ function onSubmit() {
 
 .contact-form__textarea {
   resize: vertical;
-  min-height: 90px;
+  min-height: 120px;
   line-height: 1.5;
   font-family: var(--font-body);
 }
@@ -200,6 +189,7 @@ function onSubmit() {
   font-weight: 500;
   font-size: 22px;
   height: 70px;
+  border: 0;
   border-radius: var(--radius-pill);
   cursor: pointer;
   margin-top: var(--space-4);
@@ -216,7 +206,7 @@ function onSubmit() {
 }
 
 @media (max-width: 720px) {
-  .contact-form__fieldset--row {
+  .contact-form__row {
     grid-template-columns: 1fr;
   }
 }
