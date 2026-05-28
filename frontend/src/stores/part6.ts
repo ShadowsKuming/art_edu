@@ -412,6 +412,40 @@ export const usePart6Store = defineStore('part6', () => {
     view.value = 'steps'
   }
 
+  // ── Snapshot (persist to DB via project snapshot) ─────────────────
+  function getSnapshot() {
+    return {
+      sketchDataUrl: sketchDataUrl.value,
+      sketchBase64: sketchBase64.value,
+      sketchMime: sketchMime.value,
+      styles: styles.value,
+      lessonSummary: lessonSummary.value,
+      selectedStyleIdx: selectedStyleIdx.value,
+      usedStyleIndices: usedStyleIndices.value,
+      confirmedMessageId: confirmedMessageId.value,
+      messages: messages.value,
+      view: view.value,
+      latestResult: latestResult.value,
+    }
+  }
+
+  function loadSnapshot(snap: ReturnType<typeof getSnapshot>) {
+    sketchDataUrl.value = snap.sketchDataUrl ?? null
+    sketchBase64.value = snap.sketchBase64 ?? null
+    sketchMime.value = snap.sketchMime ?? 'image/jpeg'
+    styles.value = snap.styles ?? []
+    lessonSummary.value = snap.lessonSummary ?? ''
+    selectedStyleIdx.value = snap.selectedStyleIdx ?? null
+    usedStyleIndices.value = snap.usedStyleIndices ?? []
+    confirmedMessageId.value = snap.confirmedMessageId ?? null
+    messages.value = snap.messages ?? []
+    view.value = snap.view ?? 'steps'
+    latestResult.value = snap.latestResult ?? null
+    chatLoading.value = false
+    chatError.value = null
+    conversionError.value = null
+  }
+
   return {
     // sketch
     sketchDataUrl, sketchBase64, sketchMime,
@@ -426,5 +460,6 @@ export const usePart6Store = defineStore('part6', () => {
     view, latestResult, conversionError,
     // actions
     setSketch, generateStyles, convert, convertAgain,
+    getSnapshot, loadSnapshot,
   }
 })

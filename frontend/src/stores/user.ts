@@ -26,6 +26,7 @@ import { computed, ref } from 'vue'
  * (SiteHeader, MyLessons fall-back, etc.) continue to work without churn.
  */
 import { DEFAULT_AVATAR_INDEX } from '@/data/avatars'
+import { apiPost, apiPatch, getToken, setToken } from '@/api/client'
 
 const KEY_INVITE = 'artbloom-username' // legacy key, kept for back-compat
 const KEY_DISPLAY = 'artbloom-display-name'
@@ -75,6 +76,9 @@ export const useUserStore = defineStore('user', () => {
         () => displayName.value.trim() || inviteCode.value || 'Guest',
     )
 
+    /** Whether the user has a valid JWT token (API mode). */
+    const isLoggedIn = computed(() => !!getToken())
+
     /** Set the invitation code typed in the access modal. */
     function setInviteCode(code: string) {
         inviteCode.value = code.trim()
@@ -85,18 +89,51 @@ export const useUserStore = defineStore('user', () => {
     function setDisplayName(name: string) {
         displayName.value = name
         writeLS(KEY_DISPLAY, displayName.value)
+        if (getToken()) apiPatch('/api/auth/me', { display_name: name }).catch(console.error)
     }
 
     /** Update the user's bio / teaching motto. */
     function setBio(text: string) {
         bio.value = text
         writeLS(KEY_BIO, bio.value)
+        if (getToken()) apiPatch('/api/auth/me', { bio: text }).catch(console.error)
     }
 
     /** Pick a new avatar (0-based index into AVATARS). */
     function setAvatarIndex(index: number) {
         avatarIndex.value = index
         writeLS(KEY_AVATAR, String(index))
+        if (getToken()) apiPatch('/api/auth/me', { avatar_index: index }).catch(console.error)
+    }
+
+    /**
+     * Login via API — calls POST /api/auth/login, stores the JWT, and
+     * hydrates user data from the response. Falls back gracefully to
+     * local-only mode if the call fails.
+     */
+    async function login(code: string): Promise<void> {
+        const result = await apiPost<{
+            token: string
+            user_id: string
+            invite_code: string
+            display_name: string | null
+            bio: string | null
+            avatar_index: number
+        }>('/api/auth/login', { invite_code: code })
+
+        setToken(result.token)
+        inviteCode.value = result.invite_code
+        writeLS(KEY_INVITE, result.invite_code)
+        if (result.display_name) {
+            displayName.value = result.display_name
+            writeLS(KEY_DISPLAY, result.display_name)
+        }
+        if (result.bio) {
+            bio.value = result.bio
+            writeLS(KEY_BIO, result.bio)
+        }
+        avatarIndex.value = result.avatar_index
+        writeLS(KEY_AVATAR, String(result.avatar_index))
     }
 
     /** Wipe everything — useful when implementing real sign-out. */
@@ -129,10 +166,12 @@ export const useUserStore = defineStore('user', () => {
         bio,
         avatarIndex,
         displayLabel,
+        isLoggedIn,
         setInviteCode,
         setDisplayName,
         setBio,
         setAvatarIndex,
+        login,
         clearAll,
         // legacy aliases
         username,

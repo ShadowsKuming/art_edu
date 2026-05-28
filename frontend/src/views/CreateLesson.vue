@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import WorkspaceHeader from '@/components/workspace/WorkspaceHeader.vue'
 import WorkspaceContent from '@/components/workspace/WorkspaceContent.vue'
 import WorkspaceSidebar from '@/components/workspace/WorkspaceSidebar.vue'
@@ -11,14 +12,46 @@ import Part5Content from '@/components/workspace/part5/Part5Content.vue'
 import Part6Content from '@/components/workspace/part6/Part6Content.vue'
 import Part6AssistancePanel from '@/components/workspace/part6/Part6AssistancePanel.vue'
 import Part7Content from '@/components/workspace/part7/Part7Content.vue'
+import TeachingMode from '@/components/workspace/TeachingMode.vue'
 
 import { useSlideStore } from '@/stores/slides'
+import { useProjectsStore } from '@/stores/projects'
+import { usePart5Store } from '@/stores/part5'
+import { usePart3Store } from '@/stores/part3'
+import { usePart6Store } from '@/stores/part6'
+import { usePart7Store } from '@/stores/part7'
+import { apiGet, getToken } from '@/api/client'
+import type { ApiProject } from '@/stores/projects'
 
+const route = useRoute()
+const router = useRouter()
 const slideStore = useSlideStore()
+const projectsStore = useProjectsStore()
+const part5Store = usePart5Store()
+const part3Store = usePart3Store()
+const part6Store = usePart6Store()
+const part7Store = usePart7Store()
 const isPart3 = computed(() => slideStore.activePart === 3)
 const isPart5 = computed(() => slideStore.activePart === 5)
 const isPart6 = computed(() => slideStore.activePart === 6)
 const isPart7 = computed(() => slideStore.activePart === 7)
+
+const canStartTeaching = computed(() => slideStore.slides.length > 0)
+const teachingActive = ref(false)
+
+// Auto-save the snapshot to the API whenever the teacher moves to a new part.
+// This means every "Next Part" click persists slide data to the DB — not just
+// the explicit "Back" button press. The watch fires on change only (not on mount).
+watch(
+  () => slideStore.activePart,
+  () => {
+    projectsStore.saveCurrentProject(
+      slideStore.getSnapshot(),
+      part5Store.videoDataUrl ?? undefined,
+      part5Store.videoName || undefined,
+    )
+  },
+)
 
 // Part 3 mode state
 const part3Mode = ref<'story' | 'animation'>('story')
@@ -31,9 +64,44 @@ const MIN_CHAT      = 240
 
 const chatWidth = ref(0)
 
-onMounted(() => {
+onMounted(async () => {
   const available = window.innerWidth - SIDEBAR_WIDTH
   chatWidth.value = Math.round(available * (2 / 5))
+
+  const projectId = route.params.projectId as string
+
+  // Normal navigation: slides already loaded by MyLessons/Dashboard.
+  // Refresh case: slide store is empty — reload from API using the URL project ID.
+  if (slideStore.slides.length === 0 && projectId) {
+    try {
+      // Try the API first (requires login)
+      if (getToken()) {
+        const p = await apiGet<ApiProject>(`/api/projects/${projectId}`)
+        projectsStore.setActiveProject(projectId)
+        slideStore.loadSnapshot(p.snapshot)
+        if (p.part5_video_name) part5Store.setVideo('', p.part5_video_name)
+        if (p.snapshot.part5CustomUrl) part5Store.setPastedUrl(p.snapshot.part5CustomUrl)
+        if (p.snapshot.part3Snapshot) part3Store.loadSnapshot(p.snapshot.part3Snapshot)
+        if (p.snapshot.part6Snapshot) part6Store.loadSnapshot(p.snapshot.part6Snapshot)
+        if (p.snapshot.part7Snapshot) part7Store.loadSnapshot(p.snapshot.part7Snapshot)
+      } else {
+        // No token — try localStorage fallback
+        const local = projectsStore.projects.find(p => p.id === projectId)
+        if (local) {
+          projectsStore.setActiveProject(projectId)
+          slideStore.loadSnapshot(local.snapshot)
+        } else {
+          router.push('/lessons')
+        }
+      }
+    } catch {
+      // Project not found or token invalid — send to lessons
+      router.push('/lessons')
+    }
+  } else if (projectId && !projectsStore.activeProjectId) {
+    // Slide store has data but active ID wasn't set (edge case)
+    projectsStore.setActiveProject(projectId)
+  }
 })
 
 let startX     = 0
@@ -64,7 +132,10 @@ function stopResize() {
 
 <template>
   <div class="workspace">
-    <WorkspaceHeader :can-start-teaching="false" />
+    <WorkspaceHeader
+      :can-start-teaching="canStartTeaching"
+      @start-teaching="teachingActive = true"
+    />
     <div class="workspace-body">
       <WorkspaceSidebar />
 
@@ -113,6 +184,9 @@ function stopResize() {
 
     </div>
   </div>
+
+  <!-- Fullscreen teaching mode overlay -->
+  <TeachingMode v-if="teachingActive" @close="teachingActive = false" />
 </template>
 
 <style scoped>

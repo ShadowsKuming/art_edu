@@ -727,6 +727,55 @@ export const usePart3Store = defineStore('part3', () => {
   const selectedUploadedId = computed(() => activePair.value?.selectedUploadedId ?? null)
   const uploadedArtworks = computed(() => activePair.value?.uploadedArtworks ?? [])
 
+  // ── Snapshot (persist to DB via project snapshot) ─────────────────
+  function getSnapshot() {
+    return {
+      activePairId: activePairId.value,
+      pairs: pairs.value.map(p => ({
+        id: p.id,
+        imageDataUrl: p.imageDataUrl,
+        imageUrl: p.imageUrl,
+        imageBase64: p.imageBase64,
+        imageMime: p.imageMime,
+        selectedArtworkId: p.selectedArtworkId,
+        uploadedArtworks: p.uploadedArtworks,
+        selectedUploadedId: p.selectedUploadedId,
+        artworkStates: p.artworkStates,
+        activeArtworkKey: p.activeArtworkKey,
+        storyData: p.storyData,
+        animationVersions: p.animationVersions,
+        remainingAttempts: p.remainingAttempts,
+        chosenVideoUrl: p.chosenVideoUrl,
+        selectedChoiceId: p.selectedChoiceId,
+        generatedContinuations: p.generatedContinuations,
+        designChatMessages: p.designChatMessages,
+      })),
+    }
+  }
+
+  function loadSnapshot(snap: ReturnType<typeof getSnapshot>) {
+    pairs.value = (snap.pairs ?? []).map((p: any) => ({
+      ...makePair(p.id),
+      imageDataUrl: p.imageDataUrl ?? null,
+      imageUrl: p.imageUrl ?? null,
+      imageBase64: p.imageBase64 ?? null,
+      imageMime: p.imageMime ?? 'image/jpeg',
+      selectedArtworkId: p.selectedArtworkId ?? null,
+      uploadedArtworks: p.uploadedArtworks ?? [],
+      selectedUploadedId: p.selectedUploadedId ?? null,
+      artworkStates: p.artworkStates ?? {},
+      activeArtworkKey: p.activeArtworkKey ?? null,
+      storyData: p.storyData ?? null,
+      animationVersions: p.animationVersions ?? [],
+      remainingAttempts: p.remainingAttempts ?? 3,
+      chosenVideoUrl: p.chosenVideoUrl ?? null,
+      selectedChoiceId: p.selectedChoiceId ?? null,
+      generatedContinuations: p.generatedContinuations ?? {},
+      designChatMessages: p.designChatMessages ?? [],
+    }))
+    activePairId.value = snap.activePairId ?? null
+  }
+
   return {
     pairs, activePairId, activePair,
     imageDataUrl, storyData, storyLoading, storyError,
@@ -739,6 +788,7 @@ export const usePart3Store = defineStore('part3', () => {
     addUploadedArtwork, selectUploadedArtwork, removeUploadedArtwork,
     generateStory, generateAnimation, saveChosenVideo, generateContinuation,
     sendDesignChat, applyRevisedStory,
+    getSnapshot, loadSnapshot,
   }
 })
 

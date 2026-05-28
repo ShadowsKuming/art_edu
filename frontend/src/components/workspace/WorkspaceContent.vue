@@ -20,6 +20,7 @@ function addElement() {
 
 function onToolClick(tool: Tool) {
   activeTool.value = tool
+  showImageMenu.value = false
   if (tool === 'text') addElement()
 }
 
@@ -76,6 +77,7 @@ function applyBgColor() {
 
 function toggleImageMenu() {
   showImageMenu.value = !showImageMenu.value
+  if (showImageMenu.value) activeTool.value = 'image'
 }
 
 function resetToGlobal() {
@@ -139,6 +141,61 @@ function uploadImageElement() {
 function generateImage() {
   showImageMenu.value = false
 }
+
+function uploadVideo() {
+  const slideId = slideStore.activeSlideId
+  if (!slideId) return
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'video/*'
+  input.style.cssText = 'position:fixed;top:-999px;left:-999px;opacity:0;pointer-events:none;'
+  document.body.appendChild(input)
+  input.addEventListener('change', () => {
+    const file = input.files?.[0]
+    input.remove()
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const vid = document.createElement('video')
+      vid.onloadedmetadata = () => {
+        const maxW = CANVAS_W * 0.6
+        const maxH = CANVAS_H * 0.6
+        const scale = Math.min(maxW / (vid.videoWidth || 480), maxH / (vid.videoHeight || 270), 1)
+        const w = Math.round((vid.videoWidth || 480) * scale)
+        const h = Math.round((vid.videoHeight || 270) * scale)
+        slideStore.addVideoElement(slideId, dataUrl, w, h)
+      }
+      vid.src = dataUrl
+    }
+    reader.readAsDataURL(file)
+  })
+  input.click()
+}
+
+function uploadAudio() {
+  const slideId = slideStore.activeSlideId
+  if (!slideId) return
+  // Toggle: if slide already has audio, remove it
+  if (slideStore.activeSlide?.audioBg) {
+    slideStore.setSlideAudio(slideId, undefined)
+    return
+  }
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'audio/*'
+  input.style.cssText = 'position:fixed;top:-999px;left:-999px;opacity:0;pointer-events:none;'
+  document.body.appendChild(input)
+  input.addEventListener('change', () => {
+    const file = input.files?.[0]
+    input.remove()
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => slideStore.setSlideAudio(slideId, reader.result as string)
+    reader.readAsDataURL(file)
+  })
+  input.click()
+}
 const { t } = useI18n()
 const fontFamilies = ['Albert Sans', 'Plus Jakarta Sans', 'Inter', 'Noto Sans SC']
 const fontWeights = ['Normal', 'Medium', 'Bold']
@@ -180,7 +237,7 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
               class="tool-btn"
               :class="{ 'tool-btn--active': activeTool === 'video' }"
               :disabled="!hasSlide"
-              @click.stop="activeTool = 'video'"
+              @click.stop="onToolClick('video'); uploadVideo()"
             >
               <svg viewBox="0 0 20 20" fill="none" class="tool-icon">
                 <rect x="2" y="5" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
@@ -189,9 +246,9 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
             </button>
             <button
               class="tool-btn"
-              :class="{ 'tool-btn--active': activeTool === 'audio' }"
+              :class="{ 'tool-btn--active': activeTool === 'audio' || !!slideStore.activeSlide?.audioBg }"
               :disabled="!hasSlide"
-              @click.stop="activeTool = 'audio'"
+              @click.stop="onToolClick('audio'); uploadAudio()"
             >
               <svg viewBox="0 0 20 20" fill="none" class="tool-icon">
                 <path d="M9 4v12M6 7v6M3 9v2M12 6v8M15 8v4M18 9v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -373,7 +430,6 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
             </div>
           </template>
 
-          <button class="btn-save" @click="() => {}">{{ t('content.save') }}</button>
           <button class="btn-save-next" @click="slideStore.navigateToNextPart()">{{ t('content.saveNext') }}</button>
         </div>
       </div>

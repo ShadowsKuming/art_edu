@@ -68,7 +68,7 @@ function resumeProject(id: string) {
   } else {
     part5Store.clearVideo()
   }
-  router.push('/workspace')
+  router.push(`/workspace/${id}`)
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────

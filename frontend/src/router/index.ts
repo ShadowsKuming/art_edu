@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useProjectsStore } from '@/stores/projects'
+import { getToken } from '@/api/client'
 import HomePage from '@/views/HomePage.vue'
 
 const router = createRouter({
@@ -56,22 +56,31 @@ const router = createRouter({
       component: () => import('@/views/MyAccount.vue'),
     },
     {
-      path: '/workspace',
+      path: '/workspace/:projectId',
       name: 'workspace',
       component: () => import('@/views/CreateLesson.vue'),
     },
   ],
 })
 
-// Workspace requires an active project. If a user deep-links to
-// /workspace without one, send them to the lesson list (where they
-// can pick or create a project), not the hub.
+// A "session" exists if either a JWT token or an invite code is stored.
+// The JWT is present when the API was reachable on login; the invite code
+// is always stored (even when the backend was down). Both mean "user has
+// logged in on this device before".
+function hasSession(): boolean {
+  return !!getToken() || !!localStorage.getItem('artbloom-username')
+}
+
 router.beforeEach((to) => {
-  if (to.name === 'workspace') {
-    const projectsStore = useProjectsStore()
-    if (!projectsStore.activeProjectId) {
-      return { name: 'lessons' }
-    }
+  // Redirect logged-in users away from the homepage — they've already
+  // entered their invite code on this device, no need to do it again.
+  if (to.name === 'home' && hasSession()) {
+    return { name: 'dashboard' }
+  }
+
+  // Workspace requires a project ID in the URL.
+  if (to.name === 'workspace' && !to.params.projectId) {
+    return { name: 'lessons' }
   }
 })
 

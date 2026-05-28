@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { toggleLocale } from '@/i18n'
 import { useUserStore } from '@/stores/user'
+import { useProjectsStore } from '@/stores/projects'
 import logoUrl from '@/assets/images/logo.png'
 import AccessModal from './AccessModal.vue'
 
@@ -12,6 +13,7 @@ type Anchor = 'home' | 'tutorial' | 'contact'
 const router = useRouter()
 const { t, locale } = useI18n()
 const userStore = useUserStore()
+const projectsStore = useProjectsStore()
 
 const activeSection = ref<Anchor>('home')
 const sectionIds: Anchor[] = ['home', 'tutorial', 'contact']
@@ -66,16 +68,18 @@ function onAccess() {
 /**
  * Submit handler for the AccessModal.
  *
- * Until a real backend exists we accept whatever the user typed, store
- * it on the user store as the displayed username, and route to the
- * Dashboard hub. The Dashboard's `<DashboardHeader>` renders this code
- * verbatim as "Hi, {code}". Empty input falls back to "Guest".
- *
- * When auth lands, swap `setUsername(code)` for the API's display name
- * — no other call site needs to change.
+ * Calls the API login endpoint to authenticate the user and load their
+ * projects. Falls back to local-only mode if the API is unavailable
+ * (e.g. DATABASE_URL not configured on the server).
  */
-function onAccessSubmit(code: string) {
-  userStore.setUsername(code || 'Guest')
+async function onAccessSubmit(code: string) {
+  try {
+    await userStore.login(code || 'Guest')
+    await projectsStore.loadFromAPI()
+  } catch {
+    // DB not available — fall back to local-only mode
+    userStore.setUsername(code || 'Guest')
+  }
   accessOpen.value = false
   router.push('/dashboard')
 }

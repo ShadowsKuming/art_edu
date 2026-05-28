@@ -161,6 +161,35 @@ export const usePart7Store = defineStore('part7', () => {
         }
     }
 
+    // ── Snapshot (persist to DB via project snapshot) ────────────────
+    function getSnapshot() {
+        return {
+            activePairId: activePairId.value,
+            pairs: pairs.value.map(p => ({
+                id: p.id,
+                activeWorkIdx: p.activeWorkIdx,
+                works: p.works.map(w => ({
+                    ...w,
+                    generatingFeedback: false,
+                    feedbackError: null,
+                })),
+            })),
+        }
+    }
+
+    function loadSnapshot(snap: ReturnType<typeof getSnapshot>) {
+        pairs.value = (snap.pairs ?? []).map((p: any) => ({
+            ...makePair(p.id),
+            activeWorkIdx: p.activeWorkIdx ?? 0,
+            works: (p.works ?? []).map((w: any) => ({
+                ...w,
+                generatingFeedback: false,
+                feedbackError: null,
+            })),
+        }))
+        activePairId.value = snap.activePairId ?? null
+    }
+
     return {
         pairs,
         activePairId,
@@ -172,5 +201,7 @@ export const usePart7Store = defineStore('part7', () => {
         selectStudentWork,
         setStudentNote,
         generateComment,
+        getSnapshot,
+        loadSnapshot,
     }
 })

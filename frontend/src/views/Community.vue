@@ -20,7 +20,7 @@
  * handlers are intentional no-ops while the backend is still
  * placeholder.
  */
-import { ref, computed, shallowRef } from 'vue'
+import { ref, computed, shallowRef, onMounted } from 'vue'
 
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -35,6 +35,7 @@ import { hydrateProjectFromLesson } from '@/utils/lessonSeed'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
 import type { Slide } from '@/stores/slides'
+import { apiGet, apiPost, getToken } from '@/api/client'
 
 import underlineUrl from '@/assets/images/Underline.svg'
 // Community page uses its own hero illustration — distinct from the
@@ -45,6 +46,36 @@ const router = useRouter()
 const { t, locale } = useI18n()
 const projectsStore = useProjectsStore()
 const toast = useToastStore()
+
+// ── API-backed community lessons ─────────────────────────────────
+
+interface ApiCommunityLesson {
+    community_id: string
+    project_id: string
+    author_display: string
+    name: string
+    meta: Record<string, unknown> | null
+    snapshot: Record<string, unknown>
+    published_at: string
+}
+
+// When the API returns community lessons, we store them here.
+// Falls back to LESSON_REGISTRY-based data if the API isn't available.
+const apiLessons = ref<ApiCommunityLesson[] | null>(null)
+
+onMounted(async () => {
+    if (getToken()) {
+        try {
+            const data = await apiGet<ApiCommunityLesson[]>('/api/community')
+            if (data && data.length > 0) {
+                apiLessons.value = data
+            }
+        } catch (err) {
+            // API unavailable — fall back to LESSON_REGISTRY
+            console.warn('[Community] API fetch failed, using local registry', err)
+        }
+    }
+})
 
 
 
@@ -134,7 +165,23 @@ function closePreview() {
  * workspace — `activeProjectId` is restored to its previous value
  * after the new project is written.
  */
-function onSave(id: string) {
+async function onSave(id: string) {
+    // If the API returned community lessons, try the API save path first.
+    if (getToken() && apiLessons.value) {
+        const apiLesson = apiLessons.value.find((l) => l.community_id === id || l.project_id === id)
+        if (apiLesson) {
+            try {
+                await apiPost(`/api/community/save/${apiLesson.community_id}`)
+                await projectsStore.loadFromAPI()
+                toast.show(t('community.save.savedToMyLessons'), 'success')
+                return
+            } catch (err) {
+                console.warn('[Community] API save failed, falling back to local', err)
+            }
+        }
+    }
+
+    // Local / fallback path — saves from LESSON_REGISTRY
     const seed = LESSON_REGISTRY.find((lkp) => lkp.lesson_id === id)
     if (!seed) {
         console.warn('[Community] save: no LKP found for', id)
@@ -158,8 +205,8 @@ function onSave(id: string) {
     // a side-effect.
     const prevActiveId = projectsStore.activeProjectId
 
-    const newId = projectsStore.createProject(name, meta)
-    projectsStore.saveCurrentProject(snapshot)
+    const newId = await projectsStore.createProject(name, meta)
+    await projectsStore.saveCurrentProject(snapshot)
 
     // Stamp the project as a Community-saved one so it lands in the
     // "Saved" filter tab on My Lessons. Direct mutation is safe because

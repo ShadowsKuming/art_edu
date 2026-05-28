@@ -20,6 +20,7 @@ configs to inject into each Executor call.  See
 
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncIterator, Optional
@@ -33,6 +34,9 @@ from fastapi.responses import FileResponse, RedirectResponse, Response, Streamin
 from pydantic import BaseModel
 
 from lesson_context import lesson_manager
+from auth import create_token, get_current_user_id
+from db import Base, db_available, engine, get_db
+from models import CommunityLesson, Project, User
 
 # ════════════════════════════════════════════════════════════════════════
 # 1. Bootstrap
@@ -40,7 +44,36 @@ from lesson_context import lesson_manager
 
 load_dotenv()
 
-app = FastAPI(title="ArtBloom API")
+# ── Invitation codes ─────────────────────────────────────────────────────────
+# Set INVITE_CODES in the environment as a comma-separated list to restrict
+# access to specific codes only.  Defaults to the three pilot codes below.
+# Example (Render dashboard or .env):
+#   INVITE_CODES=BLOOM-2026-A,BLOOM-2026-B,BLOOM-2026-C
+_raw_codes = os.getenv("INVITE_CODES", "BLOOM-2026-A,BLOOM-2026-B,BLOOM-2026-C")
+INVITE_CODES: set[str] = {c.strip().upper() for c in _raw_codes.split(",") if c.strip()}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create DB tables and pre-seed invite-code users on startup."""
+    if engine is not None:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        # Pre-create a User row for every whitelisted code so the account
+        # exists before the teacher's first login on any device.
+        async with get_db() as db:
+            for code in INVITE_CODES:
+                existing = await db.execute(select(User).where(User.invite_code == code))
+                if existing.scalar_one_or_none() is None:
+                    db.add(User(invite_code=code))
+            await db.commit()
+        print(f"[startup] database ready — {len(INVITE_CODES)} invite codes active", flush=True)
+    else:
+        print("[startup] DATABASE_URL not set — running without persistence", flush=True)
+    yield
+
+
+app = FastAPI(title="ArtBloom API", lifespan=lifespan)
 
 # CORS — origins are env-driven so production can be locked down later.
 # Default keeps the local Vite dev ports working. In production we set
@@ -1987,3 +2020,320 @@ async def text_to_speech(req: TTSRequest):
     except Exception as e:
         print(f"[TTS] edge-tts error: {e}", flush=True)
         raise HTTPException(500, f"TTS failed: {e}")
+
+
+# ════════════════════════════════════════════════════════════════════════
+# 10. Database — Users / Projects / Community
+# ════════════════════════════════════════════════════════════════════════
+
+from fastapi import Depends
+from sqlalchemy import select, update as sql_update, delete as sql_delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+# ── Pydantic request / response schemas ──────────────────────────────────
+
+class LoginRequest(BaseModel):
+    invite_code: str
+
+
+class LoginResponse(BaseModel):
+    token: str
+    user_id: str
+    invite_code: str
+    display_name: str | None
+    bio: str | None
+    avatar_index: int
+
+
+class ProfileUpdate(BaseModel):
+    display_name: str | None = None
+    bio: str | None = None
+    avatar_index: int | None = None
+
+
+class ProjectCreate(BaseModel):
+    id: str
+    name: str
+    status: str = "draft"
+    meta: dict | None = None
+    snapshot: dict
+    part5_video_name: str | None = None
+
+
+class ProjectSave(BaseModel):
+    name: str | None = None
+    status: str | None = None
+    snapshot: dict | None = None
+    part5_video_name: str | None = None
+
+
+class ProjectOut(BaseModel):
+    id: str
+    name: str
+    status: str
+    meta: dict | None
+    snapshot: dict
+    part5_video_name: str | None
+    created_at: str
+    updated_at: str
+
+
+class CommunityLessonOut(BaseModel):
+    community_id: str
+    project_id: str
+    author_display: str
+    name: str
+    meta: dict | None
+    snapshot: dict
+    published_at: str
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+def _db_required():
+    if not db_available():
+        raise HTTPException(503, "Database not configured on this instance")
+
+
+def _project_out(p: Project) -> dict:
+    return {
+        "id": p.id,
+        "name": p.name,
+        "status": p.status or "draft",
+        "meta": p.meta,
+        "snapshot": p.snapshot,
+        "part5_video_name": p.part5_video_name,
+        "created_at": p.created_at.isoformat() if p.created_at else "",
+        "updated_at": p.updated_at.isoformat() if p.updated_at else "",
+    }
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────
+
+@app.post("/api/auth/login")
+async def login(req: LoginRequest):
+    """Login with a whitelisted invite code.  One code = one user across all devices."""
+    _db_required()
+    code = req.invite_code.strip().upper()
+    if not code or code not in INVITE_CODES:
+        raise HTTPException(401, "Invalid invitation code")
+    async with get_db() as db:
+        result = await db.execute(select(User).where(User.invite_code == code))
+        user = result.scalar_one_or_none()
+        if user is None:
+            # Shouldn't happen after pre-seeding in lifespan, but handle gracefully
+            user = User(invite_code=code)
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+        token = create_token(str(user.id))
+        return {
+            "token": token,
+            "user_id": str(user.id),
+            "invite_code": user.invite_code,
+            "display_name": user.display_name,
+            "bio": user.bio,
+            "avatar_index": user.avatar_index if user.avatar_index is not None else 8,
+        }
+
+
+@app.get("/api/auth/me")
+async def get_me(user_id: str = Depends(get_current_user_id)):
+    _db_required()
+    async with get_db() as db:
+        user = await db.get(User, user_id)
+        if not user:
+            raise HTTPException(404, "User not found")
+        return {
+            "user_id": str(user.id),
+            "invite_code": user.invite_code,
+            "display_name": user.display_name,
+            "bio": user.bio,
+            "avatar_index": user.avatar_index if user.avatar_index is not None else 8,
+        }
+
+
+@app.patch("/api/auth/me")
+async def update_me(body: ProfileUpdate, user_id: str = Depends(get_current_user_id)):
+    _db_required()
+    async with get_db() as db:
+        user = await db.get(User, user_id)
+        if not user:
+            raise HTTPException(404, "User not found")
+        if body.display_name is not None:
+            user.display_name = body.display_name
+        if body.bio is not None:
+            user.bio = body.bio
+        if body.avatar_index is not None:
+            user.avatar_index = body.avatar_index
+        await db.commit()
+        return {"ok": True}
+
+
+# ── Projects ──────────────────────────────────────────────────────────────
+
+@app.get("/api/projects")
+async def list_projects(user_id: str = Depends(get_current_user_id)):
+    _db_required()
+    async with get_db() as db:
+        result = await db.execute(
+            select(Project).where(Project.user_id == user_id).order_by(Project.updated_at.desc())
+        )
+        return [_project_out(p) for p in result.scalars().all()]
+
+
+@app.post("/api/projects", status_code=201)
+async def create_project(body: ProjectCreate, user_id: str = Depends(get_current_user_id)):
+    _db_required()
+    async with get_db() as db:
+        project = Project(
+            id=body.id,
+            user_id=user_id,
+            name=body.name,
+            status=body.status,
+            meta=body.meta,
+            snapshot=body.snapshot,
+            part5_video_name=body.part5_video_name,
+        )
+        db.add(project)
+        await db.commit()
+        await db.refresh(project)
+        return _project_out(project)
+
+
+@app.get("/api/projects/{project_id}")
+async def get_project(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    _db_required()
+    async with get_db() as db:
+        project = await db.get(Project, project_id)
+        if not project or str(project.user_id) != user_id:
+            raise HTTPException(404, "Project not found")
+        return _project_out(project)
+
+
+@app.put("/api/projects/{project_id}")
+async def save_project(
+    project_id: str,
+    body: ProjectSave,
+    user_id: str = Depends(get_current_user_id),
+):
+    _db_required()
+    async with get_db() as db:
+        project = await db.get(Project, project_id)
+        if not project or str(project.user_id) != user_id:
+            raise HTTPException(404, "Project not found")
+        if body.name is not None:
+            project.name = body.name
+        if body.status is not None:
+            project.status = body.status
+        if body.snapshot is not None:
+            project.snapshot = body.snapshot
+        if body.part5_video_name is not None:
+            project.part5_video_name = body.part5_video_name
+        from datetime import datetime, timezone as _tz
+        project.updated_at = datetime.now(_tz.utc)
+        await db.commit()
+        return _project_out(project)
+
+
+@app.delete("/api/projects/{project_id}", status_code=204)
+async def delete_project(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    _db_required()
+    async with get_db() as db:
+        project = await db.get(Project, project_id)
+        if not project or str(project.user_id) != user_id:
+            raise HTTPException(404, "Project not found")
+        await db.delete(project)
+        await db.commit()
+
+
+# ── Community ─────────────────────────────────────────────────────────────
+
+@app.get("/api/community")
+async def list_community(skip: int = 0, limit: int = 20):
+    _db_required()
+    async with get_db() as db:
+        result = await db.execute(
+            select(CommunityLesson, Project, User)
+            .join(Project, CommunityLesson.project_id == Project.id)
+            .join(User, CommunityLesson.user_id == User.id)
+            .order_by(CommunityLesson.published_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        rows = result.all()
+        return [
+            {
+                "community_id": str(cl.id),
+                "project_id": cl.project_id,
+                "author_display": u.display_name or u.invite_code,
+                "name": p.name,
+                "meta": p.meta,
+                "snapshot": p.snapshot,
+                "published_at": cl.published_at.isoformat(),
+            }
+            for cl, p, u in rows
+        ]
+
+
+@app.post("/api/community/publish/{project_id}", status_code=201)
+async def publish_to_community(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    _db_required()
+    async with get_db() as db:
+        project = await db.get(Project, project_id)
+        if not project or str(project.user_id) != user_id:
+            raise HTTPException(404, "Project not found")
+        # Check not already published
+        existing = await db.execute(
+            select(CommunityLesson).where(CommunityLesson.project_id == project_id)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(409, "Already published")
+        cl = CommunityLesson(project_id=project_id, user_id=user_id)
+        db.add(cl)
+        await db.commit()
+        await db.refresh(cl)
+        return {"community_id": str(cl.id), "published_at": cl.published_at.isoformat()}
+
+
+@app.post("/api/community/save/{community_id}", status_code=201)
+async def save_community_lesson(
+    community_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Copy a community lesson into the requesting user's projects."""
+    _db_required()
+    async with get_db() as db:
+        result = await db.execute(
+            select(CommunityLesson, Project)
+            .join(Project, CommunityLesson.project_id == Project.id)
+            .where(CommunityLesson.id == community_id)
+        )
+        row = result.one_or_none()
+        if not row:
+            raise HTTPException(404, "Community lesson not found")
+        cl, source = row
+        import time
+        new_id = f"proj-{int(time.time() * 1000)}"
+        copy = Project(
+            id=new_id,
+            user_id=user_id,
+            name=source.name,
+            status="saved",
+            meta=source.meta,
+            snapshot=source.snapshot,
+        )
+        db.add(copy)
+        await db.commit()
+        await db.refresh(copy)
+        return _project_out(copy)
