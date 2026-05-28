@@ -11,9 +11,19 @@ const { t, tm } = useI18n()
 
 const PART_IDS = [1, 2, 3, 4, 5, 6, 7]
 
-// Parts 1, 2, 4 show normal slide thumbnails.
-// Part 3 gets its own artwork list below.
-const SLIDE_EDITOR_PARTS = new Set([1, 2, 4])
+// Parts 1, 2, 4, 5 show normal slide thumbnails.
+//
+// 2026-05 — Part 5 ("创意示范") was previously a single video-only
+// page. Pilot teachers wanted to keep the demonstration video AND
+// add their own blank canvas slides for follow-up notes / class
+// activities. Part 5 now behaves like 1/2/4 with one quirk: the
+// FIRST Part-5 slide is always the "video slide" (renders
+// `Part5Content` in `CreateLesson.vue`), and it cannot be deleted
+// (see `canDelete` below). Subsequent slides are regular blank
+// canvases.
+//
+// Part 3 still gets its own artwork-thumbnail list further down.
+const SLIDE_EDITOR_PARTS = new Set([1, 2, 4, 5])
 
 const slideStore = useSlideStore()
 const part3Store = usePart3Store()
@@ -55,8 +65,13 @@ function deleteSlide(slideId: string) {
   slideStore.removeSlide(slideId)
 }
 
-function canDelete(partId: number) {
-  return slideStore.slidesForPart(partId).length > 1
+function canDelete(slide: { id: string; partId: number }) {
+  // 2026-05 — The first Part-5 slide is the "video slide" and must
+  // never be deleted (it owns the Part5Content video player UI).
+  // Other Part-5 slides and all Parts-1/2/4 slides follow the
+  // normal rule: must leave at least one slide in the Part.
+  if (slideStore.isPart5VideoSlide(slide.id)) return false
+  return slideStore.slidesForPart(slide.partId).length > 1
 }
 
 function selectSlide(id: string) {
@@ -198,7 +213,15 @@ function uploadNewArtwork() {
           </div>
         </div>
 
-        <!-- Normal slide thumbnails for parts 1, 2, 4 -->
+        <!-- Normal slide thumbnails for parts 1, 2, 4, 5.
+             Part 5's first slide is the "video slide": instead of
+             rendering the slide's elements via `<SlideThumbnail>`
+             (which leaks any LKP-seeded text like "艺术实践·步骤提示"
+             through the sidebar), we draw a pure play-icon cover so
+             the teacher can instantly identify it as the video
+             slot. The underlying slide model has been wiped of
+             elements by `slideStore.navigateToPart(5)` for the same
+             reason — see the comment there. -->
         <div
           v-else-if="part.status === 'active' && SLIDE_EDITOR_PARTS.has(part.id)"
           class="slides-list"
@@ -207,12 +230,27 @@ function uploadNewArtwork() {
             v-for="slide in activePartSlides"
             :key="slide.id"
             class="slide-thumb"
-            :class="{ 'slide-thumb--active': slideStore.activeSlideId === slide.id }"
+            :class="{
+              'slide-thumb--active': slideStore.activeSlideId === slide.id,
+              'slide-thumb--video': slideStore.isPart5VideoSlide(slide.id),
+            }"
             @click="selectSlide(slide.id)"
           >
-            <SlideThumbnail :slide="slide" />
+            <!-- Video-slide cover (Part 5 only, first slide): pure
+                 play-icon, no slide-elements, no text overlay. -->
+            <div
+              v-if="slideStore.isPart5VideoSlide(slide.id)"
+              class="slide-video-cover"
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 48 48" fill="none" class="slide-video-cover__icon">
+                <circle cx="24" cy="24" r="22" fill="#ffffff" stroke="#16a34a" stroke-width="2.5" />
+                <path d="M20 16l13 8-13 8V16z" fill="#16a34a" />
+              </svg>
+            </div>
+            <SlideThumbnail v-else :slide="slide" />
             <button
-              v-if="canDelete(slide.partId)"
+              v-if="canDelete(slide)"
               class="slide-delete-btn"
               :title="t('sidebar.deleteSlide')"
               @click.stop="deleteSlide(slide.id)"
@@ -361,4 +399,32 @@ function uploadNewArtwork() {
 .slide-add:hover { border-color: #7FEC8F; background: #f0fdf4; }
 .slide-add-icon { font-size: 28px; color: #9ca3af; line-height: 1; }
 .slide-add:hover .slide-add-icon { color: #7FEC8F; }
+
+/* 2026-05-28 — Part 5 first-slide cover. The video slide owns the
+   centre-canvas `Part5Content` UI, so its sidebar thumbnail just
+   has to communicate "this is the video slot" — no live element
+   preview. A pure play-icon centred on a soft-green field does the
+   job and avoids leaking LKP-seeded text ("艺术实践·步骤提示" etc.)
+   through the SlideThumbnail renderer. */
+.slide-video-cover {
+  position: absolute;
+  inset: 0;
+  background: #f0fdf4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slide-video-cover__icon {
+  width: 38%;
+  max-width: 56px;
+  height: auto;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
+}
+
+/* Subtle outline on the video slide thumbnail so it reads as
+   "special" against the user-added blank canvases. */
+.slide-thumb--video {
+  border-color: #B2F4BC;
+}
 </style>

@@ -20,19 +20,36 @@ configs to inject into each Executor call.  See
 
 import json
 import os
-from datetime import datetime, timezone
+import re
+from datetime import datetime, date, timezone
 from pathlib import Path
-from typing import AsyncIterator, Optional
+from typing import Any, AsyncIterator, Optional
 
 import edge_tts
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
+# 2026-05 — boto3 is optional at import time so the backend still
+# starts when R2 credentials aren't configured (e.g. CI / local dev
+# without secrets). The /api/state/* endpoints below return 503 in
+# that case so the frontend can fall back to localStorage-only mode.
+try:
+    import boto3
+    from botocore.client import Config as _BotoConfig
+    from botocore.exceptions import ClientError as _BotoClientError
+    _BOTO3_AVAILABLE = True
+except ImportError:  # pragma: no cover — defensive
+    boto3 = None
+    _BotoConfig = None
+    _BotoClientError = Exception
+    _BOTO3_AVAILABLE = False
+
 from lesson_context import lesson_manager
+
 
 # ════════════════════════════════════════════════════════════════════════
 # 1. Bootstrap
@@ -740,6 +757,9 @@ async def get_animation_status(task_id: str):
 # ════════════════════════════════════════════════════════════════════════
 
 
+# 2026-05 — The age-phrasing fallback bullet below uses Chinese quotes
+# (「」) so we don't need to escape inner ASCII " inside the
+# double-quoted Python string.
 CHAT_SYSTEM = (
     "You are ArtBloom, a friendly AI assistant built into an art-education slide-design tool. "
     "You help teachers create engaging, visually appealing slide decks for art lessons. "
@@ -750,8 +770,81 @@ CHAT_SYSTEM = (
     "Ignore any other language hint if it conflicts with what the user wrote.\n"
     "• Match the length to the question. Greetings or one-line questions get a one-line reply. "
     "Substantive design questions get 1–3 short paragraphs — never a wall of text.\n"
-    "• Answer only what was asked. Do not proactively dump a full design proposal unless the teacher explicitly asks for one."
+    "• Answer only what was asked. Do not proactively dump a full design proposal unless the teacher explicitly asks for one.\n"
+    # 2026-05 — Pilot feedback: without an explicit year-group anchor
+    # the model would self-hedge with vague "lower-grade / upper-grade",
+    # "K-12 art", "students of different ages" phrasing. When a
+    # `lesson_id` is supplied we inject a hard per-grade constraint
+    # below via `_age_phrasing_constraint()`. This bullet is the
+    # fallback for freeform projects where no lesson is bound.
+    "• When you discuss 「year-group / grade / age band」, either use the EXACT grade made clear in the conversation context "
+    "(e.g. 「二年级」) or omit the band altogether. NEVER write 「低龄段 / 高龄段 / 中高龄段 / 中小学 / 不同年龄段」 or list younger-vs-older alternatives. "
+    "NEVER quote raw ages such as 「7-8 岁」 — always use the grade label."
 )
+
+
+# ── Per-grade Chinese ordinals for prompt injection ─────────────────────
+_GRADE_ZH: dict[int, str] = {
+    1: "一年级",
+    2: "二年级",
+    3: "三年级",
+    4: "四年级",
+    5: "五年级",
+    6: "六年级",
+}
+
+
+def _age_phrasing_constraint(lesson_id: Optional[str], language: str) -> str:
+    """Hard constraint appended to the chat system prompt when an LKP
+    is bound, telling the model to stick to ONE grade label and never
+    hedge across age bands.
+
+    Returns ``""`` whenever we can't resolve a grade so legacy /
+    freeform projects keep the old behaviour (still guarded by the
+    fallback bullet in CHAT_SYSTEM above).
+
+    Origin (2026-05): teachers reported the chatbot replying with
+    "如果是低龄段…如果是中高龄段…" — model self-hedging because the
+    LKP per-part fragment alone didn't pin a year-group. Pinning here
+    via the existing ``LessonSeedData.grade`` field (already in every
+    shipping LKP) keeps the data flow clean.
+
+    NOTE: this function returns multi-line strings full of Chinese
+    quote brackets (「」) and ASCII double quotes. To avoid escaping
+    headaches we use triple-quoted f-strings — Python handles the
+    nesting transparently.
+    """
+    if not lesson_id:
+        return ""
+    try:
+        seed = lesson_manager.load(lesson_id)
+    except ValueError:
+        return ""
+
+    grade = seed.grade
+    if not grade or grade not in _GRADE_ZH:
+        return ""
+
+    grade_zh = _GRADE_ZH[grade]
+    grade_en = f"Grade {grade}"
+
+    if language == "zh":
+        return f"""
+
+[学段措辞约束 / 必须遵守]
+• 本节课固定面向人教版小学{grade_zh}学生，老师正在为同一个班的{grade_zh}学生备课。
+• 涉及受众时**统一**用「{grade_zh}」或「{grade_zh}学生」称呼。
+• 严禁出现「低龄段 / 高龄段 / 中高龄段」「不同年龄段」「分年龄段」「中小学美术」「依年龄段调整」「如果是…段就…」等模糊或对比性年龄措辞；也不要列出「低龄/高龄」两套方案让老师二选一。
+• 严禁写出具体年龄数字（如「7-8 岁」「8 岁」「8-9 岁」）或「儿童 / 小朋友」这种学段无关的称呼，统一替换为「{grade_zh}」。
+• 直接给一套针对{grade_zh}的建议；不需要解释更小 / 更大年级的学生会怎样。"""
+    return f"""
+
+[Age-phrasing constraints / hard rules]
+• This lesson is fixed for primary-school {grade_en} students; the teacher is preparing for a single {grade_en} class.
+• Always refer to the audience as `{grade_en} students` — never `younger / older students`, `lower / upper primary`, `K-12 art`, or `different age groups`.
+• Never quote raw ages (`7-8 years old`, `8 yo`, etc.). Always use `{grade_en}`.
+• Give exactly one recommendation tuned to {grade_en}; do not list alternatives for other year-groups."""
+
 
 
 class ChatMsg(BaseModel):
@@ -781,6 +874,9 @@ async def chat(req: ChatRequest):
             extra = lesson_manager.build_executor_a_context(req.lesson_id, req.part_id)
         except ValueError:
             extra = ""
+    # 2026-05 — When a lesson is bound, pin the year-group so the
+    # model stops hedging across age bands (see the helper docstring).
+    age_block = _age_phrasing_constraint(req.lesson_id, req.language)
     # Chat intentionally omits _lang_suffix — CHAT_SYSTEM tells the
     # model to match the user's input language. The UI toggle only
     # informs the *default* if the user message is ambiguous.
@@ -789,7 +885,12 @@ async def chat(req: ChatRequest):
         if req.language == "zh"
         else "\n(If the user message is ambiguous or empty, default to English.)"
     )
-    system = CHAT_SYSTEM + (("\n\n" + extra) if extra else "") + default_lang_hint
+    system = (
+        CHAT_SYSTEM
+        + (("\n\n" + extra) if extra else "")
+        + age_block
+        + default_lang_hint
+    )
 
     history = [{"role": m.role, "content": m.text} for m in req.messages]
     payload = {
@@ -1039,23 +1140,34 @@ _STORY_CHAT_PHASE_B = (
     "因此 current_story 中已经存在至少一条 part3 续篇（continuations 字典）。\n"
     "\n"
     "在本阶段，老师可能想改动以下四种之一：\n"
-    "  ① part1 前半段；\n"
-    "  ② choices 3 个互动选项的文案（label/desc）；\n"
-    "  ③ 当前正在看的那条分支（id = selected_choice_id）对应的 part3 续篇；\n"
-    "  ④ 其中两项或三项的组合。\n"
+    "  ① 故事前半段（即 part1）；\n"
+    "  ② 三个互动选项文案（即 choices 的 label/desc）；\n"
+    "  ③ 当前正在看的那条分支（id = selected_choice_id）的后半段（即 part3）；\n"
+    "  ④ 重新生成整篇故事（part1 + choices + 当前分支 part3 + designRationale 全部重写）。\n"
     "\n"
     "硬约束 —— 先澄清，后修改：\n"
     "  • 如果老师在最新一条消息里 **已经明确指出** 要改哪一部分（例：「把前半段写得更细腻」、\n"
     "    「第三个互动选项太血腥，换温和的」、「分支 2 的后半段结尾呼应一下『能做』」），\n"
     "    → 直接进入 MODE B 输出 revised_story（仅改指定部分；其他字段原样回填）。\n"
-    "  • 如果老师 **没有明确指明修改对象**（例：「这段不太行」「太干了」「能不能改改」），\n"
-    "    → 必须先用 MODE A 反问澄清，让老师在 4 个具体选项中挑：\n"
-    "         A. 改 part1 故事前半段\n"
-    "         B. 改 part2 的 3 个互动选项文案\n"
-    "         C. 改当前分支（id = selected_choice_id）的 part3 后半段\n"
-    "         D. 同时改其中几项\n"
-    "    必须列出这 4 个选项让老师挑选；这一轮 revised_story = null。\n"
-    "    不要在没有明确目标时擅自输出修改稿。\n"
+    "  • 如果老师 **没有明确指明修改对象**（例：「这段不太行」「太干了」「能不能改改」「让故事更有想象力」），\n"
+    "    → 必须先用 MODE A 反问澄清。回复时:\n"
+    "        - `reply` 简短，不超过一句话（例如「请问您想修改哪一部分呢？」）。\n"
+    "          不要在 `reply` 里再列出 A/B/C/D 任何文字，前端会以按钮形式展示。\n"
+    "        - 必须在同一个 JSON 中输出 `clarify_options` 字段，**完全照抄**以下 4 个字符串、\n"
+    "          顺序固定、不要改字、不要加序号/字母前缀：\n"
+    "             [\n"
+    "               \"改故事前半段\",\n"
+    "               \"改三个互动选项文案\",\n"
+    "               \"改当前分支的后半段\",\n"
+    "               \"重新生成故事\"\n"
+    "             ]\n"
+    "        - 这一轮 revised_story = null、revised_continuations = {}。\n"
+    "    严禁把 part1 / part2 / part3 这类英文 token 写进 `reply` 或 `clarify_options`，\n"
+    "    严禁在没有明确目标时擅自输出修改稿。\n"
+    "\n"
+    "  • 当老师点击「重新生成故事」按钮（最新一条 user 消息文本为「重新生成故事」时），\n"
+    "    → MODE B 重写 part1、choices 与当前分支 part3，并同步更新 designRationale，\n"
+    "      保持画作和教学锚点不变；revised_continuations 包含当前分支 id 的新文本。\n"
     "\n"
     "MODE B 字段回填规则（极重要）：\n"
     "  • revised_story 必须仍含 part1 / choices / part3 / designRationale 四个字段；\n"
@@ -1066,11 +1178,27 @@ _STORY_CHAT_PHASE_B = (
     "    revised_continuations 仅含被改的那条分支 id；其他分支续篇不要包含。\n"
     "  • 如果老师没改任何 part3，revised_continuations 为 {{}} 或省略。\n"
     "\n"
-    "字段级约束沿用故事生成规范：\n"
+    "MODE B 还**必须**返回 `revision_scope` 字段（数组），明确告诉前端这一轮真正改了\n"
+    "哪几个字段。前端将据此决定预览卡只渲染哪几段，避免老师误以为没要求改的部分被一并改了。\n"
+    "按钮 / 自由文本 → scope 映射（严格遵守）：\n"
+    "  - 老师点击「改故事前半段」/ 自由文本只针对 part1 → revision_scope = [\"part1\"]\n"
+    "  - 老师点击「改三个互动选项文案」/ 自由文本只针对 choices → revision_scope = [\"choices\"]\n"
+    "  - 老师点击「改当前分支的后半段」/ 自由文本只针对当前分支 part3 → revision_scope = [\"part3\"]\n"
+    "  - 老师点击「重新生成故事」 → revision_scope = [\"part1\", \"choices\", \"part3\", \"designRationale\"]\n"
+    "  - 老师同时要求改 part1 和 choices → revision_scope = [\"part1\", \"choices\"]\n"
+    "\n"
+    "极其重要 —— designRationale 默认**不**进 scope：\n"
+    "  • 除非 revision_scope 显式包含 \"designRationale\"（仅「重新生成故事」会出现），\n"
+    "    否则 revised_story.designRationale 必须 **完全照抄** current_story.designRationale，\n"
+    "    一个字都不能改。不要因为 part1 或 choices 改了就顺手"
+    "升级设计理由的描述。\n"
+    "  • 老师对设计理由不感兴趣的改动，AI 也不应当主动重写它。\n"
+    "\n"
+    "字段级约束沿用故事生成规范（仅作用在 revision_scope 包含的字段上）：\n"
     "  • part1 / part3 严格 180-200 中文字（≈ 120-150 EN words），两半段字数对齐；\n"
     "  • 3 个 choices 各对应不同教学侧面；\n"
     "  • part3 结尾必须回扣 [学习目标] 的「能做」层；\n"
-    "  • designRationale 遵循 3 段 240-260 字规范。"
+    "  • designRationale 遵循 3 段 240-260 字规范（仅当它在 scope 内被重写时）。"
 )
 
 
@@ -1106,8 +1234,21 @@ STORY_CHAT_SYSTEM = (
     "{{\n"
     '  "reply": "<conversational reply text>",\n'
     '  "revised_story": null,  // OR the full StoryData JSON in MODE B\n'
-    '  "revised_continuations": {{}}  // OR {{ "<choiceId>": "<new part3>" }} when a continuation was changed\n'
+    '  "revised_continuations": {{}},  // OR {{ "<choiceId>": "<new part3>" }} when a continuation was changed\n'
+    '  "clarify_options": [],  // 仅在 Phase B 澄清回合返回 4 个固定中文字符串；其它情况保持空数组\n'
+    '  "revision_scope": []   // MODE B 时给出真正改了哪几段；MODE A 时保持 []\n'
     "}}\n"
+    "\n"
+    "`clarify_options` 用法：\n"
+    "  • 仅当 Phase B 走澄清分支（MODE A 反问）时，照抄上面 4 个固定字符串放进去；\n"
+    "  • 其它任何回合（MODE A 自由讨论、MODE B 已经修改、Phase A）必须返回空数组 [] 或省略，\n"
+    "    不要返回 null。\n"
+    "\n"
+    "`revision_scope` 用法：\n"
+    "  • MODE B 必须返回，元素只能从 [\"part1\", \"choices\", \"part3\", \"designRationale\"] 中取；\n"
+    "  • 必须严格匹配本轮真正改了哪几个字段；不在 scope 内的字段必须从 current_story 逐字回填，\n"
+    "    包括 designRationale —— 只要 scope 里没有 \"designRationale\"，就不要重写它。\n"
+    "  • MODE A、Phase A 的 revised_story=null 回合必须为 [] 或省略。\n"
     "\n"
     "When revised_story is non-null it must follow the original story "
     "schema (English keys, values in the same language as the conversation)."
@@ -1270,8 +1411,16 @@ async def story_chat(req: StoryChatRequest):
     except json.JSONDecodeError:
         # Model didn't follow the JSON envelope — treat the whole
         # response as a discussion-mode reply. This keeps the chat
-        # usable even when the model slips up.
-        return {"reply": raw, "revised_story": None}
+        # usable even when the model slips up. All optional fields
+        # are returned with safe empty defaults so the frontend's
+        # type stays stable.
+        return {
+            "reply": raw,
+            "revised_story": None,
+            "revised_continuations": {},
+            "clarify_options": [],
+            "revision_scope": [],
+        }
 
     reply = data.get("reply") or ""
     revised = data.get("revised_story")
@@ -1287,6 +1436,41 @@ async def story_chat(req: StoryChatRequest):
             if isinstance(v, str) and v.strip():
                 revised_continuations[str(k)] = v
 
+    # `clarify_options` (Phase B clarification turn only). The model
+    # is told to emit a fixed 4-item Chinese array; we still validate
+    # defensively because Doubao occasionally drops fields or adds
+    # extras. Anything that isn't a non-empty list of clean strings
+    # becomes an empty list — the frontend treats `[]` as "no buttons".
+    clarify_raw = data.get("clarify_options")
+    if (
+        isinstance(clarify_raw, list)
+        and 0 < len(clarify_raw) <= 4
+        and all(isinstance(s, str) and s.strip() for s in clarify_raw)
+    ):
+        clarify_options = [s.strip() for s in clarify_raw]
+    else:
+        clarify_options = []
+
+    # `revision_scope` (MODE B only). Frontend uses this to decide
+    # which sections of the proposed revision to render. Validate
+    # against the canonical 4-key set so a hallucinated scope value
+    # (e.g. "title", "rationale") can never poison the UI. Order
+    # within the scope array is preserved so the preview renders the
+    # same order the model chose.
+    SCOPE_ALLOWED = {"part1", "choices", "part3", "designRationale"}
+    scope_raw = data.get("revision_scope")
+    if isinstance(scope_raw, list):
+        revision_scope = [
+            s
+            for s in scope_raw
+            if isinstance(s, str) and s in SCOPE_ALLOWED
+        ]
+        # Deduplicate while preserving order.
+        seen: set[str] = set()
+        revision_scope = [s for s in revision_scope if not (s in seen or seen.add(s))]
+    else:
+        revision_scope = []
+
     # Sanity-check: revised_story must include all 4 keys to be applied.
     REQUIRED = {"part1", "choices", "part3", "designRationale"}
     if isinstance(revised, dict) and REQUIRED.issubset(revised.keys()):
@@ -1294,11 +1478,18 @@ async def story_chat(req: StoryChatRequest):
             "reply": reply,
             "revised_story": revised,
             "revised_continuations": revised_continuations,
+            "clarify_options": clarify_options,
+            "revision_scope": revision_scope,
         }
     return {
         "reply": reply,
         "revised_story": None,
         "revised_continuations": revised_continuations,
+        "clarify_options": clarify_options,
+        # No revised_story → scope is meaningless for the UI; always
+        # return empty so the frontend's "if revision_scope?.length"
+        # checks stay clean.
+        "revision_scope": [],
     }
 
 
@@ -1987,3 +2178,241 @@ async def text_to_speech(req: TTSRequest):
     except Exception as e:
         print(f"[TTS] edge-tts error: {e}", flush=True)
         raise HTTPException(500, f"TTS failed: {e}")
+
+
+# ════════════════════════════════════════════════════════════════════════
+# 10. Per-user state (Cloudflare R2 user "database")
+# ════════════════════════════════════════════════════════════════════════
+#
+# 2026-05 — Pilot teachers complained that hitting the browser refresh
+# in the workspace nuked all their work (slides, chat history, AI
+# story etc.). Root cause: every workspace store lived only in browser
+# memory + (best case) localStorage. There was no server-side user
+# database.
+#
+# This section adds a minimal per-user persistence layer on top of
+# Cloudflare R2 (S3-compatible). The teacher's invitation code is
+# their primary key; each user owns exactly one JSON blob at
+# `user-state/{invite_code}.json`. The frontend reads it on login,
+# debounce-saves it on every change.
+#
+# Why R2 and not Postgres / KV / disk:
+#   • R2 is already provisioned for textbook assets — credentials and
+#     the wrangler/dashboard workflow are familiar.
+#   • Free tier is enormous (10 GB / 1M write Class A ops / 10M
+#     read Class A ops per month). For 1-4 pilot users this costs $0.
+#   • Object-per-user keeps the schema flat — no migrations needed
+#     when we add a Pinia store.
+#   • Easy to inspect / export post-pilot: `wrangler r2 object get
+#     artbloom-user-state/<code>.json` dumps the entire teacher's
+#     workspace as a single JSON file we can hand off.
+#
+# Audit log: a separate object `user-state/{code}.log.{YYYY-MM-DD}.jsonl`
+# records each save with timestamp, size and current schema_version.
+# These are append-only-per-day (because R2 doesn't natively append,
+# we read-modify-write the day's file). For higher-volume audit we'd
+# switch to Postgres or Cloudflare D1; for 1-4 pilots this is fine.
+
+_R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL", "").strip()
+_R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "").strip()
+_R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
+_R2_USER_STATE_BUCKET = os.getenv("R2_USER_STATE_BUCKET", "artbloom-user-state").strip()
+
+# Singleton boto3 client. Lazy-init so we don't blow up startup when
+# the secrets aren't set — the endpoints below return 503 instead.
+_r2_user_client = None
+
+
+def _get_r2_user_client():
+    """Return a cached boto3 S3 client pointed at R2, or None if the
+    env vars / boto3 aren't available. Endpoints check the return
+    value and respond with HTTP 503 when the persistence layer isn't
+    configured, so the frontend can degrade gracefully to
+    localStorage-only mode (same as the chatbot store's existing
+    behaviour in offline environments)."""
+    global _r2_user_client
+    if _r2_user_client is not None:
+        return _r2_user_client
+    if not _BOTO3_AVAILABLE:
+        return None
+    if not (_R2_ENDPOINT_URL and _R2_ACCESS_KEY_ID and _R2_SECRET_ACCESS_KEY):
+        return None
+    try:
+        # `signature_version="s3v4"` is what R2 expects — using the
+        # legacy v2 sig will yield 403 SignatureDoesNotMatch.
+        _r2_user_client = boto3.client(  # type: ignore[union-attr]
+            "s3",
+            endpoint_url=_R2_ENDPOINT_URL,
+            aws_access_key_id=_R2_ACCESS_KEY_ID,
+            aws_secret_access_key=_R2_SECRET_ACCESS_KEY,
+            config=_BotoConfig(signature_version="s3v4"),  # type: ignore[arg-type]
+        )
+        print(
+            f"[startup] user-state R2 ready: bucket={_R2_USER_STATE_BUCKET}, "
+            f"endpoint={_R2_ENDPOINT_URL}",
+            flush=True,
+        )
+        return _r2_user_client
+    except Exception as exc:  # pragma: no cover — defensive
+        print(f"[startup] user-state R2 init failed: {exc}", flush=True)
+        return None
+
+
+# Invite codes are pilot-issued + human-readable. We allow letters,
+# digits, and a single class of separators. Everything else is
+# rejected as 400 to keep the R2 object-key surface tight (no path
+# traversal, no spaces, no UTF-8).
+_USER_CODE_RE = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
+
+
+def _ensure_safe_code(user_code: str) -> str:
+    """Normalise + validate the invite code. Returns the canonical
+    form (upper-cased) used everywhere as the R2 object key segment.
+
+    We upper-case because the access UX in `AccessModal.vue` is
+    case-insensitive — the teacher might type lowercase by mistake
+    and that should still land in the same R2 object. Whitespace is
+    rejected explicitly so a stray space at the end of the code
+    can't create a phantom user.
+    """
+    if not isinstance(user_code, str):
+        raise HTTPException(400, "user_code must be a string")
+    candidate = user_code.strip().upper()
+    if not _USER_CODE_RE.match(candidate):
+        raise HTTPException(
+            400,
+            "user_code must be 4-64 chars, letters / digits / '-' / '_' only",
+        )
+    return candidate
+
+
+@app.get("/api/state/{user_code}")
+async def load_user_state(user_code: str):
+    """Return the user's full state blob from R2.
+
+    Response shape:
+        200 → the JSON blob (whatever the frontend last PUT).
+        204 → "no state yet for this user" — frontend should start fresh.
+        503 → R2 not configured (frontend falls back to localStorage).
+    """
+    code = _ensure_safe_code(user_code)
+    client = _get_r2_user_client()
+    if client is None:
+        # Persistence layer unavailable — let the frontend know so it
+        # can degrade gracefully instead of looping retries.
+        raise HTTPException(503, "user-state persistence is not configured")
+
+    key = f"user-state/{code}.json"
+    try:
+        obj = client.get_object(Bucket=_R2_USER_STATE_BUCKET, Key=key)
+    except _BotoClientError as exc:  # type: ignore[misc]
+        # NoSuchKey → empty 204 (first login on this code).
+        code_str = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+        if code_str in ("NoSuchKey", "404"):
+            return Response(status_code=204)
+        # Any other client error is a real problem.
+        print(f"[user-state] GET {key} failed: {exc}", flush=True)
+        raise HTTPException(502, f"R2 read failed: {exc}")
+    except Exception as exc:  # pragma: no cover — defensive
+        print(f"[user-state] GET {key} unexpected failure: {exc}", flush=True)
+        raise HTTPException(502, f"R2 read failed: {exc}")
+
+    body = obj["Body"].read()
+    # Stream the bytes back unchanged (already JSON) so we don't pay
+    # the parse → re-serialise round-trip cost.
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+class UserStateBody(BaseModel):
+    """Pydantic wrapper around the opaque payload. We let the
+    frontend decide the schema; the only field we read here is
+    `schema_version` for the audit log. Everything else is stored
+    verbatim. Using a `dict` field instead of a typed schema keeps
+    the contract loose so adding a new Pinia store later doesn't
+    require a backend deploy."""
+    payload: dict[str, Any]
+
+
+@app.put("/api/state/{user_code}")
+async def save_user_state(user_code: str, body: UserStateBody, request: Request):
+    """Persist the user's full state blob.
+
+    The frontend POSTs a JSON envelope `{ payload: <opaque> }` so the
+    Pydantic validator can stay simple (a dict is JSON-safe by
+    construction). Body size is implicitly capped by the upstream
+    proxy (Render's free tier ~ 100 MB request body, well above the
+    20 MB target).
+    """
+    code = _ensure_safe_code(user_code)
+    client = _get_r2_user_client()
+    if client is None:
+        raise HTTPException(503, "user-state persistence is not configured")
+
+    # Add server-side timestamp so the frontend can detect "newer on
+    # backend" even if its local clock drifts. We don't trust the
+    # client's `updated_at` for conflict resolution.
+    payload = dict(body.payload)
+    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+    payload.setdefault("schema_version", 1)
+
+    raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    key = f"user-state/{code}.json"
+    try:
+        client.put_object(
+            Bucket=_R2_USER_STATE_BUCKET,
+            Key=key,
+            Body=raw,
+            ContentType="application/json",
+            CacheControl="no-store",
+        )
+    except Exception as exc:
+        print(f"[user-state] PUT {key} failed: {exc}", flush=True)
+        raise HTTPException(502, f"R2 write failed: {exc}")
+
+    # ── Append a one-line audit entry per save. We use a per-day
+    # file so the read-modify-write cost stays bounded (one day of
+    # one user's saves is maybe a few hundred lines, ~ tens of KB).
+    log_entry = json.dumps(
+        {
+            "ts": payload["updated_at"],
+            "size": len(raw),
+            "schema_version": payload.get("schema_version", 1),
+            "ip": (request.client.host if request.client else None),
+        },
+        ensure_ascii=False,
+    ) + "\n"
+    log_key = f"user-state/{code}.log.{date.today().isoformat()}.jsonl"
+    try:
+        existing = b""
+        try:
+            existing_obj = client.get_object(
+                Bucket=_R2_USER_STATE_BUCKET, Key=log_key
+            )
+            existing = existing_obj["Body"].read()
+        except _BotoClientError as exc:  # type: ignore[misc]
+            code_str = (
+                getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+            )
+            if code_str not in ("NoSuchKey", "404"):
+                raise
+        client.put_object(
+            Bucket=_R2_USER_STATE_BUCKET,
+            Key=log_key,
+            Body=existing + log_entry.encode("utf-8"),
+            ContentType="application/x-ndjson",
+        )
+    except Exception as exc:  # pragma: no cover — best-effort
+        # Audit log failure must NOT cascade into a failed save. The
+        # canonical state is already on R2; we just lose one log
+        # entry. Print to stderr so the operator can investigate.
+        print(f"[user-state] audit log append failed for {code}: {exc}", flush=True)
+
+    return {
+        "ok": True,
+        "updated_at": payload["updated_at"],
+        "size": len(raw),
+    }

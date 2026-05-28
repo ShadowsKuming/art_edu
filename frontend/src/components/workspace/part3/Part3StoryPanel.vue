@@ -49,6 +49,45 @@ async function sendDesignChat() {
   })
 }
 
+/**
+ * 2026-05 — Conditional renderer for the "修改后的故事" preview
+ * card. The backend returns `revision_scope` telling us which of
+ * part1 / choices / part3 / designRationale actually changed in
+ * this MODE B turn. Legacy messages predate this field and have an
+ * empty/undefined scope — for those we render all 4 sections, same
+ * as before, to avoid breaking history when an old project deck is
+ * resumed.
+ */
+function revisionHas(
+  msg: { revisionScope?: string[] | null },
+  key: 'part1' | 'choices' | 'part3' | 'designRationale',
+): boolean {
+  const scope = msg.revisionScope
+  if (!scope || scope.length === 0) return true
+  return scope.includes(key)
+}
+
+/**
+ * Clarify-option chip click handler. The backend returns 4 fixed
+ * Chinese strings on Phase B disambiguation turns (see
+ * `_STORY_CHAT_PHASE_B` in `backend/main.py`); each is rendered as a
+ * pill button under the assistant bubble. Clicking just re-sends the
+ * label as if the teacher had typed it, which the next chat turn will
+ * interpret as an unambiguous MODE B trigger.
+ */
+async function pickClarifyOption(opt: string) {
+  if (store.designChatLoading) return
+  const text = opt.trim()
+  if (!text) return
+  await store.sendDesignChat(text, locale.value)
+  nextTick(() => {
+    chatScroller.value?.scrollTo({
+      top: chatScroller.value.scrollHeight,
+      behavior: 'smooth',
+    })
+  })
+}
+
 function onChatKeydown(e: KeyboardEvent) {
   // Enter sends, Shift+Enter inserts a newline (standard chat UX).
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -453,6 +492,31 @@ onUnmounted(_cleanupAudio)
         >
           <p class="sp-chat-text">{{ msg.text }}</p>
 
+          <!-- 2026-05 — Phase-B clarification chips. When the model
+               returned a `clarify_options` list (only happens when
+               the teacher's request was ambiguous), render each as a
+               pill button. Clicking a chip re-sends that label so
+               the next turn lands in MODE B with a concrete target.
+               We skip the row entirely when there are no options or
+               when the revision card is already attached. -->
+          <ul
+            v-if="msg.role === 'assistant'
+              && msg.clarifyOptions?.length
+              && !msg.revisedStory"
+            class="sp-clarify-options"
+          >
+            <li v-for="opt in msg.clarifyOptions" :key="opt">
+              <button
+                type="button"
+                class="sp-clarify-btn"
+                :disabled="store.designChatLoading"
+                @click="pickClarifyOption(opt)"
+              >
+                {{ opt }}
+              </button>
+            </li>
+          </ul>
+
           <!-- Inline revision proposal card — renders the FULL revised
                story (part1 / choices / part3 / designRationale) so
                teachers can read the new version inline before
@@ -469,25 +533,43 @@ onUnmounted(_cleanupAudio)
             </div>
             <p class="sp-chat-revision-hint">{{ t('part3.storyPanel.chatRevisedHint') }}</p>
 
-            <!-- Full inline preview of the proposed story revision. -->
+            <!-- 2026-05 — Render ONLY the sections the model said it
+                 changed. `msg.revisionScope` is the canonical source
+                 of truth coming from the backend; when it's missing
+                 (legacy messages, JSON parse failures, etc.) we fall
+                 back to showing all 4 sections — same behaviour as
+                 before this refactor.
+
+                 Helper: `shouldRender('part1', msg)` returns true
+                 when the scope array is empty/undefined OR contains
+                 the given key. Declared inline in the script via
+                 `revisionHas(msg, key)`. -->
             <div class="sp-revision-preview">
-              <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart1') }}</h4>
-              <p class="sp-revision-text">{{ msg.revisedStory.part1 }}</p>
+              <template v-if="revisionHas(msg, 'part1')">
+                <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart1') }}</h4>
+                <p class="sp-revision-text">{{ msg.revisedStory.part1 }}</p>
+              </template>
 
-              <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart2') }}</h4>
-              <ul class="sp-revision-choices">
-                <li v-for="c in msg.revisedStory.choices" :key="c.id">
-                  <strong>{{ c.label }}</strong> – {{ c.desc }}
-                </li>
-              </ul>
+              <template v-if="revisionHas(msg, 'choices')">
+                <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart2') }}</h4>
+                <ul class="sp-revision-choices">
+                  <li v-for="c in msg.revisedStory.choices" :key="c.id">
+                    <strong>{{ c.label }}</strong> – {{ c.desc }}
+                  </li>
+                </ul>
+              </template>
 
-              <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart3') }}</h4>
-              <p class="sp-revision-text">{{ msg.revisedStory.part3 }}</p>
+              <template v-if="revisionHas(msg, 'part3')">
+                <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedPart3') }}</h4>
+                <p class="sp-revision-text">{{ msg.revisedStory.part3 }}</p>
+              </template>
 
-              <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedDesign') }}</h4>
-              <p class="sp-revision-text sp-revision-text--design">
-                {{ msg.revisedStory.designRationale }}
-              </p>
+              <template v-if="revisionHas(msg, 'designRationale')">
+                <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedDesign') }}</h4>
+                <p class="sp-revision-text sp-revision-text--design">
+                  {{ msg.revisedStory.designRationale }}
+                </p>
+              </template>
             </div>
 
             <div class="sp-revision-actions">
@@ -1023,6 +1105,47 @@ onUnmounted(_cleanupAudio)
 .sp-chat-text {
   margin: 0;
   white-space: pre-wrap;
+}
+
+/* 2026-05 — clarify-option pills shown beneath an ambiguous-request
+   reply. Same visual language as the segment / voice pill buttons in
+   the Sound Design tab so the chat feels of a piece with the rest of
+   the Part-3 panel. `flex-wrap` lets the 4 chips reflow onto two rows
+   on narrow chat-pane widths. */
+.sp-clarify-options {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sp-clarify-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid #6ee7b7;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #047857;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.sp-clarify-btn:hover:not(:disabled) {
+  background: #d1fae5;
+  border-color: #10b981;
+}
+
+.sp-clarify-btn:active:not(:disabled) {
+  background: #a7f3d0;
+}
+
+.sp-clarify-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .sp-chat-revision {
