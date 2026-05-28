@@ -413,7 +413,13 @@ export default {
       // Design tab now hosts only the TTS narration controls.
       // Design Rationale tab AI co-revision chat (2026-05 pilot).
       chatTitle: 'Discuss & revise with AI',
-      chatHint: 'Try "make paragraph 2 more sensory" or "make branch 3 gentler".',
+      // 2026-05 copy tweak — match the new ZH chatHint (examples now
+      // map 1:1 onto the two MODE-B targets so teachers write more
+      // precise prompts).
+      chatHint: 'Try "make Part 1 better aligned with the learning goal" or "make the three choices more imaginative".',
+      // Client-side instant-clarify message (zero-LLM fast-path). See
+      // stores/part3.ts → sendDesignChat for the keyword short-circuit.
+      chatClarifyLocal: 'Which part would you like to change?',
       chatPlaceholder: 'What would you like to change?',
       chatSend: 'Send',
       chatSending: 'Thinking…',
@@ -423,7 +429,12 @@ export default {
       chatRevisedPart1: 'Part 1: Opening',
       chatRevisedPart2: 'Part 2: Interactive Choices',
       chatRevisedPart3: 'Part 3: Continuation',
+      // legacy — 2026-05 onward the "Revised story" card no longer
+      // renders the design-rationale section (the backend also drops
+      // it from `revision_scope`). Key kept to avoid missing-key
+      // warnings on legacy chat history.
       chatRevisedDesign: 'Design Rationale',
+
       chatApply: 'Apply this version',
       chatApplied: 'Applied',
       chatViewStory: 'View Story Preview ›',

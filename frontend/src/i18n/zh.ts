@@ -399,8 +399,13 @@ export default {
       // Design tab 现在仅保留 TTS 朗读。
       // 设计理念 tab 里的 AI 协作对话框（2026-05 试点新增）。
       chatTitle: '与艺芽讨论修改',
-      chatHint: '可以说「把故事修改得更贴近本课学习目标」，或「让故事更有想象力」。',
-
+      // 2026-05 文案微调 — 老师反馈"故事"太笼统，按钮也只能改前半段或选项，
+      // 因此把示例改成与按钮一一对应的具体表述，引导老师写更精准的指令。
+      chatHint: '可以说「把前半段故事修改得更贴近本课学习目标」，或「让三个互动选项更有想象力」。',
+      // 客户端快速澄清（零 LLM 往返）— 当用户的修改指令未指明位置时，
+      // 直接 push 这条本地 assistant 消息 + 4 个澄清芯片（或 Phase A 的 2 个），
+      // 避免等待后端 4-8 秒推理。详见 stores/part3.ts 的 sendDesignChat 短路逻辑。
+      chatClarifyLocal: '请问您想修改哪一部分呢？',
       chatPlaceholder: '说说想怎么改…',
       chatSend: '发送',
       chatSending: '思考中…',
@@ -410,7 +415,11 @@ export default {
       chatRevisedPart1: '第一部分：故事前半段',
       chatRevisedPart2: '第二部分：互动选项',
       chatRevisedPart3: '第三部分：故事后半段',
+      // legacy — 2026-05 起"修改后的故事"卡片不再渲染设计理念段落
+      // （后端也不再把 designRationale 纳入 revision_scope）。保留键以
+      // 兼容历史聊天记录里旧 revised_story 数据。
       chatRevisedDesign: '设计理念',
+
       chatApply: '应用此版本',
       chatApplied: '已应用',
       chatViewStory: '查看「故事预览」 ›',

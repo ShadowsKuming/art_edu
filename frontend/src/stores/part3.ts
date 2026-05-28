@@ -584,6 +584,44 @@ export const usePart3Store = defineStore('part3', () => {
     setTimeout(tick, 3000)
   }
 
+  // ── Local fast-path classifiers ───────────────────────────────────
+  //
+  // Pilot teachers reported the "与艺芽讨论修改" chat felt very slow
+  // (~5-8 s) even when their message was ambiguous — Doubao would
+  // still spend a full vision-LLM round-trip just to come back with a
+  // canonical 4-chip clarification question. These two regexes mirror
+  // the keyword lists in `backend/main.py → _STORY_CHAT_PHASE_A/B`
+  // exactly, so when an incoming message clearly carries "edit-intent"
+  // but no "target slice" hint we can serve the same clarification
+  // chips locally without any LLM call. Match must be a *substring*
+  // match (no word boundaries) because Chinese has no spaces and the
+  // backend uses the same `if v in text` test.
+  //
+  // Keep this list in sync with backend `_EDIT_VERBS` / `_PART_HINTS`.
+  const EDIT_INTENT_RE = new RegExp(
+    [
+      '改', '修改', '调整', '调一调', '不太行', '不太好', '不够',
+      '太干', '太单调', '太血腥', '能不能', '能否', '让', '写得',
+      '改得', '加点', '减点', '换成', '去掉', '加上', '重新', '重写',
+      '不喜欢', '不满意', '再活泼', '再生动', '再细腻', '再有想象',
+      // Conservative English subset — only verbs with no part-target
+      // ambiguity. The frontend is grade-2 Chinese pilot, EN is rare.
+      'rewrite', 'revise', 'tweak', 'adjust', 'make it', 'less ', 'more ',
+    ].join('|'),
+    'i',
+  )
+  const PART_TARGET_RE = new RegExp(
+    [
+      'part1', 'part2', 'part3', '前半', '后半', '开篇', '开头', '结尾',
+      '续篇', '分支', '选项', '互动', 'choices', 'designRationale',
+      '设计理念', '设计理由', '重新生成', '整个重写', '全部重写',
+      // EN counterpart targets — present so EN-mode messages still
+      // bypass the fast-path when they're already specific.
+      'opening', 'continuation', 'branch', 'choice', 'option',
+    ].join('|'),
+    'i',
+  )
+
   /**
    * Send a message to `/api/story/chat`. The endpoint returns
    * `{ reply, revised_story | null }`. We always push the reply as
@@ -591,17 +629,75 @@ export const usePart3Store = defineStore('part3', () => {
    * on the message so the panel can render an "Apply" button (we
    * deliberately do NOT auto-replace `storyData` — the teacher must
    * confirm).
+   *
+   * 2026-05-28 — Client-side fast-path: when the teacher's message
+   * clearly wants an edit but doesn't point at a specific slice
+   * (part1 / choices / part3 / 重新生成), we skip the LLM call and
+   * push a canned clarification message + chips immediately. Saves
+   * the 5-8 s vision-LLM round-trip teachers were complaining about.
+   * Specific edit requests, pure discussion, and clarification-chip
+   * clicks still go to the backend as before.
    */
   async function sendDesignChat(message: string, language = 'zh') {
     const pair = activePair.value
     if (!pair?.storyData || !pair.imageDataUrl) return
     const text = message.trim()
     if (!text || pair.designChatLoading) return
+
+    // 2026-05-28 — Local fast-path. If the latest message looks like
+    // an ambiguous edit request, serve the canonical clarification
+    // chips instantly. We pick the chip set based on Phase A vs B
+    // exactly like the backend would (Phase A = no continuation yet
+    // → 2 chips, Phase B = at least one branch generated → 4 chips).
+    const looksLikeEdit = EDIT_INTENT_RE.test(text)
+    const namesATarget = PART_TARGET_RE.test(text)
+    // Also short-circuit only when the text doesn't *exactly* match
+    // one of the canonical chip labels — otherwise the teacher would
+    // get the chips again instead of a real revision. (The 4 labels
+    // contain part-target keywords so namesATarget already filters
+    // them out, but we keep this defensive in case the prompt copy
+    // drifts.)
+    const CHIP_LABELS = new Set([
+      '改故事前半段',
+      '改三个互动选项文案',
+      '改当前分支的后半段',
+      '重新生成故事',
+    ])
+    if (
+      looksLikeEdit
+      && !namesATarget
+      && !CHIP_LABELS.has(text)
+    ) {
+      pair.designChatMessages.push({ role: 'user', text })
+      const isPhaseB = pair.selectedChoiceId !== null
+      const clarifyOptions = isPhaseB
+        ? [
+          '改故事前半段',
+          '改三个互动选项文案',
+          '改当前分支的后半段',
+          '重新生成故事',
+        ]
+        : ['改故事前半段', '改三个互动选项文案']
+      pair.designChatMessages.push({
+        role: 'assistant',
+        text: language === 'en'
+          ? 'Which part would you like to change?'
+          : '请问您想修改哪一部分呢？',
+        revisedStory: null,
+        revisedContinuations: {},
+        revisedStoryApplied: false,
+        clarifyOptions,
+        revisionScope: [],
+      })
+      return
+    }
+
     if (!await _ensureBase64(pair)) return
 
     pair.designChatMessages.push({ role: 'user', text })
     pair.designChatLoading = true
     pair.designChatError = null
+
 
     const lessonId = useProjectsStore().activeLessonId
 

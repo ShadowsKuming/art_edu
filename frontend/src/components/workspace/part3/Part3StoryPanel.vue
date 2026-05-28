@@ -564,13 +564,16 @@ onUnmounted(_cleanupAudio)
                 <p class="sp-revision-text">{{ msg.revisedStory.part3 }}</p>
               </template>
 
-              <template v-if="revisionHas(msg, 'designRationale')">
-                <h4 class="sp-revision-section">{{ t('part3.storyPanel.chatRevisedDesign') }}</h4>
-                <p class="sp-revision-text sp-revision-text--design">
-                  {{ msg.revisedStory.designRationale }}
-                </p>
-              </template>
+              <!--
+                2026-05 — designRationale 不再随修改展示。
+                后端被约束为永远不把 designRationale 纳入 revision_scope，
+                修改后的故事卡片也只展示用户实际指定要修改的故事内容
+                （part1 / choices / part3），避免让老师误以为设计理念
+                也被一并改写。即使遇到旧版历史消息含 designRationale
+                字段，也不再渲染。
+              -->
             </div>
+
 
             <div class="sp-revision-actions">
               <button

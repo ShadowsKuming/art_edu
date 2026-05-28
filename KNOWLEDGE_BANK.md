@@ -1989,3 +1989,351 @@ Any time we add a message containing emails, prices (`$5.00`), JSON-ish text, or
 4. Click the email value — the mailto opens `machi2019uk@163.com`.
 5. Toggle the language selector (中文 ↔ English) — both locales render correctly.
 
+
+## 23. Story-chat clarify-button flow, scoped revisions, Part-5 video+slides, R2 user-state DB, AccessModal skip (2026-05-28)
+
+A grab-bag of pilot polish landed in one push. Each subsection is self-contained — read whatever bit you're touching.
+
+### 23.1 Story-chat Phase B → clarify chips (4 buttons)
+
+**Problem.** When the teacher typed an *ambiguous* edit request in Part 3's
+"与艺芽讨论修改" panel (e.g. `让故事更有想象力`, `太干了`, `能不能改改`),
+Doubao would slip into MODE A free-form discussion and miss the chance to
+ask which slice they wanted changed. The original prompt's MODE A
+description specifically allowed "ambiguous suggestions", so the model
+was technically obeying the contract — just the wrong one.
+
+**Fix — `backend/main.py`.** Three layers in series:
+
+1. **`_STORY_CHAT_PHASE_A` / `_STORY_CHAT_PHASE_B`** each got an
+   explicit `[Phase X 优先级决策树 — 必须按顺序执行]` block at the top
+   with Step 1 → Step 5:
+   - Step 1: does the message contain *any* change-request verb? (long
+     Chinese keyword list: 改 / 修改 / 调整 / 不太行 / 能不能 /
+     让……更 / 再细腻 / 重新生成 …) — if no, fall through to MODE A.
+   - Step 2: does it precisely identify which slice (part1 / choices /
+     part3 / "重新生成")? — if no, Step 5 is the **only** allowed exit.
+     Falling back to Step 4 (MODE A) is forbidden.
+   - Step 5: emit `clarify_options` with the canonical fixed array
+     and short single-sentence `reply`; everything else null/empty.
+
+   Each Phase block ships with reverse-engineered 反例 / 正例 examples
+   so the model has concrete cases to anchor on.
+
+2. **`STORY_CHAT_SYSTEM`** universal MODE A description was tightened
+   from "ambiguous suggestions" to "with NO change-request semantics",
+   plus an explicit `⚠ Phase 决策树覆盖` line forcing the Phase tree to
+   take precedence. MODE A is now reserved for pure information
+   questions (`故事大概多长`, `为什么这样设计`).
+
+3. **`/api/story/chat` server-side safety net.** Even with the
+   tightened prompt, Doubao misbehaves ~5% of the time. After parsing
+   the model's JSON, we run a pure-Python heuristic:
+   - Phase B (`selected_choice_id != None`) AND
+   - last user message contains a verb from `_EDIT_VERBS` AND
+   - it doesn't contain any token from `_PART_HINTS`
+     (`part1`, `前半`, `选项`, `分支`, `重新生成`, …) AND
+   - the model returned neither `clarify_options` nor a `revised_story`
+   → we **inject** the canonical 4-chip array + replace `reply` with
+   "请问您想修改哪一部分呢?". Logs `[story_chat] safety-net
+   clarification injected for ambiguous Phase-B edit request: <text>`
+   so we can audit drift rate in pilot.
+
+   The verb / part-hint lists are central — if pilot teachers find a
+   new phrasing that slips through, grow the lists rather than
+   rewriting the heuristic.
+
+**Wire format.** `/api/story/chat` always returns 5 fields now —
+`reply`, `revised_story`, `revised_continuations`, `clarify_options`,
+`revision_scope`. Missing model output is normalised to `[]` / `{}` /
+`null`, never `undefined`, so the frontend's type guards stay trivial.
+
+### 23.2 `revision_scope` — show only the slice that changed
+
+**Problem.** Even when the teacher pinned the request to "改故事前半段",
+Doubao would happily re-write `designRationale` "to match the new
+opening" — teachers found this jarring. Worse, the preview card
+rendered all 4 sections regardless, making it impossible to tell what
+the model actually touched.
+
+**Fix.** Backend prompt now demands MODE B return a `revision_scope`
+array, with these mappings hardwired:
+
+| Button / free text                | scope                                          |
+| --------------------------------- | ---------------------------------------------- |
+| 改故事前半段 / part1 改写         | `["part1"]`                                     |
+| 改三个互动选项文案 / choices 改写 | `["choices"]`                                   |
+| 改当前分支的后半段 / part3 改写   | `["part3"]`                                     |
+| 重新生成故事                      | `["part1","choices","part3","designRationale"]` |
+| 同时改 part1 + choices            | `["part1","choices"]`                           |
+
+**Critical**: `designRationale` is **only** in scope for the
+"重新生成故事" path. Every other path must carry
+`current_story.designRationale` verbatim. The Phase-B prompt repeats
+this constraint twice.
+
+Backend validation in `/api/story/chat`:
+
+```python
+SCOPE_ALLOWED = {"part1", "choices", "part3", "designRationale"}
+revision_scope = [s for s in scope_raw
+                  if isinstance(s, str) and s in SCOPE_ALLOWED]
+# Dedup while preserving order.
+```
+
+Hallucinated values (e.g. `"title"`, `"rationale"`) silently drop —
+they never make it to the UI.
+
+Frontend (`stores/part3.ts` + `Part3StoryPanel.vue`):
+
+- `DesignChatMessage` got `revisionScope?: string[]`.
+- Helper `revisionHas(msg, key)` returns `true` when scope is missing
+  or empty (legacy messages render all 4 sections — backwards
+  compatible) OR the key is in scope.
+- The preview card's 4 `<template v-if="revisionHas(...)">` blocks
+  conditionally render section-by-section.
+
+### 23.3 Part-5 — first slide is the video, the rest are blank canvases
+
+**Pilot ask.** Teachers wanted to keep the Bilibili demo video AND add
+their own blank canvas slides after it (lesson recap, follow-up notes
+etc.) — Part 5 was previously single-page video-only.
+
+**Architecture choice.** Rather than introduce a `slide.type` field
+across the schema, the **first** Part-5 slide is *by convention* the
+video slide. Subsequent slides are normal blank canvases edited via
+`WorkspaceContent`, identical to Parts 1/2/4.
+
+**`frontend/src/stores/slides.ts`**
+
+- `navigateToPart(5)` auto-seeds a Part-5 slide if none exists (old
+  projects + LKPs that didn't seed page-5 land here) AND clears
+  `elements` / `background` / `bgColor` on the first Part-5 slide so
+  any LKP-fallback-seeded text (e.g. "艺术实践·步骤提示" from
+  `slide_framework[part_id=5]`) never reaches the sidebar thumbnail.
+  This runtime normalisation skips the LKP JSON — the text is still
+  available to AI prompts via the LKP, just no longer projected into
+  the slide model.
+- New computed `part5VideoSlideId` (first Part-5 slide id, or `null`)
+  and helper `isPart5VideoSlide(slideId)`.
+
+**`frontend/src/components/workspace/WorkspaceSidebar.vue`**
+
+- `SLIDE_EDITOR_PARTS = new Set([1, 2, 4, 5])` (5 added).
+- `canDelete(slide)` returns `false` for the video slide regardless
+  of count, so its × button never renders.
+- Video slide doesn't use `<SlideThumbnail>` — it gets a custom
+  `.slide-video-cover` (soft-green field, centered ▶ icon, no text).
+  This avoids leaking element text through the thumbnail forever.
+
+**`frontend/src/views/CreateLesson.vue`** — Part 5 branch:
+
+```vue
+<template v-else-if="isPart5">
+  <Part5Content v-if="slideStore.isPart5VideoSlide(slideStore.activeSlideId)" />
+  <WorkspaceContent v-else />
+  ...
+</template>
+```
+
+Active slide is the video slide → render the existing `Part5Content`
+video player; any other Part-5 slide → render the regular canvas
+editor. Chatbot column unchanged.
+
+### 23.4 Cloudflare R2 user-state "database"
+
+**Why.** Pilot teachers cleared cache / refreshed / switched devices
+and lost everything. Per-user persistence backed by R2 was the
+agreed pilot-grade solution.
+
+**Backend — `backend/main.py` § 10.**
+
+- `boto3==1.35.74` added to `requirements.txt`, with a defensive
+  import guard so the server still starts without the lib (endpoints
+  return 503).
+- Env vars (documented in `backend/.env.example`):
+  - `R2_ENDPOINT_URL` (jurisdiction-neutral form
+    `https://<account-id>.r2.cloudflarestorage.com`)
+  - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` — R2 API token with
+    "Object Read & Write" scoped to the bucket.
+  - `R2_USER_STATE_BUCKET=artbloom-user-state`.
+- Two endpoints:
+  - `GET /api/state/{user_code}` → returns the JSON blob, or 204 on
+    first login (NoSuchKey → empty), or 503 when env not set.
+  - `PUT /api/state/{user_code}` → writes
+    `user-state/{CODE}.json` and appends one line to
+    `user-state/{CODE}.log.{YYYY-MM-DD}.jsonl` (read-modify-write per
+    day; tens of KB / day / user).
+- Invite-code regex: `^[A-Za-z0-9_-]{4,64}$`, upper-cased. Anything
+  else → HTTP 400. Whitespace rejected (no phantom users from a
+  trailing space).
+
+**Frontend — new `frontend/src/stores/userState.ts`.**
+
+- `activateUser(code)` on login or invite-code change: first
+  synchronous `loadFromCache(code)` (paint instantly from
+  `localStorage[artbloom-user-state-cache:<CODE>]`), then async
+  `loadFromBackend(code)` (canonical R2 GET overwrites cache paint).
+- `scheduleSave()` is debounced 1500 ms. `flushSave()` is the
+  immediate variant for user-switch / unload.
+- `collectPayload()` / `applyPayload()` snapshot every other store
+  (`user`, `projects`, `chatbot`, `slides`, `part3`, `part5`, `part6`,
+  `part7`) into one opaque dict keyed by Pinia id. Adding a new store
+  later = one line in each helper.
+- 503 from backend doesn't bubble — frontend `console.info`s and
+  falls back to localStorage-only. Same path runs in local dev when
+  R2 env isn't configured.
+
+**Frontend — `frontend/src/App.vue` orchestration.**
+
+- `watch(userStore.inviteCode, { immediate: true })` triggers
+  `userStateStore.activateUser(code || null)` — covers login,
+  refresh, code switch.
+- ~15 `watchStore(getter, { deep: true })` calls hook into the major
+  reactive refs (`slides`, `projects.projects`, `chatbot.histories`,
+  `part3.pairs`, …) and bounce mutations through `scheduleSave()`.
+- `window.addEventListener('beforeunload', flushOnUnload)` for
+  best-effort sync save on tab close.
+
+**Wire format.** PUT body is `{ payload: <opaque dict> }` so Pydantic
+validation stays simple. Server-side stamps `updated_at` and
+`schema_version` before writing.
+
+### 23.5 AccessModal — invite code only on first device login
+
+`SiteHeader.onAccess()` previously opened the modal **every** time the
+"进入" pill was clicked. After fixing per-user persistence, this had
+to align with the pilot spec "only the first login per device asks
+for a code".
+
+- `onAccess()` now checks `userStore.inviteCode.trim()`. Truthy →
+  `router.push('/dashboard')` directly; falsy → open the modal.
+- `onAccessSubmit(code)` now trims and rejects empty input (form
+  `required` was already there; defending in depth blocks a phantom
+  `user-state/.json`). Switched from the deprecated
+  `setUsername(code || 'Guest')` to `setInviteCode(trimmed)` so the
+  R2 object key is the actual code, not the literal string `"GUEST"`
+  shared across users.
+- To force the modal back (testing, device-switch, future logout):
+  delete `localStorage['artbloom.user.inviteCode']` or call
+  `userStore.signOut()`.
+
+### 23.6 Misc UI
+
+- "我的课件" 顶部统计卡片中文文案：`幻灯片总数` → `幻灯片总页数`
+  (`frontend/src/i18n/zh.ts` `dashboard.stats.totalSlides`). EN
+  unchanged (`'Total Slides'`).
+
+### 23.7 Acceptance checks
+
+1. `cd backend && python3 -c "import ast; ast.parse(open('main.py').read())"` → SYNTAX_OK.
+2. `cd frontend && npm run build` → 0 errors. Bundle stays ~ 80 kB
+   gzipped for `CreateLesson` after all 5 features.
+3. Story chat Phase B: typing "让故事更有想象力" → assistant reply ≤ 1
+   sentence + 4 green pill buttons. Clicking "改故事前半段" → preview
+   card renders **only** "第一部分：故事前半段" with rewritten text;
+   "设计理念" section absent.
+4. Part 5: clicking "第五部分：创意示范" → centre = default video,
+   sidebar shows a ▶-icon thumbnail (no text). Clicking `+` adds a
+   blank canvas slide editable like Parts 1/2/4.
+5. Refresh browser on `/workspace` → all stores rehydrate from R2 +
+localStorage cache. No "[userState]" red errors in console when
+R2 is configured.
+6. "进入" pill clicked second time on same device → goes straight to
+   dashboard, no modal.
+
+---
+
+## 2026-05-28 — Part 3 "与艺芽讨论修改" iteration
+
+Three changes to the Design-Rationale tab's revision chat in
+`Part3StoryPanel.vue`:
+
+### 1. New `chatHint` copy (i18n only)
+
+The example prompts under "与艺芽讨论修改" used to be generic ("把故事
+修改得更贴近本课学习目标 / 让故事更有想象力"), which steered teachers
+toward ambiguous requests like 「让故事更有趣」. The hint now maps 1:1
+onto the two MODE-B targets available before a branch is picked
+(part1 / choices), so teachers learn to write precise instructions:
+
+> 可以说「把前半段故事修改得更贴近本课学习目标」，或「让三个互动选项
+> 更有想象力」。
+
+**Files:**
+- `frontend/src/i18n/zh.ts` → `part3.storyPanel.chatHint`
+- `frontend/src/i18n/en.ts` → `part3.storyPanel.chatHint` (matched
+  EN copy: "make Part 1 better aligned with the learning goal" /
+  "make the three choices more imaginative")
+
+### 2. `designRationale` is no longer rewritten or shown in revisions
+
+The "修改后的故事" preview card used to render the AI's regenerated
+designRationale (often 240-260 chars) alongside the changed
+part1/choices/part3, which (a) wasted tokens, (b) inflated chat
+latency, and (c) made teachers nervous that the lesson rationale was
+being silently rewritten. The contract is now:
+
+- **Prompt:** `_STORY_CHAT_PHASE_B` and `STORY_CHAT_SYSTEM` in
+  `backend/main.py` were rewritten to forbid `designRationale` from
+  appearing in `revision_scope` *under any circumstances*, including
+  the "重新生成故事" button. The model is now instructed to copy
+  `current_story.designRationale` verbatim into
+  `revised_story.designRationale` every turn.
+- **Server safety net:** the `/api/story/chat` handler hard-strips
+  `designRationale` from `revision_scope` after the JSON parse and
+  also force-restores `revised_story.designRationale` from
+  `req.current_story.designRationale`, so even a non-compliant model
+  cannot smuggle in a rewrite.
+- **Frontend:** removed the `<template v-if="revisionHas(msg,
+  'designRationale')"> … </template>` block from
+  `Part3StoryPanel.vue`. The "修改后的故事" card now only renders the
+  3 user-targetable sections (Part 1 / Choices / Part 3) per the
+  `revisionScope` array.
+- **i18n:** the `chatRevisedDesign` key is kept in both locales but
+  flagged `// legacy, no longer rendered` so historical chat data
+  (resumed from saved projects) doesn't trigger missing-key warnings.
+
+### 3. Instant client-side clarification for ambiguous edits
+
+Pilot teachers reported the chat felt "very slow" when their message
+was vague ("让故事更有想象力" etc.) — even though the canonical
+response was just a fixed 4-chip clarification, Doubao still consumed
+a full 5-8 s vision-LLM round-trip. We now short-circuit on the
+client.
+
+**Implementation** (`frontend/src/stores/part3.ts → sendDesignChat`):
+two regexes mirror the backend's `_EDIT_VERBS` and `_PART_HINTS`
+lists exactly. When the latest message matches `EDIT_INTENT_RE`
+*and* misses `PART_TARGET_RE` *and* isn't itself one of the 4
+canonical chip labels, we push:
+
+1. The user's message verbatim.
+2. A canned assistant message containing the same Chinese / English
+   clarification question and the same 2- (Phase A) or 4-chip
+   (Phase B) `clarifyOptions` array the backend would have returned.
+
+No network request, no `designChatLoading` spinner — the chips
+appear in <10 ms. Clicking a chip then sends the chip's verbatim
+text to the backend, which goes straight into MODE B because the
+chip labels contain part-target keywords.
+
+The new `chatClarifyLocal` i18n key was added for completeness but
+the store inlines the canned text directly (saves a `t()` lookup at
+hot-path time; the i18n key is kept as documentation).
+
+**Files touched:**
+- `frontend/src/stores/part3.ts` — `EDIT_INTENT_RE`,
+  `PART_TARGET_RE`, fast-path branch in `sendDesignChat`.
+- `frontend/src/i18n/zh.ts` + `en.ts` — `chatClarifyLocal` (new),
+  `chatRevisedDesign` (marked legacy).
+- `frontend/src/components/workspace/part3/Part3StoryPanel.vue` —
+  removed `designRationale` `<template>` from the revision card.
+- `backend/main.py` — `_STORY_CHAT_PHASE_B`, `STORY_CHAT_SYSTEM`,
+  server-side `SCOPE_RETURN` filter + force-restore of
+  `revised_story.designRationale`.
+
+**Verification.** `npx vue-tsc --noEmit` clean. `npx vite build`
+clean (~577 ms). `python -c "import main"` from `backend/` succeeds.
+
+

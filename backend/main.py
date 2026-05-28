@@ -1176,7 +1176,8 @@ _STORY_CHAT_PHASE_B = (
     "  ① 故事前半段（即 part1）；\n"
     "  ② 三个互动选项文案（即 choices 的 label/desc）；\n"
     "  ③ 当前正在看的那条分支（id = selected_choice_id）的后半段（即 part3）；\n"
-    "  ④ 重新生成整篇故事（part1 + choices + 当前分支 part3 + designRationale 全部重写）。\n"
+    "  ④ 重新生成整篇故事（part1 + choices + 当前分支 part3 全部重写；designRationale 永远保留不动）。\n"
+
     "\n"
     "[Phase B 优先级决策树 — 必须按顺序执行]\n"
     "\n"
@@ -1224,7 +1225,7 @@ _STORY_CHAT_PHASE_B = (
     "\n"
     "\n"
     "  • 当老师点击「重新生成故事」按钮（最新一条 user 消息文本为「重新生成故事」时），\n"
-    "    → MODE B 重写 part1、choices 与当前分支 part3，并同步更新 designRationale，\n"
+    "    → MODE B 重写 part1、choices 与当前分支 part3；designRationale **始终原样保留**，\n"
     "      保持画作和教学锚点不变；revised_continuations 包含当前分支 id 的新文本。\n"
     "\n"
     "MODE B 字段回填规则（极重要）：\n"
@@ -1242,22 +1243,26 @@ _STORY_CHAT_PHASE_B = (
     "  - 老师点击「改故事前半段」/ 自由文本只针对 part1 → revision_scope = [\"part1\"]\n"
     "  - 老师点击「改三个互动选项文案」/ 自由文本只针对 choices → revision_scope = [\"choices\"]\n"
     "  - 老师点击「改当前分支的后半段」/ 自由文本只针对当前分支 part3 → revision_scope = [\"part3\"]\n"
-    "  - 老师点击「重新生成故事」 → revision_scope = [\"part1\", \"choices\", \"part3\", \"designRationale\"]\n"
+    "  - 老师点击「重新生成故事」 → revision_scope = [\"part1\", \"choices\", \"part3\"]\n"
     "  - 老师同时要求改 part1 和 choices → revision_scope = [\"part1\", \"choices\"]\n"
     "\n"
-    "极其重要 —— designRationale 默认**不**进 scope：\n"
-    "  • 除非 revision_scope 显式包含 \"designRationale\"（仅「重新生成故事」会出现），\n"
-    "    否则 revised_story.designRationale 必须 **完全照抄** current_story.designRationale，\n"
-    "    一个字都不能改。不要因为 part1 或 choices 改了就顺手"
-    "升级设计理由的描述。\n"
-    "  • 老师对设计理由不感兴趣的改动，AI 也不应当主动重写它。\n"
+    "极其重要 —— designRationale **永远不**进 scope（2026-05-28 更新）：\n"
+    "  • revision_scope **绝不能**包含 \"designRationale\"，即使老师点了「重新生成故事」也不例外。\n"
+    "  • revised_story.designRationale 必须 **完全照抄** current_story.designRationale，\n"
+    "    一个字都不能改。不要因为 part1 / choices / part3 改了就顺手升级设计理由的描述。\n"
+    "  • 老师在「与艺芽讨论修改」对话框里看不到设计理念字段；前端只会渲染老师实际指定\n"
+    "    要改的故事片段（part1 / choices / part3），所以重写设计理由对老师无意义，反而会\n"
+    "    误导他们以为我们偷偷改了课件骨架。\n"
+    "  • 如果老师明确指令「改一下设计理念」/「调整一下教学说明」，回复:\n"
+    "    『设计理念由教研团队预设，与课件骨架绑定，不在故事讨论里修改。』并维持\n"
+    "    revised_story = null、revision_scope = []。\n"
     "\n"
     "字段级约束沿用故事生成规范（仅作用在 revision_scope 包含的字段上）：\n"
     "  • part1 / part3 严格 180-200 中文字（≈ 120-150 EN words），两半段字数对齐；\n"
     "  • 3 个 choices 各对应不同教学侧面；\n"
-    "  • part3 结尾必须回扣 [学习目标] 的「能做」层；\n"
-    "  • designRationale 遵循 3 段 240-260 字规范（仅当它在 scope 内被重写时）。"
+    "  • part3 结尾必须回扣 [学习目标] 的「能做」层。"
 )
+
 
 
 STORY_CHAT_SYSTEM = (
@@ -1307,10 +1312,12 @@ STORY_CHAT_SYSTEM = (
     "    不要返回 null。\n"
     "\n"
     "`revision_scope` 用法：\n"
-    "  • MODE B 必须返回，元素只能从 [\"part1\", \"choices\", \"part3\", \"designRationale\"] 中取；\n"
-    "  • 必须严格匹配本轮真正改了哪几个字段；不在 scope 内的字段必须从 current_story 逐字回填，\n"
-    "    包括 designRationale —— 只要 scope 里没有 \"designRationale\"，就不要重写它。\n"
+    "  • MODE B 必须返回，元素只能从 [\"part1\", \"choices\", \"part3\"] 中取；\n"
+    "  • **designRationale 永远不**出现在 revision_scope 里（2026-05-28 起的硬约束）；\n"
+    "    revised_story.designRationale 必须 100% 照抄 current_story.designRationale。\n"
+    "  • 必须严格匹配本轮真正改了哪几个字段；不在 scope 内的字段必须从 current_story 逐字回填。\n"
     "  • MODE A、Phase A 的 revised_story=null 回合必须为 [] 或省略。\n"
+
     "\n"
     "When revised_story is non-null it must follow the original story "
     "schema (English keys, values in the same language as the conversation)."
@@ -1574,7 +1581,16 @@ async def story_chat(req: StoryChatRequest):
     # (e.g. "title", "rationale") can never poison the UI. Order
     # within the scope array is preserved so the preview renders the
     # same order the model chose.
+    # 2026-05-28 — designRationale is **always** dropped from the
+    # scope server-side. The UI no longer renders that section in
+    # the "revised story" card, and we want the saved
+    # `revised_story.designRationale` to stay byte-identical to the
+    # current_story copy so applying a revision never silently
+    # rewrites the lesson rationale. SCOPE_ALLOWED keeps the canonical
+    # 4-key set for validation, but `revision_scope` is filtered to a
+    # 3-key set before it leaves this function.
     SCOPE_ALLOWED = {"part1", "choices", "part3", "designRationale"}
+    SCOPE_RETURN = {"part1", "choices", "part3"}
     scope_raw = data.get("revision_scope")
     if isinstance(scope_raw, list):
         revision_scope = [
@@ -1582,16 +1598,31 @@ async def story_chat(req: StoryChatRequest):
             for s in scope_raw
             if isinstance(s, str) and s in SCOPE_ALLOWED
         ]
+        # Hard-drop designRationale even if the model insisted on it.
+        revision_scope = [s for s in revision_scope if s in SCOPE_RETURN]
         # Deduplicate while preserving order.
         seen: set[str] = set()
         revision_scope = [s for s in revision_scope if not (s in seen or seen.add(s))]
     else:
         revision_scope = []
 
+    # 2026-05-28 — Force-restore designRationale on the revised story
+    # from the current story so the model cannot smuggle in a rewritten
+    # rationale even when the scope was clean. This is a no-op when
+    # revised is None / not a dict, and a no-op when current_story is
+    # missing the key (legacy projects).
+    if (
+        isinstance(revised, dict)
+        and isinstance(req.current_story, dict)
+        and isinstance(req.current_story.get("designRationale"), str)
+    ):
+        revised["designRationale"] = req.current_story["designRationale"]
+
     # Sanity-check: revised_story must include all 4 keys to be applied.
     REQUIRED = {"part1", "choices", "part3", "designRationale"}
     if isinstance(revised, dict) and REQUIRED.issubset(revised.keys()):
         return {
+
             "reply": reply,
             "revised_story": revised,
             "revised_continuations": revised_continuations,
