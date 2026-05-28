@@ -147,8 +147,8 @@
         "style_name_zh": "节奏感更强",
         "style_description_zh": "强化孩子画中的节奏元素——让线条更粗细分明,形状大小对比更强烈",
         "linked_learning_objective": "粗细线条的变化",
-        "image_gen_prompt_template_zh": "保留孩子原画所有形状与线条的位置和走向不变。强化节奏感：把一部分线条加粗到很粗、另一部分减细到呼吸般；让一些形状放大两倍、另一些缩小成圆点，形成清晰的视觉节拍。如原画为黑白线稿，请配上跳跃的对比色（暖色+冷色穿插），让节奏更有听感。Image-to-image 强度 0.5。",
-        "image_gen_prompt_template_en": "Preserve the position and direction of every shape and line in the child's drawing. Now intensify the rhythmic quality of the piece: thicken some lines dramatically while thinning others down to whispers; enlarge some shapes to twice their original size while shrinking others to small dots — establishing a clearly visible 'visual beat' across the composition. If the original is a black-and-white line sketch, add a lively palette of contrasting colours (alternating warm and cool tones) so the rhythm becomes audible to the eye. Image-to-image strength: 0.5.",
+        "image_gen_prompt_template_zh": "以原稿为创作起点，保留主体大致位置感。大幅强化画面的视觉节奏：让线条粗细形成鲜明对比，让形状大小拉开数倍差距，建立清晰的视觉节拍。配以跳跃的暖冷对比色，让画面像在用眼睛听音乐。整体重绘为鲜亮的童书绘本风。Image-to-image 强度 0.8。",
+        "image_gen_prompt_template_en": "Start from the child's drawing and preserve only the rough positional sense of the main subject. Dramatically intensify the visual rhythm: push line thickness to extreme contrasts, scale shapes to widely differing sizes, and establish a clear visual beat across the composition. Pair this with a lively warm-cool contrast palette so the painting almost lets you hear music with your eyes. Redraw everything in a bright children's-picture-book style. Image-to-image strength: 0.8.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       },
       {
@@ -156,8 +156,8 @@
         "style_name_zh": "色彩更情绪化",
         "style_description_zh": "把色彩推向更强烈的情绪——开心更暖更鲜艳,安静更冷更柔和",
         "linked_learning_objective": "色彩与情绪的对应",
-        "image_gen_prompt_template_zh": "保留孩子原画里所有形状、线条和构图位置不变。即使原稿是黑白线稿，也要把色彩推向强烈的情绪表达：欢快有力的画面用饱和度最高的橙、红、黄暖色；宁静梦幻的用加深的蓝、绿、淡紫冷色与柔和渐变；紧张的画面加入高对比的撞色搭配，让色彩本身就能\"听\"到音乐。Image-to-image 强度 0.45。",
-        "image_gen_prompt_template_en": "Preserve every shape, line, and the composition of the child's drawing exactly. Even when the original is a black-and-white line sketch, push the colour palette toward strong emotional expression: for happy / energetic pieces use warm hues (orange, red, yellow) at maximum saturation; for calm / dreamy ones deepen the cool hues (blue, green, lavender) with soft gradients; for tense pieces introduce high-contrast clashing colour pairs — so the colour alone lets the viewer 'hear' the music. Image-to-image strength: 0.45.",
+        "image_gen_prompt_template_zh": "以原稿为起点，保留主体的构图和轮廓感。把整张画推向强烈的情绪化色彩——根据画面传达的情绪选用截然不同的色彩策略，让色彩本身就能让人“听”到音乐。饱和度大幅提升，整体重绘为现代抽象画风。Image-to-image 强度 0.78。",
+        "image_gen_prompt_template_en": "Start from the child's drawing and preserve the rough composition and silhouette of the main subject. Push the whole piece toward an emotionally charged colour palette — read the mood the composition conveys and apply a distinctly different colour strategy for happy / calm / tense / energetic moods, so the colour alone makes the viewer 'hear' the music. Saturate the palette aggressively and redraw the composition in a modern abstract style. Image-to-image strength: 0.78.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       },
       {
@@ -165,8 +165,8 @@
         "style_name_zh": "形状更抽象",
         "style_description_zh": "把孩子画的具象形状推向更纯粹的抽象造型,接近大师作品的语言",
         "linked_learning_objective": "用形状、线条表达对音乐的感受",
-        "image_gen_prompt_template_zh": "保留孩子原画里每个元素的构图位置不变，但把每个具象形状推向抽象造型：涂鸦团块变成纯几何形（圆/方/三角），潦草线条变成优雅曲线或螺旋，物体溶解为色块。整体借鉴康定斯基与刘讯的音乐抽象画语言，为画面填上明亮的彩色色块（红黄蓝三原色加少量黑）。Image-to-image 强度 0.65。",
-        "image_gen_prompt_template_en": "Preserve the COMPOSITION (where each element sits) of the child's drawing, but push every concrete shape toward abstract form: scribbled blobs become pure geometric shapes (circle / square / triangle), tangled lines become elegant curves or spirals, recognisable objects dissolve into pure colour fields and form. Echo the visual language of Wassily Kandinsky and Liu Xun's abstract music paintings, filling the composition with bright primary colour blocks (red, yellow, blue plus a small amount of black). Image-to-image strength: 0.65.",
+        "image_gen_prompt_template_zh": "以原稿为创作起点，仅保留画面整体的构图位置感。把所有具象形状大胆推向纯抽象造型：涂鸦变成几何形，潦草线条变成优雅曲线或螺旋，物体溶解为色块。整体借鉴康定斯基的音乐抽象画语言，明亮的红黄蓝三原色色块加少量黑，构图自由。Image-to-image 强度 0.85。",
+        "image_gen_prompt_template_en": "Start from the child's drawing and preserve only the overall compositional positions. Boldly push every concrete shape into pure abstract form: scribbles become geometric shapes, tangled lines become elegant curves or spirals, recognisable objects dissolve into colour fields. Echo the visual language of Kandinsky's abstract music paintings, filling the composition with bright primary colour blocks (red, yellow, blue plus a touch of black). Free, expressive composition. Image-to-image strength: 0.85.",
         "model_recommendation": "doubao-seedream-5-0-260128"
       }
     ]
