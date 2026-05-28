@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { toggleLocale } from '@/i18n'
 import { useUserStore } from '@/stores/user'
 import { useProjectsStore } from '@/stores/projects'
+import { ApiError } from '@/api/client'
 import logoUrl from '@/assets/images/logo.png'
 import AccessModal from './AccessModal.vue'
 
@@ -20,6 +21,8 @@ const sectionIds: Anchor[] = ['home', 'tutorial', 'contact']
 
 /** Controls the AccessModal visibility (v-model:open). */
 const accessOpen = ref(false)
+/** Error message shown inside the modal when the code is rejected. */
+const loginError = ref('')
 
 
 let observer: IntersectionObserver | null = null
@@ -89,15 +92,27 @@ function onAccess() {
  * (e.g. DATABASE_URL not configured on the server).
  */
 async function onAccessSubmit(code: string) {
+  loginError.value = ''
   try {
-    await userStore.login(code || 'Guest')
+    await userStore.login(code || '')
     await projectsStore.loadFromAPI()
-  } catch {
-    // DB not available — fall back to local-only mode
-    userStore.setUsername(code || 'Guest')
+    accessOpen.value = false
+    router.push('/dashboard')
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) {
+      // Wrong invite code — show error, keep modal open
+      loginError.value = 'Invalid invitation code. Please check and try again.'
+      return
+    }
+    // API unreachable (server sleeping, no DB) — fall back to local mode
+    if (code.trim()) {
+      userStore.setUsername(code.trim())
+      accessOpen.value = false
+      router.push('/dashboard')
+    } else {
+      loginError.value = 'Please enter your invitation code.'
+    }
   }
-  accessOpen.value = false
-  router.push('/dashboard')
 }
 </script>
 
@@ -137,7 +152,12 @@ async function onAccessSubmit(code: string) {
     </div>
 
     <!-- Invitation-code modal (renders nothing until opened). -->
-    <AccessModal v-model:open="accessOpen" @submit="onAccessSubmit" />
+    <AccessModal
+      v-model:open="accessOpen"
+      :error="loginError"
+      @submit="onAccessSubmit"
+      @update:open="(v) => { accessOpen = v; if (!v) loginError = '' }"
+    />
   </header>
 </template>
 

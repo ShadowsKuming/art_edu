@@ -142,7 +142,7 @@ function onTeachingSelect(projectId: string) {
         part5Store.clearVideo()
     }
     showTeachingDrawer.value = false
-    router.push(`/workspace/${projectId}`)
+    router.push({ path: `/workspace/${projectId}`, query: { teach: '1' } })
 }
 
 /**

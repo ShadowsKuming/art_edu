@@ -167,20 +167,21 @@ export const useProjectsStore = defineStore('projects', () => {
     projects.value.push(newProject)
     activeProjectId.value = id
 
+    // Fire-and-forget API sync so navigation isn't blocked by Render cold start.
+    // The project already exists in the local store, so the workspace can open
+    // immediately; the DB write happens in the background.
     if (getToken()) {
-      try {
-        await apiPost('/api/projects', {
-          id: newProject.id,
-          name: newProject.name,
-          status: newProject.status ?? 'draft',
-          meta: newProject.meta ?? null,
-          snapshot: newProject.snapshot,
-          part5_video_name: newProject.part5VideoName ?? null,
-        })
-      } catch (err) {
+      apiPost('/api/projects', {
+        id: newProject.id,
+        name: newProject.name,
+        status: newProject.status ?? 'draft',
+        meta: newProject.meta ?? null,
+        snapshot: newProject.snapshot,
+        part5_video_name: newProject.part5VideoName ?? null,
+      }).catch((err) => {
         console.error('[projects] createProject API failed', err)
         useToastStore().show('Could not save to server — working offline', 'warning')
-      }
+      })
     }
 
     return id

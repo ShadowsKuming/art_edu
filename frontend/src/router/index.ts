@@ -1,5 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getToken } from '@/api/client'
 import HomePage from '@/views/HomePage.vue'
+
+// Routes that require a valid session (token or stored invite code).
+const PROTECTED = new Set(['dashboard', 'lessons', 'workspace', 'community', 'account'])
+
+function hasSession(): boolean {
+  return !!getToken() || !!localStorage.getItem('artbloom-username')
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -63,6 +71,11 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  // Block access to all internal pages without a valid session.
+  if (PROTECTED.has(to.name as string) && !hasSession()) {
+    return { name: 'home' }
+  }
+
   // Workspace requires a project ID in the URL.
   if (to.name === 'workspace' && !to.params.projectId) {
     return { name: 'lessons' }

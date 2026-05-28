@@ -70,12 +70,24 @@ onMounted(async () => {
 
   const projectId = route.params.projectId as string
 
-  // Normal navigation: slides already loaded by MyLessons/Dashboard.
-  // Refresh case: slide store is empty — reload from API using the URL project ID.
   if (slideStore.slides.length === 0 && projectId) {
-    try {
-      // Try the API first (requires login)
-      if (getToken()) {
+    // Check local store first — covers both:
+    //   • Fresh navigation (new project just created — definitely in local store)
+    //   • Browser refresh from same device (project in localStorage)
+    // Only fall back to API when the project isn't local (different device, cleared storage).
+    const local = projectsStore.projects.find(p => p.id === projectId)
+
+    if (local) {
+      projectsStore.setActiveProject(projectId)
+      slideStore.loadSnapshot(local.snapshot)
+      if (local.part5VideoName) part5Store.setVideo('', local.part5VideoName)
+      if (local.snapshot.part5CustomUrl) part5Store.setPastedUrl(local.snapshot.part5CustomUrl)
+      if (local.snapshot.part3Snapshot) part3Store.loadSnapshot(local.snapshot.part3Snapshot)
+      if (local.snapshot.part6Snapshot) part6Store.loadSnapshot(local.snapshot.part6Snapshot)
+      if (local.snapshot.part7Snapshot) part7Store.loadSnapshot(local.snapshot.part7Snapshot)
+    } else if (getToken()) {
+      // Not in local store — fetch from API (different device / cleared localStorage)
+      try {
         const p = await apiGet<ApiProject>(`/api/projects/${projectId}`)
         projectsStore.setActiveProject(projectId)
         slideStore.loadSnapshot(p.snapshot)
@@ -84,23 +96,20 @@ onMounted(async () => {
         if (p.snapshot.part3Snapshot) part3Store.loadSnapshot(p.snapshot.part3Snapshot)
         if (p.snapshot.part6Snapshot) part6Store.loadSnapshot(p.snapshot.part6Snapshot)
         if (p.snapshot.part7Snapshot) part7Store.loadSnapshot(p.snapshot.part7Snapshot)
-      } else {
-        // No token — try localStorage fallback
-        const local = projectsStore.projects.find(p => p.id === projectId)
-        if (local) {
-          projectsStore.setActiveProject(projectId)
-          slideStore.loadSnapshot(local.snapshot)
-        } else {
-          router.push('/lessons')
-        }
+      } catch {
+        router.push('/lessons')
       }
-    } catch {
-      // Project not found or token invalid — send to lessons
+    } else {
       router.push('/lessons')
     }
   } else if (projectId && !projectsStore.activeProjectId) {
-    // Slide store has data but active ID wasn't set (edge case)
     projectsStore.setActiveProject(projectId)
+  }
+
+  // Auto-launch teaching mode if URL has ?teach=1 (from "Start Teaching" buttons).
+  // Wait one tick so the slides are visible in the DOM before going fullscreen.
+  if (route.query.teach === '1' && slideStore.slides.length > 0) {
+    teachingActive.value = true
   }
 })
 
