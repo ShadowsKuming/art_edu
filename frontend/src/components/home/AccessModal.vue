@@ -19,6 +19,8 @@ import logoUrl from '@/assets/images/logo-mark.png'
 interface Props {
   /** Two-way bound `v-model:open` from the parent. */
   open: boolean
+  /** Optional error message shown below the input. */
+  error?: string
 }
 const props = defineProps<Props>()
 
@@ -125,10 +127,13 @@ function onSubmit() {
         v-model="code"
         type="text"
         class="access-modal__input"
+        :class="{ 'access-modal__input--error': !!error }"
         :placeholder="t('home.access.placeholder')"
         autocomplete="off"
         spellcheck="false"
       />
+
+      <p v-if="error" class="access-modal__error" role="alert">{{ error }}</p>
 
       <button type="submit" class="access-modal__submit">
         {{ t('home.access.submit') }}
@@ -275,6 +280,14 @@ function onSubmit() {
   margin-top: var(--space-4);
 }
 
+.access-modal__error {
+  margin: -4px 0 0;
+  font-size: 14px;
+  color: #dc2626;
+  text-align: center;
+  font-weight: 500;
+}
+
 .access-modal__input {
   appearance: none;
   width: 100%;
@@ -300,6 +313,11 @@ function onSubmit() {
 .access-modal__input:focus {
   border-color: var(--color-primary);
   background: var(--color-bg);
+}
+
+.access-modal__input--error {
+  border-color: #dc2626;
+  background: #fff5f5;
 }
 
 .access-modal__submit {
