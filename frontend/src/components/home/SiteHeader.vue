@@ -58,24 +58,47 @@ function jumpTo(id: Anchor) {
   }
 }
 
-/** Open the access modal (triggered by the "Access" pill). */
+/**
+ * Triggered by the "Access / 进入" pill in the header.
+ *
+ * 2026-05 — Once a teacher has logged in on a device, their invite
+ * code is persisted in `userStore.inviteCode` (localStorage backed,
+ * see `frontend/src/stores/user.ts`). On every subsequent click of
+ * the access pill we skip the modal and route straight to the
+ * dashboard — matches the pilot spec "input invite code only on the
+ * FIRST login per device". To force the modal back (e.g. for
+ * device-switch testing), clear `localStorage['artbloom.user.inviteCode']`
+ * or implement a proper logout that calls `userStore.signOut()`.
+ */
 function onAccess() {
+  const existing = (userStore.inviteCode ?? '').trim()
+  if (existing) {
+    router.push('/dashboard')
+    return
+  }
   accessOpen.value = true
 }
 
 /**
  * Submit handler for the AccessModal.
  *
- * Until a real backend exists we accept whatever the user typed, store
- * it on the user store as the displayed username, and route to the
- * Dashboard hub. The Dashboard's `<DashboardHeader>` renders this code
- * verbatim as "Hi, {code}". Empty input falls back to "Guest".
+ * Pilot uses the invite code itself as the user identity / R2 object
+ * key. We trim + reject empty input here (the form-level `required`
+ * already handles the common case, but defending in depth keeps a
+ * stray empty submit from creating a phantom `user-state/.json`).
  *
- * When auth lands, swap `setUsername(code)` for the API's display name
- * — no other call site needs to change.
+ * Switched from the legacy `setUsername(code || 'Guest')` to
+ * `setInviteCode(code)` so:
+ *   • The R2 state blob is keyed by the actual invite code, not the
+ *     literal string `"Guest"` (which would silently share data
+ *     across any teacher who hit Enter on an empty form).
+ *   • `App.vue`'s watcher on `userStore.inviteCode` picks up the
+ *     change and hydrates the workspace from the R2 backup.
  */
 function onAccessSubmit(code: string) {
-  userStore.setUsername(code || 'Guest')
+  const trimmed = (code ?? '').trim()
+  if (!trimmed) return
+  userStore.setInviteCode(trimmed)
   accessOpen.value = false
   router.push('/dashboard')
 }

@@ -1121,18 +1121,51 @@ _STORY_CHAT_PHASE_A = (
     "  • part1 — 故事前半段；\n"
     "  • choices — 3 个互动选项（label + desc）。\n"
     "\n"
-    "硬约束：\n"
-    "  • 严禁生成或改写 part3。若返回 revised_story，必须把 part3 设为空字符串 \"\"，\n"
-    "    designRationale 原样回填（或同步修改其中描述 part1/choices 的段落）。\n"
-    "  • 不要主动询问老师选哪条分支续写——这是 Part 2 互动按钮的职责。\n"
-    "  • 如果老师隐含要改 part3（例如「把后半段写得更紧凑」），用一句话告知：\n"
-    "    『请先在「故事预览」中点击 part2 的一个互动选项，生成后半段后我们再讨论怎么改这部分。』\n"
-    "    并维持 revised_story = null。\n"
+    "[Phase A 优先级决策树 — 必须按顺序执行]\n"
     "\n"
-    "MODE A / MODE B 判定（仅作用于 part1 与 choices）：\n"
-    "  • 老师问问题、探讨思路、给模糊建议 → MODE A，revised_story = null。\n"
-    "  • 老师明确要改 part1 或 choices 的具体内容 → MODE B，返回 revised_story（part3 留空）。"
+    "Step 1 — 老师的最新消息是否带有「想要修改」语义?判定关键词:\n"
+    "  改 / 改一下 / 改改 / 修改 / 调整 / 调一调 / 不太行 / 不太好 / 不够 / 太干 / 太单调 /\n"
+    "  能不能 / 能否 / 让……更 / 让……再 / 写得 / 改得 / 加点 / 减点 / 换成 / 去掉 / 加上 ...\n"
+    "  - 否 (纯粹问知识、问建议、闲聊) → 进入 Step 4 (MODE A 讨论)。\n"
+    "  - 是 → 进入 Step 2。\n"
+    "\n"
+    "Step 2 — 老师有没有 *精确指明* 要改哪一部分?判定:\n"
+    "    (a) 提到 part1 / 故事前半段 / 开篇 / 前半 / 开头 ...\n"
+    "    (b) 提到 choices / 互动选项 / 3 个选项 / 选项 X / 选项文案 / 第 N 个 ...\n"
+    "    (c) 同时提到上面两项 ...\n"
+    "  - 是 → 进入 Step 3 (MODE B 修改)。\n"
+    "  - 否 → **必须**进入 Step 5 (澄清询问)。**严禁回退到 Step 4**。\n"
+    "\n"
+    "Step 3 — MODE B 修改流程 (改 part1 和/或 choices, part3 留空字符串)。\n"
+    "Step 4 — MODE A 讨论流程 (仅在 Step 1 判为「非修改请求」时进入)。\n"
+    "Step 5 — Phase A 澄清询问 (强制):\n"
+    "  - `reply` ≤ 一句话 (例:「请问您想修改哪一部分呢?」)。\n"
+    "  - `clarify_options` = [\"改故事前半段\",\"改三个互动选项文案\"]\n"
+    "    (Phase A 没有 part3 / 重新生成,所以只有 2 个按钮,顺序固定,不要加序号/字母前缀)。\n"
+    "  - `revised_story` = null,`revised_continuations` = {{}},`revision_scope` = []。\n"
+    "  - 严禁在 reply 中列出 A/B 任何字。\n"
+    "  - 严禁主动给修改建议、罗列方向、问\"想往哪个方向调\"——前端按钮会引导。\n"
+    "\n"
+    "[反例 — 以下消息必须走 Step 5, 不能走 Step 4]\n"
+    "  - 「让故事更有想象力」「让故事更生动」「让故事更好」「让故事更有趣」\n"
+    "  - 「故事不太行」「太干了」「能不能改改」「想改改故事」\n"
+    "  - 「调整一下」「修改一下故事」\n"
+    "  - 「让故事再细腻一点」「让故事再活泼一点」\n"
+    "\n"
+    "[正例 — 以下消息走 Step 3 MODE B, 直接改]\n"
+    "  - 「把第三个互动选项改得温和一些」\n"
+    "  - 「前半段写得更细腻」(指明 part1)\n"
+    "  - 「把开头换成下雨天」\n"
+    "\n"
+    "硬约束:\n"
+    "  - 严禁生成或改写 part3。若返回 revised_story,必须把 part3 设为空字符串 \"\",\n"
+    "    designRationale 原样回填(或同步修改其中描述 part1/choices 的段落)。\n"
+    "  - 不要主动询问老师选哪条分支续写——这是 Part 2 互动按钮的职责。\n"
+    "  - 如果老师隐含要改 part3 (例如「把后半段写得更紧凑」),用一句话告知:\n"
+    "    『请先在「故事预览」中点击 part2 的一个互动选项,生成后半段后我们再讨论怎么改这部分。』\n"
+    "    并维持 revised_story = null。"
 )
+
 
 _STORY_CHAT_PHASE_B = (
     "[CONVERSATION PHASE — B]\n"
@@ -1145,25 +1178,50 @@ _STORY_CHAT_PHASE_B = (
     "  ③ 当前正在看的那条分支（id = selected_choice_id）的后半段（即 part3）；\n"
     "  ④ 重新生成整篇故事（part1 + choices + 当前分支 part3 + designRationale 全部重写）。\n"
     "\n"
-    "硬约束 —— 先澄清，后修改：\n"
-    "  • 如果老师在最新一条消息里 **已经明确指出** 要改哪一部分（例：「把前半段写得更细腻」、\n"
-    "    「第三个互动选项太血腥，换温和的」、「分支 2 的后半段结尾呼应一下『能做』」），\n"
-    "    → 直接进入 MODE B 输出 revised_story（仅改指定部分；其他字段原样回填）。\n"
-    "  • 如果老师 **没有明确指明修改对象**（例：「这段不太行」「太干了」「能不能改改」「让故事更有想象力」），\n"
-    "    → 必须先用 MODE A 反问澄清。回复时:\n"
-    "        - `reply` 简短，不超过一句话（例如「请问您想修改哪一部分呢？」）。\n"
-    "          不要在 `reply` 里再列出 A/B/C/D 任何文字，前端会以按钮形式展示。\n"
-    "        - 必须在同一个 JSON 中输出 `clarify_options` 字段，**完全照抄**以下 4 个字符串、\n"
-    "          顺序固定、不要改字、不要加序号/字母前缀：\n"
-    "             [\n"
-    "               \"改故事前半段\",\n"
-    "               \"改三个互动选项文案\",\n"
-    "               \"改当前分支的后半段\",\n"
-    "               \"重新生成故事\"\n"
-    "             ]\n"
-    "        - 这一轮 revised_story = null、revised_continuations = {}。\n"
-    "    严禁把 part1 / part2 / part3 这类英文 token 写进 `reply` 或 `clarify_options`，\n"
-    "    严禁在没有明确目标时擅自输出修改稿。\n"
+    "[Phase B 优先级决策树 — 必须按顺序执行]\n"
+    "\n"
+    "Step 1 — 老师的最新消息是否带有「想要修改」语义?判定关键词:\n"
+    "  改 / 改一下 / 改改 / 修改 / 调整 / 调一调 / 不太行 / 不太好 / 不够 / 太干 / 太单调 / 太血腥 /\n"
+    "  能不能 / 能否 / 让……更 / 让……再 / 让故事 / 写得 / 改得 / 加点 / 减点 / 换成 / 去掉 / 加上 /\n"
+    "  重新 / 重写 / 重新生成 / 不喜欢 / 不满意 ...\n"
+    "  - 否 (纯粹问知识、问建议、闲聊、点赞) → 进入 Step 4 (MODE A 讨论)。\n"
+    "  - 是 → 进入 Step 2。\n"
+    "\n"
+    "Step 2 — 老师有没有 *精确指明* 要改哪一部分?精确指明的判定 *只能* 是以下之一:\n"
+    "    (a) 提到 part1 / 故事前半段 / 开篇 / 前半段 / 开头 ...\n"
+    "    (b) 提到 choices / 互动选项 / 3 个选项 / 选项 X / 选项文案 / 第 N 个 ...\n"
+    "    (c) 提到 part3 / 后半段 / 续篇 / 结尾 / 当前分支 / 这条分支 / 分支 N ...\n"
+    "    (d) 明确说「重新生成」「整个重写」「全部重写」「都改」\n"
+    "    (e) 同时说出上面其中两项 (例:「part1 + choices」)。\n"
+    "  - 是 → 进入 Step 3 (MODE B 修改)。\n"
+    "  - 否 → **必须**进入 Step 5 (澄清询问)。**严禁回退到 Step 4**。\n"
+    "\n"
+    "Step 3 — MODE B 修改流程 (见下方 MODE B 字段回填规则)。\n"
+    "Step 4 — MODE A 讨论流程 (仅在 Step 1 判为「非修改请求」时进入,例如老师在问"
+    "「这个故事大概要讲多久」「能不能讲讲设计思路」)。\n"
+    "Step 5 — Phase B 澄清询问 (强制):\n"
+    "  - `reply` ≤ 一句话 (例:「请问您想修改哪一部分呢?」),不要在 reply 里列出 A/B/C/D 任何字。\n"
+    "  - `clarify_options` = [\n"
+    "       \"改故事前半段\",\n"
+    "       \"改三个互动选项文案\",\n"
+    "       \"改当前分支的后半段\",\n"
+    "       \"重新生成故事\"\n"
+    "     ] (顺序固定,不要改字,不要加序号/字母前缀,不要换成英文 part1/part2/part3)。\n"
+    "  - `revised_story` = null,`revised_continuations` = {{}},`revision_scope` = []。\n"
+    "  - 严禁主动给修改建议、罗列方向、问\"想往哪个方向调\"——前端按钮会引导。\n"
+    "\n"
+    "[反例 — 以下消息必须走 Step 5, 严禁走 Step 4 讨论]\n"
+    "  - 「让故事更有想象力」「让故事更生动」「让故事更好」「让故事更有趣」「让故事再活泼一点」\n"
+    "  - 「故事不太行」「太干了」「太血腥」「能不能改改」「想改改故事」\n"
+    "  - 「调整一下」「修改一下故事」「重新写一下」「这段不太对」\n"
+    "  - 「让人物更可爱」「让结尾更有惊喜」(不指明 part)\n"
+    "\n"
+    "[正例 — 以下消息走 Step 3 MODE B, 直接改]\n"
+    "  - 「把第三个互动选项改得温和一些」(指明 choices)\n"
+    "  - 「前半段写得更细腻」「开头加点雨声」(指明 part1)\n"
+    "  - 「重新生成故事」「整个重写」(明确触发 Step 2.d → revision_scope = 全部 4 项)\n"
+    "  - 「改一下当前分支的后半段,呼应能做层」(指明 part3)\n"
+    "\n"
     "\n"
     "  • 当老师点击「重新生成故事」按钮（最新一条 user 消息文本为「重新生成故事」时），\n"
     "    → MODE B 重写 part1、choices 与当前分支 part3，并同步更新 designRationale，\n"
@@ -1212,7 +1270,11 @@ STORY_CHAT_SYSTEM = (
     "\n"
     "MODE A — Discussion only.\n"
     "  Triggered when the teacher is asking a question, exploring ideas, "
-    "asking for advice, or making small/ambiguous suggestions.\n"
+    "or asking for advice with NO change-request semantics.\n"
+    "  ⚠ Phase 决策树覆盖: 如果 Phase block 里的 Step 1 已经把消息归类为「想要"
+    "修改」,**绝对不能**走 MODE A——必须按 Phase block 的 Step 2/3/5 处理。"
+    "MODE A 只覆盖纯讨论 (老师在问「故事大概多长」「这条分支为什么这么设计」"
+    "「孩子可能怎么反应」等知识/建议性问题),不覆盖任何形式的修改请求。\n"
     "  Action: reply conversationally (1-3 short paragraphs). Set "
     "revised_story to null and revised_continuations to {{}}.\n"
     "\n"
@@ -1450,6 +1512,61 @@ async def story_chat(req: StoryChatRequest):
         clarify_options = [s.strip() for s in clarify_raw]
     else:
         clarify_options = []
+
+    # 2026-05-28 — Server-side safety net for the "ambiguous edit
+    # request" case. Pilot teachers reported that when they typed
+    # "让故事更有想象力" (ambiguous), Doubao occasionally walked into
+    # MODE A discussion territory and gave free-form suggestions
+    # instead of returning the fixed clarification chips. The Phase
+    # B prompt now has a decision tree forbidding that, but we still
+    # need a safety net for the times the model drifts.
+    #
+    # Heuristic: if (a) we're in Phase B (selected_choice_id set),
+    # (b) the latest user message contains an "edit-request" verb
+    # but NOT a part-identifier keyword, and (c) the model returned
+    # neither a revised_story nor a clarify_options array, force
+    # the canonical 4-chip clarification envelope so the UI keeps
+    # working.
+    _EDIT_VERBS = (
+        "改", "修改", "调整", "调一调", "不太行", "不太好", "不够",
+        "太干", "太单调", "太血腥", "能不能", "能否", "让", "写得",
+        "改得", "加点", "减点", "换成", "去掉", "加上", "重新", "重写",
+        "不喜欢", "不满意", "再活泼", "再生动", "再细腻", "再有想象",
+    )
+    _PART_HINTS = (
+        "part1", "part2", "part3", "前半", "后半", "开篇", "开头", "结尾",
+        "续篇", "分支", "选项", "互动", "choices", "designRationale",
+        "设计理念", "设计理由", "重新生成",
+    )
+    last_user_text = ""
+    for m in reversed(req.messages):
+        if m.role == "user":
+            last_user_text = (m.text or "").strip()
+            break
+    if (
+        req.selected_choice_id is not None  # Phase B
+        and last_user_text
+        and any(v in last_user_text for v in _EDIT_VERBS)
+        and not any(p in last_user_text for p in _PART_HINTS)
+        and not clarify_options
+        and not (isinstance(revised, dict) and revised)
+    ):
+        clarify_options = [
+            "改故事前半段",
+            "改三个互动选项文案",
+            "改当前分支的后半段",
+            "重新生成故事",
+        ]
+        # Replace the model's MODE-A-style discussion with a short
+        # clarification lead-in. The frontend renders the chips
+        # below this reply.
+        if not reply or any(v in reply for v in _EDIT_VERBS):
+            reply = "请问您想修改哪一部分呢?"
+        print(
+            f"[story_chat] safety-net clarification injected for ambiguous "
+            f"Phase-B edit request: {last_user_text!r}",
+            flush=True,
+        )
 
     # `revision_scope` (MODE B only). Frontend uses this to decide
     # which sections of the proposed revision to render. Validate
