@@ -260,7 +260,7 @@ export default {
     slides: '张幻灯片',
     created: '创建于',
     stats: {
-      totalSlides: '幻灯片总数',
+      totalSlides: '幻灯片总页数',
       totalSlidesDesc: '所有已创建的幻灯片',
       readyToTeach: '可开始教授',
       readyToTeachDesc: '已发布，准备就绪',

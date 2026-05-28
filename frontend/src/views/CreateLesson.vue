@@ -149,9 +149,28 @@ function stopResize() {
         </div>
       </template>
 
-      <!-- Part 5: predefined slide + video upload -->
+      <!--
+        Part 5 — "创意示范"
+        ─────────────────────
+        2026-05 — Part 5 now has two slide kinds:
+          • The FIRST Part-5 slide is the "video slide" — renders
+            the existing `Part5Content` video player UI, lets the
+            teacher upload / paste-link / restore the demo video.
+            Auto-seeded by `slideStore.navigateToPart(5)` if missing.
+            Sidebar shows a "▶ 视频" badge on its thumbnail and
+            hides the delete button.
+          • Subsequent slides (added by the teacher via the sidebar
+            "+" button) are normal blank canvases — same editor as
+            Parts 1 / 2 / 4 via `WorkspaceContent`.
+
+        The right-hand chat panel stays as `WorkspaceChatbot` for
+        every Part-5 slide (same locale-aware welcome bubble as
+        Parts 1 / 2 / 4 / 5; chat history is bucketed per
+        `${projectId}:5`).
+      -->
       <template v-else-if="isPart5">
-        <Part5Content />
+        <Part5Content v-if="slideStore.isPart5VideoSlide(slideStore.activeSlideId)" />
+        <WorkspaceContent v-else />
         <div class="resizer" @mousedown="startResize" />
         <div class="chat-panel" :style="{ width: chatWidth + 'px' }">
           <WorkspaceChatbot />

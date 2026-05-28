@@ -4,6 +4,15 @@ httpx==0.27.2
 python-dotenv==1.0.1
 pydantic==2.9.2
 edge-tts==7.2.8
+<<<<<<< HEAD
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 python-jose[cryptography]==3.3.0
+=======
+# 2026-05 — boto3 is the S3-compatible client we use to persist per-user
+# state JSON blobs to Cloudflare R2. R2 speaks the S3 API verbatim;
+# pointing boto3 at an `endpoint_url=https://<account>.r2.cloudflarestorage.com`
+# is all the configuration that's needed beyond the usual access key /
+# secret pair. See section 10 of main.py for the load/save endpoints.
+boto3==1.35.74
+>>>>>>> 4f3588d510e5492d902272d617fa221771152d9d

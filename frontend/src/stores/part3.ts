@@ -55,6 +55,27 @@ export interface DesignChatMessage {
   /** Becomes true once the user clicks "Apply" on the proposed
    *  rewrite — keeps the button from being clicked twice. */
   revisedStoryApplied?: boolean
+  /** 2026-05 — Phase-B clarification helper. When the teacher's
+   *  request is ambiguous ("让故事更有想象力" etc.) the model returns
+   *  this fixed 4-item list of Chinese button labels:
+   *    ["改故事前半段", "改三个互动选项文案",
+   *     "改当前分支的后半段", "重新生成故事"]
+   *  The chat panel renders them as clickable chips; clicking one
+   *  fires `sendDesignChat(<label>)` as if the teacher had typed it.
+   *  Empty / undefined → no buttons. */
+  clarifyOptions?: string[]
+  /** 2026-05 — Which sections of the proposed revision the model
+   *  actually changed. Values are a subset of
+   *  `["part1", "choices", "part3", "designRationale"]`. The chat
+   *  panel uses this to render ONLY the changed sections inside the
+   *  "修改后的故事" preview card, so teachers don't see (and worry
+   *  about) sections the AI silently rewrote on the side.
+   *
+   *  Older messages (no `revision_scope` from backend) and the
+   *  legacy "重新生成故事" flow leave this undefined — the UI then
+   *  falls back to rendering all 4 sections, matching pre-2026-05
+   *  behaviour. */
+  revisionScope?: string[]
 }
 
 
@@ -631,12 +652,44 @@ export const usePart3Store = defineStore('part3', () => {
           revisedContinuations[n] = v
         }
       }
+      // 2026-05 — `clarify_options` arrives only when the model is
+      // in Phase B and needs to disambiguate which slice the teacher
+      // wants changed. Backend already validates type/length, but we
+      // re-filter defensively (non-empty strings only) so the chip
+      // renderer can rely on `msg.clarifyOptions?.length` as truthy.
+      const rawClarify = Array.isArray(data.clarify_options)
+        ? data.clarify_options
+        : []
+      const clarifyOptions: string[] = rawClarify
+        .filter((s: unknown): s is string => typeof s === 'string' && !!s.trim())
+        .map((s: string) => s.trim())
+
+      // 2026-05 — `revision_scope` tells the UI which sections of the
+      // proposed revision actually changed (everything else has been
+      // carried over verbatim from current_story). Backend filters to
+      // the 4 canonical keys; we re-filter defensively so a stray
+      // value can never break the conditional renderer.
+      const SCOPE_KEYS: ReadonlySet<string> = new Set([
+        'part1',
+        'choices',
+        'part3',
+        'designRationale',
+      ])
+      const rawScope = Array.isArray(data.revision_scope)
+        ? data.revision_scope
+        : []
+      const revisionScope: string[] = rawScope.filter(
+        (s: unknown): s is string => typeof s === 'string' && SCOPE_KEYS.has(s),
+      )
+
       pair.designChatMessages.push({
         role: 'assistant',
         text: data.reply ?? '',
         revisedStory: data.revised_story ?? null,
         revisedContinuations,
         revisedStoryApplied: false,
+        clarifyOptions,
+        revisionScope,
       })
 
     } catch (e: any) {

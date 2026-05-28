@@ -303,6 +303,47 @@ export const useSlideStore = defineStore('slides', () => {
   function navigateToPart(partId: number) {
     if (partId >= 1 && partId <= maxUnlockedPart.value) {
       activePart.value = partId
+      // 2026-05 — Part 5 ("创意示范") now hosts BOTH the legacy video
+      // upload UI AND user-added blank canvas slides. The first
+      // Part-5 slide is always the "video slide" (rendered as
+      // `Part5Content` in `CreateLesson.vue`); subsequent slides are
+      // regular blank canvases edited via `WorkspaceContent`.
+      //
+      // Old projects (and LKPs that didn't seed a Part-5 slide) can
+      // land here with zero Part-5 slides. Seed one on first entry
+      // so the sidebar always has the video-slide thumbnail to show,
+      // and so the canvas doesn't fall into "no active slide" empty
+      // state on Part 5.
+      if (partId === 5) {
+        const part5First = slides.value.find(s => s.partId === 5)
+        if (!part5First) {
+          addSlide(5)
+        } else {
+          // 2026-05-28 — Normalise the existing Part-5 first slide
+          // into a clean "video slide" stub. The LKP's generic
+          // fallback seeder used to dump "艺术实践·步骤提示" +
+          // "提示步骤：..." into this slide's elements (from the
+          // `slide_framework` page-7 entry), which leaked through
+          // the sidebar thumbnail since the centre canvas is
+          // entirely owned by `Part5Content`. The sidebar now
+          // renders a custom play-icon for the video slide, but we
+          // still wipe the underlying elements / background here so
+          // any future consumer (Community Preview, screenshot
+          // export, etc.) sees a truly empty video slide. The text
+          // is preserved in the LKP JSON itself for AI grounding.
+          if (
+            part5First.elements.length > 0
+            || part5First.background
+            || part5First.bgColor
+          ) {
+            checkpoint()
+            part5First.elements = []
+            part5First.background = undefined
+            part5First.bgColor = undefined
+            part5First.isLocalBackground = false
+          }
+        }
+      }
       // Auto-select the first slide of the destination part so the
       // canvas always reflects the part the user just jumped to,
       // rather than lingering on a slide that belongs to the
@@ -313,6 +354,27 @@ export const useSlideStore = defineStore('slides', () => {
       activeSlideId.value = first?.id ?? null
       selectedElementId.value = null
     }
+  }
+
+  /**
+   * 2026-05 — The id of Part 5's "video slide" (always the first
+   * slide whose `partId === 5`). Returns `null` when no Part-5 slide
+   * exists yet — should be rare in practice because
+   * `navigateToPart(5)` auto-seeds one.
+   */
+  const part5VideoSlideId = computed(() =>
+    slides.value.find(s => s.partId === 5)?.id ?? null,
+  )
+
+  /**
+   * 2026-05 — True when the supplied id refers to the Part-5 video
+   * slide. The workspace uses this to switch between `Part5Content`
+   * (video player UI) and `WorkspaceContent` (blank canvas editor).
+   * The sidebar uses it to suppress the delete button on the video
+   * slide and to render a "▶ 视频" badge on its thumbnail.
+   */
+  function isPart5VideoSlide(slideId: string | null): boolean {
+    return !!slideId && slideId === part5VideoSlideId.value
   }
 
   function getSnapshot() {
@@ -395,6 +457,7 @@ export const useSlideStore = defineStore('slides', () => {
     addElement, addImageElement, addVideoElement, setSlideAudio, updateElement, removeElement, selectElement,
     setSlideBackground, setSlideBgColor, resetSlideToGlobal,
     navigateToNextPart, navigateToPart,
+    part5VideoSlideId, isPart5VideoSlide,
     removeSlide, getSnapshot, loadSnapshot, reset,
     checkpoint, undo, redo,
     canUndo: computed(() => past.value.length > 0),
