@@ -16,16 +16,21 @@ Each code represents one unique user account shared across all devices.
 - An unknown or unlisted code will be rejected with "Invalid invitation code".
 - Codes are case-insensitive (`bloom-2026-a` and `BLOOM-2026-A` are the same).
 
-## Adding or changing codes
+## Adding a new code
 
-**Local / development** — edit `backend/.env`:
+Each code is its own numbered environment variable — adding one never requires editing the existing ones.
+
+**Local / development** — add a line to `backend/.env`:
 ```
-INVITE_CODES=BLOOM-2026-A,BLOOM-2026-B,BLOOM-2026-C
+INVITE_CODE_1=BLOOM-2026-A
+INVITE_CODE_2=BLOOM-2026-B
+INVITE_CODE_3=BLOOM-2026-C
+INVITE_CODE_4=NEW-CODE-HERE   ← just add the next number
 ```
 
-**Production (Render)** — go to the `artbloom-api` service → Environment → set:
+**Production (Render)** — go to `artbloom-api` service → Environment → add:
 ```
-INVITE_CODES=BLOOM-2026-A,BLOOM-2026-B,BLOOM-2026-C
+Key: INVITE_CODE_4
+Value: NEW-CODE-HERE
 ```
-
-Restart the service after changing. New codes are auto-created in the database on next startup.
+No need to touch `INVITE_CODE_1`, `_2`, or `_3`. Redeploy after adding — the new user is created in the database automatically on next startup.

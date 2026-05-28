@@ -21,8 +21,12 @@ services:
           property: connectionString
       - key: JWT_SECRET
         sync: false         # paste a random secret in Render dashboard
-      - key: INVITE_CODES
-        sync: false         # comma-separated codes, e.g. BLOOM-2026-A,BLOOM-2026-B,BLOOM-2026-C
+      - key: INVITE_CODE_1
+        sync: false         # e.g. BLOOM-2026-A  — add INVITE_CODE_4, _5, … to expand
+      - key: INVITE_CODE_2
+        sync: false
+      - key: INVITE_CODE_3
+        sync: false
       - key: TEXTBOOK_ASSETS_URL
         sync: false
       - key: ARK_API_KEY

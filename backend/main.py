@@ -20,13 +20,8 @@ configs to inject into each Executor call.  See
 
 import json
 import os
-<<<<<<< HEAD
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-=======
-import re
-from datetime import datetime, date, timezone
->>>>>>> 4f3588d510e5492d902272d617fa221771152d9d
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
@@ -66,12 +61,34 @@ from models import CommunityLesson, Project, User
 load_dotenv()
 
 # ── Invitation codes ─────────────────────────────────────────────────────────
-# Set INVITE_CODES in the environment as a comma-separated list to restrict
-# access to specific codes only.  Defaults to the three pilot codes below.
-# Example (Render dashboard or .env):
-#   INVITE_CODES=BLOOM-2026-A,BLOOM-2026-B,BLOOM-2026-C
-_raw_codes = os.getenv("INVITE_CODES", "BLOOM-2026-A,BLOOM-2026-B,BLOOM-2026-C")
-INVITE_CODES: set[str] = {c.strip().upper() for c in _raw_codes.split(",") if c.strip()}
+# Each code lives in its own numbered env var so adding a new one never
+# requires editing the existing ones.
+#
+#   INVITE_CODE_1=BLOOM-2026-A   ← teacher 1
+#   INVITE_CODE_2=BLOOM-2026-B   ← teacher 2
+#   INVITE_CODE_3=BLOOM-2026-C   ← teacher 3
+#   INVITE_CODE_4=...            ← add more without touching the rest
+#
+# Also accepts the legacy INVITE_CODES=A,B,C format for backward compat.
+import re as _re
+
+INVITE_CODES: set[str] = set()
+
+# Numbered vars: INVITE_CODE_1, INVITE_CODE_2, …
+for _k, _v in os.environ.items():
+    if _re.match(r'^INVITE_CODE_\d+$', _k) and _v.strip():
+        INVITE_CODES.add(_v.strip().upper())
+
+# Legacy comma-separated var (still supported)
+_legacy = os.getenv("INVITE_CODES", "").strip()
+if _legacy:
+    for _c in _legacy.split(","):
+        if _c.strip():
+            INVITE_CODES.add(_c.strip().upper())
+
+# Hard-coded pilot defaults if nothing is configured
+if not INVITE_CODES:
+    INVITE_CODES = {"BLOOM-2026-A", "BLOOM-2026-B", "BLOOM-2026-C"}
 
 
 @asynccontextmanager
@@ -2335,7 +2352,6 @@ async def text_to_speech(req: TTSRequest):
 
 
 # ════════════════════════════════════════════════════════════════════════
-<<<<<<< HEAD
 # 10. Database — Users / Projects / Community
 # ════════════════════════════════════════════════════════════════════════
 
@@ -2650,240 +2666,3 @@ async def save_community_lesson(
         await db.commit()
         await db.refresh(copy)
         return _project_out(copy)
-=======
-# 10. Per-user state (Cloudflare R2 user "database")
-# ════════════════════════════════════════════════════════════════════════
-#
-# 2026-05 — Pilot teachers complained that hitting the browser refresh
-# in the workspace nuked all their work (slides, chat history, AI
-# story etc.). Root cause: every workspace store lived only in browser
-# memory + (best case) localStorage. There was no server-side user
-# database.
-#
-# This section adds a minimal per-user persistence layer on top of
-# Cloudflare R2 (S3-compatible). The teacher's invitation code is
-# their primary key; each user owns exactly one JSON blob at
-# `user-state/{invite_code}.json`. The frontend reads it on login,
-# debounce-saves it on every change.
-#
-# Why R2 and not Postgres / KV / disk:
-#   • R2 is already provisioned for textbook assets — credentials and
-#     the wrangler/dashboard workflow are familiar.
-#   • Free tier is enormous (10 GB / 1M write Class A ops / 10M
-#     read Class A ops per month). For 1-4 pilot users this costs $0.
-#   • Object-per-user keeps the schema flat — no migrations needed
-#     when we add a Pinia store.
-#   • Easy to inspect / export post-pilot: `wrangler r2 object get
-#     artbloom-user-state/<code>.json` dumps the entire teacher's
-#     workspace as a single JSON file we can hand off.
-#
-# Audit log: a separate object `user-state/{code}.log.{YYYY-MM-DD}.jsonl`
-# records each save with timestamp, size and current schema_version.
-# These are append-only-per-day (because R2 doesn't natively append,
-# we read-modify-write the day's file). For higher-volume audit we'd
-# switch to Postgres or Cloudflare D1; for 1-4 pilots this is fine.
-
-_R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL", "").strip()
-_R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "").strip()
-_R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
-_R2_USER_STATE_BUCKET = os.getenv("R2_USER_STATE_BUCKET", "artbloom-user-state").strip()
-
-# Singleton boto3 client. Lazy-init so we don't blow up startup when
-# the secrets aren't set — the endpoints below return 503 instead.
-_r2_user_client = None
-
-
-def _get_r2_user_client():
-    """Return a cached boto3 S3 client pointed at R2, or None if the
-    env vars / boto3 aren't available. Endpoints check the return
-    value and respond with HTTP 503 when the persistence layer isn't
-    configured, so the frontend can degrade gracefully to
-    localStorage-only mode (same as the chatbot store's existing
-    behaviour in offline environments)."""
-    global _r2_user_client
-    if _r2_user_client is not None:
-        return _r2_user_client
-    if not _BOTO3_AVAILABLE:
-        return None
-    if not (_R2_ENDPOINT_URL and _R2_ACCESS_KEY_ID and _R2_SECRET_ACCESS_KEY):
-        return None
-    try:
-        # `signature_version="s3v4"` is what R2 expects — using the
-        # legacy v2 sig will yield 403 SignatureDoesNotMatch.
-        _r2_user_client = boto3.client(  # type: ignore[union-attr]
-            "s3",
-            endpoint_url=_R2_ENDPOINT_URL,
-            aws_access_key_id=_R2_ACCESS_KEY_ID,
-            aws_secret_access_key=_R2_SECRET_ACCESS_KEY,
-            config=_BotoConfig(signature_version="s3v4"),  # type: ignore[arg-type]
-        )
-        print(
-            f"[startup] user-state R2 ready: bucket={_R2_USER_STATE_BUCKET}, "
-            f"endpoint={_R2_ENDPOINT_URL}",
-            flush=True,
-        )
-        return _r2_user_client
-    except Exception as exc:  # pragma: no cover — defensive
-        print(f"[startup] user-state R2 init failed: {exc}", flush=True)
-        return None
-
-
-# Invite codes are pilot-issued + human-readable. We allow letters,
-# digits, and a single class of separators. Everything else is
-# rejected as 400 to keep the R2 object-key surface tight (no path
-# traversal, no spaces, no UTF-8).
-_USER_CODE_RE = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
-
-
-def _ensure_safe_code(user_code: str) -> str:
-    """Normalise + validate the invite code. Returns the canonical
-    form (upper-cased) used everywhere as the R2 object key segment.
-
-    We upper-case because the access UX in `AccessModal.vue` is
-    case-insensitive — the teacher might type lowercase by mistake
-    and that should still land in the same R2 object. Whitespace is
-    rejected explicitly so a stray space at the end of the code
-    can't create a phantom user.
-    """
-    if not isinstance(user_code, str):
-        raise HTTPException(400, "user_code must be a string")
-    candidate = user_code.strip().upper()
-    if not _USER_CODE_RE.match(candidate):
-        raise HTTPException(
-            400,
-            "user_code must be 4-64 chars, letters / digits / '-' / '_' only",
-        )
-    return candidate
-
-
-@app.get("/api/state/{user_code}")
-async def load_user_state(user_code: str):
-    """Return the user's full state blob from R2.
-
-    Response shape:
-        200 → the JSON blob (whatever the frontend last PUT).
-        204 → "no state yet for this user" — frontend should start fresh.
-        503 → R2 not configured (frontend falls back to localStorage).
-    """
-    code = _ensure_safe_code(user_code)
-    client = _get_r2_user_client()
-    if client is None:
-        # Persistence layer unavailable — let the frontend know so it
-        # can degrade gracefully instead of looping retries.
-        raise HTTPException(503, "user-state persistence is not configured")
-
-    key = f"user-state/{code}.json"
-    try:
-        obj = client.get_object(Bucket=_R2_USER_STATE_BUCKET, Key=key)
-    except _BotoClientError as exc:  # type: ignore[misc]
-        # NoSuchKey → empty 204 (first login on this code).
-        code_str = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
-        if code_str in ("NoSuchKey", "404"):
-            return Response(status_code=204)
-        # Any other client error is a real problem.
-        print(f"[user-state] GET {key} failed: {exc}", flush=True)
-        raise HTTPException(502, f"R2 read failed: {exc}")
-    except Exception as exc:  # pragma: no cover — defensive
-        print(f"[user-state] GET {key} unexpected failure: {exc}", flush=True)
-        raise HTTPException(502, f"R2 read failed: {exc}")
-
-    body = obj["Body"].read()
-    # Stream the bytes back unchanged (already JSON) so we don't pay
-    # the parse → re-serialise round-trip cost.
-    return Response(
-        content=body,
-        media_type="application/json",
-        headers={"Cache-Control": "no-store"},
-    )
-
-
-class UserStateBody(BaseModel):
-    """Pydantic wrapper around the opaque payload. We let the
-    frontend decide the schema; the only field we read here is
-    `schema_version` for the audit log. Everything else is stored
-    verbatim. Using a `dict` field instead of a typed schema keeps
-    the contract loose so adding a new Pinia store later doesn't
-    require a backend deploy."""
-    payload: dict[str, Any]
-
-
-@app.put("/api/state/{user_code}")
-async def save_user_state(user_code: str, body: UserStateBody, request: Request):
-    """Persist the user's full state blob.
-
-    The frontend POSTs a JSON envelope `{ payload: <opaque> }` so the
-    Pydantic validator can stay simple (a dict is JSON-safe by
-    construction). Body size is implicitly capped by the upstream
-    proxy (Render's free tier ~ 100 MB request body, well above the
-    20 MB target).
-    """
-    code = _ensure_safe_code(user_code)
-    client = _get_r2_user_client()
-    if client is None:
-        raise HTTPException(503, "user-state persistence is not configured")
-
-    # Add server-side timestamp so the frontend can detect "newer on
-    # backend" even if its local clock drifts. We don't trust the
-    # client's `updated_at` for conflict resolution.
-    payload = dict(body.payload)
-    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-    payload.setdefault("schema_version", 1)
-
-    raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    key = f"user-state/{code}.json"
-    try:
-        client.put_object(
-            Bucket=_R2_USER_STATE_BUCKET,
-            Key=key,
-            Body=raw,
-            ContentType="application/json",
-            CacheControl="no-store",
-        )
-    except Exception as exc:
-        print(f"[user-state] PUT {key} failed: {exc}", flush=True)
-        raise HTTPException(502, f"R2 write failed: {exc}")
-
-    # ── Append a one-line audit entry per save. We use a per-day
-    # file so the read-modify-write cost stays bounded (one day of
-    # one user's saves is maybe a few hundred lines, ~ tens of KB).
-    log_entry = json.dumps(
-        {
-            "ts": payload["updated_at"],
-            "size": len(raw),
-            "schema_version": payload.get("schema_version", 1),
-            "ip": (request.client.host if request.client else None),
-        },
-        ensure_ascii=False,
-    ) + "\n"
-    log_key = f"user-state/{code}.log.{date.today().isoformat()}.jsonl"
-    try:
-        existing = b""
-        try:
-            existing_obj = client.get_object(
-                Bucket=_R2_USER_STATE_BUCKET, Key=log_key
-            )
-            existing = existing_obj["Body"].read()
-        except _BotoClientError as exc:  # type: ignore[misc]
-            code_str = (
-                getattr(exc, "response", {}).get("Error", {}).get("Code", "")
-            )
-            if code_str not in ("NoSuchKey", "404"):
-                raise
-        client.put_object(
-            Bucket=_R2_USER_STATE_BUCKET,
-            Key=log_key,
-            Body=existing + log_entry.encode("utf-8"),
-            ContentType="application/x-ndjson",
-        )
-    except Exception as exc:  # pragma: no cover — best-effort
-        # Audit log failure must NOT cascade into a failed save. The
-        # canonical state is already on R2; we just lose one log
-        # entry. Print to stderr so the operator can investigate.
-        print(f"[user-state] audit log append failed for {code}: {exc}", flush=True)
-
-    return {
-        "ok": True,
-        "updated_at": payload["updated_at"],
-        "size": len(raw),
-    }
->>>>>>> 4f3588d510e5492d902272d617fa221771152d9d
