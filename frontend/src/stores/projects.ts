@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Slide } from './slides'
+import { useChatbotStore } from './chatbot'
 
 const STORAGE_KEY = 'artbloom-projects'
 
@@ -153,6 +154,11 @@ export const useProjectsStore = defineStore('projects', () => {
   function deleteProject(id: string) {
     projects.value = projects.value.filter(p => p.id !== id)
     if (activeProjectId.value === id) activeProjectId.value = null
+    // 2026-05 — chatbot histories are bucketed per
+    // `${projectId}:${partId}`. When the teacher trashes a deck we
+    // also wipe every chatbot bucket prefixed with that project's
+    // id so they don't linger in localStorage forever.
+    useChatbotStore().clearProject(id)
   }
 
   function setActiveProject(id: string) {

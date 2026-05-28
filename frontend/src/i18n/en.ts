@@ -82,7 +82,16 @@ export default {
         },
       ],
       emailLabel: 'Email',
-      emailValue: 'machi2019uk@163.com',
+      // 2026-05 — vue-i18n treats `@` as the start of "linked
+      // message" syntax (`@:foo`, `@.upper`, `@@`). The production
+      // build of vue-i18n's message compiler throws
+      // `SyntaxError: Invalid linked format` when `@` is followed by
+      // anything else (here: `163.com`). That kills `<ContactInfoCard>`
+      // at setup and cascades into `<ContactForm>` not rendering on
+      // the deployed homepage. Dev only warns, hence "works on local
+      // host". Escape with the `{'@'}` literal interpolation — the
+      // rendered text is still `machi2019uk@163.com`.
+      emailValue: "machi2019uk{'@'}163.com",
       wechatLabel: 'WeChat',
       wechatValue: 'chi_chi_131',
       form: {
@@ -95,7 +104,9 @@ export default {
         // 2026-05 — placeholder examples updated to a Chinese mailbox
         // + +86 mobile-format example so the form mirrors the
         // pilot's actual users. Pure cosmetic placeholder copy.
-        emailPlaceholder: '1234567890@163.com',
+        // Same escape as `emailValue` above — avoids vue-i18n's
+        // linked-format parser tripping on `@`.
+        emailPlaceholder: "1234567890{'@'}163.com",
         phoneLabel: 'Phone',
         phonePlaceholder: '+86 12345678900',
         messageLabel: 'Message',
@@ -192,6 +203,24 @@ export default {
       myAccount: {
         title: 'My Account',
         description: 'View your account details and share feedback.',
+      },
+    },
+    // 2026-05 — Right-side drawer opened by the "Start Teaching" hub
+    // card. Empty state and populated state share these keys; the
+    // component swaps layouts based on `projects.length`.
+    startTeachingDrawer: {
+      title: 'Start Teaching',
+      subtitle:
+        'Pick a completed or recently-used lesson to jump into teaching mode.',
+      readyToTeach: 'Ready to Teach',
+      recentlyUsed: 'Recently Used',
+      startTeaching: 'Start Teaching',
+      preview: 'Preview',
+      closeAria: 'Close drawer',
+      empty: {
+        title: 'No lessons yet',
+        body: 'Create your first art lesson to get started.',
+        create: 'Create Lesson',
       },
     },
   },

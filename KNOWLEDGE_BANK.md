@@ -58,56 +58,6 @@ Verified with `npx vue-tsc --noEmit` (clean) and `npx vite build`
 
 ---
 
-
-## 0. Pilot LKP integration status (2026-05-25)
-
-Implementation pass for the **Pilot Lesson Knowledge Package (LKP)**
-flow described in `backed-files/ArtBloom_Pilot_Feature_Spec.md` and
-`backed-files/ArtBloom_New_API_Spec.md`. Status of each subtask:
-
-### Phase A — Backend infrastructure ✅
-- `backend/lesson_types.py` — Pydantic mirror of LKP schema.
-- `backend/lesson_context.py` — `LessonContextManager` with
-  `load()`, `list_available()`, and per-executor context builders
-  (`build_executor_a/b/c/d_context`, `build_part7_comment_context`).
-- `backend/data/lessons/g2v2-u4-l4.json` — first LKP file
-  ("So Long, So Long..." / 好长好长……).
-- `backend/main.py` — mounts `/textbook-assets` static files,
-  imports + instantiates `LessonContextManager`, exposes
-  `available_lessons` on `/health`.
-
-### Phase B — Existing 6 endpoints extended with `lesson_id` ✅
-`/api/story/stream`, `/api/story/continue/stream`, `/api/animation/submit`,
-`/api/chat`, `/api/part6/generate-styles`, `/api/part6/transfer` all
-accept an optional `lesson_id` (and `artwork_id` / `part_id` where
-relevant) and short-circuit to the LKP context when present.
-
-### Phase C — New `POST /api/part7/comment` ✅
-Returns `{ feedback_text, word_count, dimensions_covered, timestamp }`
-for a student-work image, anchored on the lesson's assessment rubric.
-
-### Phase D — Frontend wiring ✅
-- `frontend/src/types/lesson.ts` — TS mirror of LKP schema.
-- `frontend/scripts/sync-lessons.js` + `package.json` `prebuild`
-  script — copies `backend/data/lessons/*.json` into
-  `frontend/src/data/lessons/*.json`.
-- `frontend/src/data/lessons/index.ts` — `LESSONS` registry +
-  `getLesson(id)` + `LESSON_REGISTRY` array.
-- `frontend/src/utils/lessonSeed.ts` —
-  `hydrateProjectFromLesson(seed, locale)` builds slides + `ProjectMeta`
-  from an LKP.
-- `frontend/src/stores/projects.ts` — exposes `activeLessonId`
-  computed (reads `activeProject.meta.lessonId`).
-- `frontend/src/stores/part3.ts` — `setArtworkFromUrl(url, artworkId)`,
-  `selectedArtworkId`; all generate calls thread `lesson_id` + `artwork_id`.
-- `frontend/src/stores/part6.ts` — both endpoints thread `lesson_id`.
-- `frontend/src/stores/part7.ts` — NEW per-slide pair store calling
-  `/api/part7/comment`, with student-note and multiple work uploads.
-- `frontend/src/components/workspace/WorkspaceChatbot.vue` — threads
-  `lesson_id` + `part_id` into `/api/chat`.
-- `frontend/src/components/workspace/part3/Part3Content.vue` —
-  curated-artwork picker tiles above the upload affordance (only
-  rendered when an LKP is loaded).
 - `frontend/src/components/workspace/part7/Part7Content.vue` — NEW
   UI: left column with upload + student-work thumbnails, right
   column with image preview, student-note textarea, generate button,
@@ -1964,4 +1914,78 @@ Notes / decisions:
 - [ ] designRationale §5's "specific follow-up question" sometimes regresses to a generic prompt ("您想换一个画风吗?"). Consider adding a 1-shot example pair inside the spec to anchor the format.
 - [ ] TTS segment picker is currently part1/part3 only. If a teacher generates **multiple** branch continuations (clicks choice-0, then choice-1, etc.), only the last one is reachable through the picker. A "branch dropdown" inside the part3 pill would surface them all — deferred until the pilot teachers ask.
 - [ ] Per-artwork `story_hint_zh` is wired but the curriculum team has only filled it for 2/3 artworks per lesson. The third falls back to the generic visual description.
+
+---
+
+## §22 — vue-i18n `@` escaping in homepage Contact section (2026-05)
+
+### 22.1 Symptom
+
+On the deployed homepage (`/` → "联系我们"), only the **"我们能帮你什么"** card rendered. The right-hand `ContactForm` (姓名 / 邮箱 / 手机 / 信息 / 发送) **and** the email + WeChat `ContactInfoCard` were missing. The Chrome DevTools console showed repeated:
+
+```
+SyntaxError: Invalid linked format
+  at El (logo-mark-…js:1:96764)
+  at d  (…js:2:951)
+  at Ce (…js:2:6665)
+  at we (…js:2:6828)
+  at Object.Te [as nextToken] (…js:2:7370)
+  …
+  at Object.v [as parse] (…js:2:11638)
+  at au (…js:3:549)
+```
+
+Locally (`npm run dev`) everything rendered fine.
+
+### 22.2 Root cause
+
+In `vue-i18n` v9+, the character `@` is reserved for the **linked-message** mini-syntax inside message strings:
+
+- `@:foo.bar`        → inline another message by key
+- `@.upper:foo.bar`  → linked + modifier
+- `@@`               → literal `@`
+
+The tokenizer expects one of `:`, `.`, or `@` immediately after `@`. Our zh/en message tables contained:
+
+```ts
+emailValue:        'machi2019uk@163.com',
+emailPlaceholder:  '1234567890@163.com',
+```
+
+`@163.com` → after the `@`, `1` is invalid → `SyntaxError: Invalid linked format`.
+
+**Why local ≠ prod:** the `vue-i18n.esm-bundler.js` runtime has two execution paths, one for `NODE_ENV !== 'production'` (only `warn()`s on bad formats and returns the original string) and one for production (`throw`s). The thrown error crashed `<ContactInfoCard>`'s setup, which (because Vue propagates child render errors to the parent) also prevented its sibling `<ContactForm>` from being committed in the same `<ContactSection>` render pass — hence "only the help card shows".
+
+### 22.3 Fix
+
+Escape `@` using vue-i18n's `{'@'}` literal interpolation. The rendered output is still `machi2019uk@163.com` so `mailto:` links + visible text are unchanged.
+
+`frontend/src/i18n/zh.ts` and `frontend/src/i18n/en.ts`:
+
+```ts
+emailValue: "machi2019uk{'@'}163.com",
+// …
+emailPlaceholder: "1234567890{'@'}163.com",
+```
+
+See inline comments at those lines for the long-form rationale so future contributors don't "clean up" the escape thinking it's a stray template literal.
+
+### 22.4 Reserved characters checklist — do NOT put these raw in i18n messages
+
+| Char  | Meaning                                                | How to escape                 |
+| ----- | ------------------------------------------------------ | ----------------------------- |
+| `@`   | Linked-message marker (`@:`, `@.`, `@@`)               | `{'@'}` or `@@`               |
+| `{ }` | Named/positional interpolation                         | `{'{'}` / `{'}'}`             |
+| `\|`  | Plural form separator                                  | `{'|'}` (rarely needed)       |
+| `$`   | Reserved for some formatters in legacy mode            | usually fine in v9 non-legacy |
+
+Any time we add a message containing emails, prices (`$5.00`), JSON-ish text, or template-literal-looking placeholders, do a quick scan over `frontend/src/i18n/*.ts` for unescaped `@ { } |` characters before merging. The vue-i18n compiler error only fires in the production build, so missing it in PR review = broken homepage on the deployed site.
+
+### 22.5 Acceptance check
+
+1. `cd frontend && npm run build && npm run preview` → open the homepage.
+2. Console: no `SyntaxError: Invalid linked format`.
+3. "联系我们" shows three cards: 我们能帮你什么 / 邮箱+微信 / 表单（姓名 + 邮箱 + 手机 + 信息 + 发送）.
+4. Click the email value — the mailto opens `machi2019uk@163.com`.
+5. Toggle the language selector (中文 ↔ English) — both locales render correctly.
 

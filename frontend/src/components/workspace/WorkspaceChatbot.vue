@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectsStore } from '@/stores/projects'
 import { useSlideStore } from '@/stores/slides'
-import { useChatbotStore } from '@/stores/chatbot'
+import { useChatbotStore, type ChatMessage } from '@/stores/chatbot'
 // Bundled chatbot avatar (was `/LOGO.png` before — switched to the
 // purpose-built mascot art so the assistant has its own identity
 // distinct from the brand logo in the workspace header).
@@ -28,12 +28,9 @@ const chatbotStore = useChatbotStore()
  *
  * The lookup is forgiving: if `activePart` is null or the partId
  * doesn't have its own block (currently 3/6/7), we use
- * `chatbot.fallback.*`. The previous flat `chatbot.greeting` /
- * `chatbot.suggestions` keys were removed, so any leftover caller
- * binding to them now reads from `fallback` automatically via this
- * helper rather than producing missing-key warnings.
+ * `chatbot.fallback.*`.
  */
-function makeWelcome() {
+function makeWelcome(): ChatMessage {
   const partId = slideStore.activePart
   // Parts 1/2/4/5 each have a dedicated namespace under
   // `chatbot.byPart.<n>`. Anything else (null partId or 3/6/7)
@@ -42,46 +39,85 @@ function makeWelcome() {
     partId === 1 || partId === 2 || partId === 4 || partId === 5
   const ns = hasPartCopy ? `chatbot.byPart.${partId}` : 'chatbot.fallback'
   return {
-    role: 'assistant' as const,
+    role: 'assistant',
     text: t(`${ns}.greeting`),
-    suggestions: (tm(`${ns}.suggestions`) as string[]).map(s => String(s)),
+    suggestions: (tm(`${ns}.suggestions`) as string[]).map((s) => String(s)),
   }
 }
 
-// Seed the welcome message only on first mount (store is empty)
-onMounted(() => {
-  if (chatbotStore.messages.length === 0) {
-    chatbotStore.setMessages([makeWelcome()])
+/**
+ * Per-(project, part) chatbot history bucket key.
+ *
+ * 2026-05 — Pilot feedback drove this refactor. Previously the
+ * chatbot store was a flat array, which meant:
+ *   • A user reply in Part 1 leaked into Part 2's pane (the previous
+ *     "only welcome" reset gate refused to swap the greeting once
+ *     the array was no longer 1-message-long).
+ *   • Opening a different project carried the prior project's
+ *     transcript into the new workspace.
+ *
+ * Switching to a bucketed history (`${projectId}:${partId}` →
+ * `ChatMessage[]`) isolates conversations along both axes. When the
+ * user has no active project (legacy in-memory project), we fall
+ * back to the literal string `__noproj__` so each part still gets
+ * its own bucket within that anonymous session.
+ */
+const chatKey = computed(() => {
+  const projectId = projectsStore.activeProjectId ?? '__noproj__'
+  const partId = slideStore.activePart ?? 0
+  return `${projectId}:${partId}`
+})
+
+/** Reactive view onto the current bucket. */
+const messages = computed<ChatMessage[]>(() =>
+  chatbotStore.getMessages(chatKey.value),
+)
+
+/**
+ * Whenever the (project, part) key changes — including the very
+ * first mount — make sure the bucket has a welcome bubble in it.
+ * `{ immediate: true }` covers the first run so we don't need a
+ * separate onMounted seeder.
+ *
+ * If the bucket already contains messages (reload-restored history
+ * OR a previously visited part the teacher is coming back to), we
+ * leave it untouched so the conversation picks up where it left
+ * off. Only empty buckets get seeded with the part-specific
+ * greeting + chips.
+ */
+watch(
+  chatKey,
+  (key) => {
+    if (chatbotStore.getMessages(key).length === 0) {
+      chatbotStore.setMessages(key, [makeWelcome()])
+    }
+    scrollBottom()
+  },
+  { immediate: true },
+)
+
+/**
+ * Locale-toggle resets only the *current* bucket's welcome, so
+ * other parts / projects keep their existing transcripts in
+ * whichever language they were written in. We also only stomp the
+ * bucket when the user hasn't sent any user messages yet — same
+ * "only welcome" idiom as before, just bucket-scoped now.
+ */
+watch(locale, () => {
+  const key = chatKey.value
+  const current = chatbotStore.getMessages(key)
+  const onlyWelcome =
+    current.length === 0 ||
+    (current.length === 1 &&
+      current[0].role === 'assistant' &&
+      !!current[0].suggestions)
+  if (onlyWelcome) {
+    chatbotStore.setMessages(key, [makeWelcome()])
   }
 })
 
-// Reset to new welcome when the locale changes OR when the teacher
-// navigates to a different Part. We only reset the bubble stack
-// (clobbering the in-progress conversation) when the teacher is at
-// the initial welcome state — i.e. they haven't sent any user
-// messages yet. If they're mid-conversation we leave history alone
-// and just let the next welcome show next time the chatbot remounts.
-watch(locale, () => {
-  chatbotStore.setMessages([makeWelcome()])
-})
-
-watch(
-  () => slideStore.activePart,
-  () => {
-    const onlyWelcome =
-      chatbotStore.messages.length === 0 ||
-      (chatbotStore.messages.length === 1 &&
-        chatbotStore.messages[0].role === 'assistant' &&
-        !!chatbotStore.messages[0].suggestions)
-    if (onlyWelcome) {
-      chatbotStore.setMessages([makeWelcome()])
-    }
-  },
-)
-
-
-const input    = ref('')
-const loading  = ref(false)
+const input = ref('')
+const loading = ref(false)
 const scrollEl = ref<HTMLElement | null>(null)
 
 function scrollBottom() {
@@ -92,15 +128,22 @@ async function send(text?: string) {
   const content = (text ?? input.value).trim()
   if (!content || loading.value) return
 
+  // Snapshot the bucket key for THIS turn. If the user happens to
+  // navigate to a different Part mid-request the response should
+  // still land in the bucket that asked the question — not appear
+  // inside another Part's transcript.
+  const key = chatKey.value
+
   input.value = ''
-  chatbotStore.push({ role: 'user', text: content })
+  chatbotStore.push(key, { role: 'user', text: content })
   scrollBottom()
 
   loading.value = true
   try {
-    const history = chatbotStore.messages
-      .filter(m => !m.suggestions)
-      .map(m => ({ role: m.role, text: m.text }))
+    const history = chatbotStore
+      .getMessages(key)
+      .filter((m) => !m.suggestions)
+      .map((m) => ({ role: m.role, text: m.text }))
 
     const lessonId = projectsStore.activeLessonId
     const partId = slideStore.activePart
@@ -117,9 +160,9 @@ async function send(text?: string) {
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
-    chatbotStore.push({ role: 'assistant', text: data.reply })
+    chatbotStore.push(key, { role: 'assistant', text: data.reply })
   } catch (e: any) {
-    chatbotStore.push({ role: 'assistant', text: t('chatbot.error') })
+    chatbotStore.push(key, { role: 'assistant', text: t('chatbot.error') })
   } finally {
     loading.value = false
     scrollBottom()
@@ -145,7 +188,7 @@ async function send(text?: string) {
     <!-- Messages -->
     <div ref="scrollEl" class="chatbot-messages">
       <div
-        v-for="(msg, i) in chatbotStore.messages"
+        v-for="(msg, i) in messages"
         :key="i"
         class="message-row"
         :class="msg.role === 'user' ? 'message-row--user' : 'message-row--assistant'"

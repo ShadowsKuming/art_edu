@@ -23,10 +23,13 @@ import { useI18n } from 'vue-i18n'
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue'
 import DashboardCard from '@/components/dashboard/DashboardCard.vue'
 import LessonSelectionModal from '@/components/dashboard/LessonSelectionModal.vue'
+import StartTeachingDrawer from '@/components/dashboard/StartTeachingDrawer.vue'
+import SlidePreviewModal from '@/components/community/SlidePreviewModal.vue'
 
 import { useProjectsStore, type ProjectMeta } from '@/stores/projects'
 import { useSlideStore } from '@/stores/slides'
 import { usePart5Store } from '@/stores/part5'
+import type { Slide } from '@/stores/slides'
 import type {
     CurriculumVolume,
     CurriculumUnit,
@@ -49,6 +52,26 @@ const part5Store = usePart5Store()
  * pick (it `emit('select', …)` then closes itself).
  */
 const showLessonModal = ref(false)
+
+/**
+ * Start-Teaching drawer visibility. Opened by the `startTeaching` card
+ * and surfaces existing projects so the teacher can jump back into a
+ * deck without going through MyLessons. When the user has no projects
+ * the drawer shows an empty state with a "新建课件" CTA which falls
+ * straight into the existing `LessonSelectionModal` flow above.
+ */
+const showTeachingDrawer = ref(false)
+
+/**
+ * Slide-preview modal — reused from Community. Lets the teacher
+ * thumb through a deck (read-only) before deciding to enter teaching
+ * mode. `previewSlides` holds the hydrated slides for the project the
+ * teacher last clicked Preview on.
+ */
+const previewOpen = ref(false)
+const previewSlides = ref<Slide[]>([])
+const previewTitle = ref('')
+const previewSubtitle = ref<string | undefined>(undefined)
 
 /**
  * The five action cards. Order matches the Figma left-to-right.
@@ -88,10 +111,80 @@ function onCardClick(id: CardId) {
         router.push('/account')
         return
     }
+    if (id === 'startTeaching') {
+        showTeachingDrawer.value = true
+        return
+    }
     // Orphan stubs — replace with real routes as views are built.
     // Using `console.info` (not `console.warn`) so it doesn't show as a
     // warning during development.
     console.info(`[Dashboard] "${id}" card clicked — view not implemented yet.`)
+}
+
+// ── Start-Teaching drawer handlers ───────────────────────────────
+
+/**
+ * "Start Teaching" on a project — mirrors `resumeProject` from
+ * MyLessons.vue: hydrate the slide store from the project snapshot,
+ * restore the Part-5 video (if any), and push to the workspace.
+ */
+function onTeachingSelect(projectId: string) {
+    const project = projectsStore.projects.find((p) => p.id === projectId)
+    if (!project) return
+    projectsStore.setActiveProject(projectId)
+    slideStore.loadSnapshot(project.snapshot)
+    if (project.part5VideoDataUrl) {
+        part5Store.setVideo(
+            project.part5VideoDataUrl,
+            project.part5VideoName ?? '',
+        )
+    } else {
+        part5Store.clearVideo()
+    }
+    showTeachingDrawer.value = false
+    router.push('/workspace')
+}
+
+/**
+ * Preview a deck from inside the drawer — opens the same modal
+ * Community uses. We render the project's stored snapshot directly so
+ * the modal isn't dependent on the projects store's active id.
+ */
+function onTeachingPreview(projectId: string) {
+    const project = projectsStore.projects.find((p) => p.id === projectId)
+    if (!project) return
+    previewSlides.value = project.snapshot?.slides ?? []
+    previewTitle.value = project.name
+    if (project.meta) {
+        const unitTitle =
+            locale.value === 'zh'
+                ? project.meta.unitTitleZh
+                : project.meta.unitTitleEn
+        const lessonTitle =
+            locale.value === 'zh'
+                ? project.meta.lessonTitleZh
+                : project.meta.lessonTitleEn
+        const unitPrefix = t('lessonSelect.unit', {
+            n: project.meta.unitNumber,
+        })
+        const lessonPrefix = t('lessonSelect.lesson', {
+            n: project.meta.lessonNumber,
+        })
+        previewSubtitle.value = `${unitPrefix}: ${unitTitle} · ${lessonPrefix}: ${lessonTitle}`
+    } else {
+        previewSubtitle.value = undefined
+    }
+    previewOpen.value = true
+}
+
+/**
+ * Empty-state CTA — close the drawer and open the existing lesson
+ * picker so the teacher can create their first deck without an extra
+ * page hop.
+ */
+function onTeachingCreate() {
+    showTeachingDrawer.value = false
+    showLessonModal.value = true
 }
 
 /**
@@ -179,8 +272,28 @@ function onLessonSelect(payload: {
             </section>
         </main>
 
-        <!-- Lesson-selection modal, opened by the Create-Lesson card. -->
+        <!-- Lesson-selection modal, opened by the Create-Lesson card
+             OR by the empty-state CTA inside the Start-Teaching drawer. -->
         <LessonSelectionModal v-model:open="showLessonModal" @select="onLessonSelect" />
+
+        <!-- Start-Teaching drawer, opened by the Start-Teaching card. -->
+        <StartTeachingDrawer
+            v-model:open="showTeachingDrawer"
+            :projects="projectsStore.projects"
+            @select="onTeachingSelect"
+            @preview="onTeachingPreview"
+            @create="onTeachingCreate"
+        />
+
+        <!-- Reused Community slide-preview modal — surfaced when the
+             teacher clicks Preview on a row inside the drawer. -->
+        <SlidePreviewModal
+            :open="previewOpen"
+            :slides="previewSlides"
+            :title="previewTitle"
+            :subtitle="previewSubtitle"
+            @close="previewOpen = false"
+        />
     </div>
 </template>
 

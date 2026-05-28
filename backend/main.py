@@ -283,14 +283,14 @@ def _story_user_text(language: str) -> str:
             "请根据这幅画作为二年级学生创作一个互动故事。\n\n"
             "必须返回如下结构的 JSON（key 保持英文，value 用简体中文）:\n"
             "{\n"
-            '  "part1": "<开篇叙事，3-4 段>",\n'
+            '  "part1": "<开篇叙事，2-3 段>",\n'
             '  "choices": [\n'
             '    {"id": 0, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"},\n'
             '    {"id": 1, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"},\n'
             '    {"id": 2, "label": "<简短的行动标题>", "desc": "<用一句话描述这条路径>"}\n'
             "  ],\n"
             '  "part3": "<延续选项 0 的故事后半段，2-3 段>",\n'
-            '  "designRationale": "<按 [设计理念字段生成要求] 中的 5 段结构生成>"\n'
+            '  "designRationale": "<按 [设计理念字段生成要求] 中的 3 段结构生成>"\n'
             "}\n\n"
             "[故事正文生成要求] 严格遵守以下硬约束。\n\n"
             "【part1 · 开篇,3-4 段】\n"
@@ -368,20 +368,28 @@ def _story_user_text(language: str) -> str:
     )
 
 
-# ── designRationale spec (curriculum-anchored, 5-paragraph) ─────────────
+# ── designRationale spec (curriculum-anchored, 3-paragraph) ─────────────
 #
 # Per pilot feedback (2026-05): the AI's designRationale was too short
 # and too generic — teachers couldn't see how the story actually mapped
 # to the unit big idea, three-tier objectives, or key art concepts in
-# the LKP. The curriculum team handed over a very specific spec (5
-# paragraphs, 330-360 Chinese characters, hard structural rules); the
-# block below ports it verbatim into the system prompt so the model
-# treats designRationale as a structured field, not free narration.
+# the LKP. The curriculum team handed over a specific spec; the block
+# below ports it into the system prompt so the model treats
+# designRationale as a structured field, not free narration.
+#
+# 2026-05-28 revision: shortened from 5 paragraphs / 330-360 chars to
+# 3 paragraphs / 240-260 chars. The 5th "invitation to iterate" para
+# was cut (teachers found it too long for the right-side panel), and
+# the original §1 (unit big idea / learning task) + §2 (three-tier
+# objectives) were merged into a single §1 (total ~90 chars). The
+# remaining §2 (teaching focus / difficulty / key concepts) and §3
+# (3 branches → teaching facets) keep their substance at ~90 and ~70
+# chars respectively.
 #
 # Implementation notes:
-#   • ZH spec is the user's verbatim copy. Hard char range stays in
-#     the prompt (we accept the ~75% one-shot success rate instead of
-#     a 2-step polish that doubles latency).
+#   • ZH spec is the canonical copy. Hard char range stays in the
+#     prompt (we accept the ~75% one-shot success rate instead of a
+#     2-step polish that doubles latency).
 #   • EN mode keeps the legacy 2-3 sentence requirement (Q3 = option
 #     C) — the pilot is grade-2 Chinese, EN is for demo/screenshot.
 
@@ -395,42 +403,28 @@ def _design_rationale_spec(language: str) -> str:
 
 在主故事 JSON 输出中，designRationale 字段必须严格遵守以下规范。
 
-字数:严格 330-360 个中文字(不含标点)。低于 320 或超过 380 视为不合格。
+字数:严格 240-260 个中文字(不含标点)。低于 230 或超过 270 视为不合格。
 
 读者:本课的备课教师。语气专业、平实，不需要鼓励性辞令，不要写"这个故事会让孩子很喜欢"这类主观判断。
 
-内容结构(按此顺序，共 5 段，段间用 \\n\\n 空行分隔):
+内容结构(按此顺序，共 3 段，段间用 \\n\\n 空行分隔):
 
-【第 1 段 · 与单元大观念和学习任务的对应,约 60 字】
-开篇 1-2 句话:点明本故事与 [本课信息] 中"单元大概念"和"学习任务"的对应关系。必须**直接引用** [本课信息] 给出的"单元大概念"原句和"学习任务"原句中的关键词，不要用自己的话改写。
+【第 1 段 · 单元大观念、学习任务与三层学习目标,约 90 字】
+开篇 1-2 句话点明本故事与 [本课信息] 中"单元大概念"和"学习任务"的对应关系，必须直接引用 [本课信息] 给出的"单元大概念"原句和"学习任务"原句中的关键词，不要用自己的话改写。随后分别说明本故事在哪些具体情节、画面、人物选择上支撑 [学习目标] 中的"知道"、"理解"、"能做"这三层目标，每层目标至少对应故事中一个具体情节锚点，不能笼统说"故事呼应学习目标"。
 
-【第 2 段 · 逐层回应学习目标,约 100 字】
-分别说明本故事在哪些具体情节、画面、人物选择上支撑 [学习目标] 中的"知道"、"理解"、"能做"这三层目标。每层目标至少对应故事中一个**具体情节锚点**，不能笼统说"故事呼应学习目标"。
-
-【第 3 段 · 回应教学重点、教学难点、关键概念,约 100 字】
+【第 2 段 · 回应教学重点、教学难点、关键概念,约 90 字】
 明确指出本故事如何呼应:
 (a) [教学重点] 中的具体动作（提取关键词）
 (b) [教学难点] 的攻克路径（故事的哪个场景帮助突破难点）
-(c) [关键艺术概念] 分别在哪个具体细节体现，每个概念**至少 1 处对应**
+(c) [关键艺术概念] 分别在哪个具体细节体现，每个概念至少 1 处对应
 
-【第 4 段 · 3 个分支对应教学不同侧面,约 60 字】
+【第 3 段 · 3 个分支对应教学不同侧面,约 70 字】
 说明 part1 后的 3 个分支选择各自对应本课的哪个具体侧面，让老师明白每个分支引导学生关注的角度不同，可在教学中根据课堂氛围选用。
 
-【第 5 段 · 邀请讨论与修改,严格 25-35 字】
-告知老师此故事并非定稿，可以继续讨论和修改，并给出 1 个**具体的**提问示例，引导老师向 AI 进一步追问。要求:
-- 语气是 AI 故事创作员对备课老师说话，用"我"指代自己，用"您"指代老师
-- 提问示例必须呼应本课的某个学习目标、教学重点、教学难点或关键概念，而不是泛泛的故事调整方向
-- 提问示例必须**针对前 4 段中具体提到的某个设计选择**(例如某个情节锚点对应某层目标、某个分支对应某教学侧面)，不要泛泛而谈
-- 提问示例用引号包裹，具体到老师可以直接复制使用
-- 严禁使用"老师您""请您"等过分客气的称谓
-- 第 5 段示例格式(供参考但不要逐字模仿):
-  "此故事并非定稿，您可继续与我讨论。例如可问我:『_________?』"
-
-写作约束(适用于全部 5 段):
+写作约束(适用于全部 3 段):
 - 不要使用"通过""旨在""旨在让""有助于""能够"等空泛动词，改用具体动词(如"将……转化为""把……的概念落在……上""借助……场景呈现……""锚定在……")
 - 不要重复故事内容本身(老师已读过 part1 和 choices)，只解释设计意图
-- 第 1-4 段不要出现"我希望""我想要""建议老师""教师可以"等第一人称或指令性表达
-- 第 5 段是唯一可以用"我"和"您"的段落（AI 与老师对话）
+- 不要出现"我希望""我想要""建议老师""教师可以"等第一人称或指令性表达
 - 不要使用 markdown 格式(无标题、无列表、无加粗)，纯段落文字
 - 教材教参中出现的术语（如"审美感知""文化理解""艺术表现""创意实践""通感""依形创编"）可以使用，但不要堆砌
 - 必须引用 [本课信息] 中给出的实际目标和概念原文，不要泛泛而谈
@@ -542,7 +536,7 @@ def _story_payload(req: StoryRequest, stream: bool = False) -> dict:
             },
         ],
         # 2026-05: bumped 2000 → 3500 after the v3 prompt rewrite added
-        # the [故事正文生成要求] block AND the 5-段 designRationale spec.
+        # the [故事正文生成要求] block AND the 3-段 designRationale spec.
         # The combined output budget now needs to cover:
         #   • part1   180-200 中文字  (≈ 300-400 tokens)
         #   • choices ~50 中文字       (≈ 80-120 tokens)
@@ -1076,7 +1070,7 @@ _STORY_CHAT_PHASE_B = (
     "  • part1 / part3 严格 180-200 中文字（≈ 120-150 EN words），两半段字数对齐；\n"
     "  • 3 个 choices 各对应不同教学侧面；\n"
     "  • part3 结尾必须回扣 [学习目标] 的「能做」层；\n"
-    "  • designRationale 遵循 5 段 330-360 字规范。"
+    "  • designRationale 遵循 3 段 240-260 字规范。"
 )
 
 

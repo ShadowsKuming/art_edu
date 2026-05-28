@@ -80,7 +80,14 @@ export default {
         },
       ],
       emailLabel: '邮箱',
-      emailValue: 'machi2019uk@163.com',
+      // 2026-05 — vue-i18n 把 `@` 视作 linked-message 语法的起始符
+      // (`@:foo`, `@.upper`, `@@`)。生产构建的 vue-i18n 运行时遇到
+      // `@163.com` 这种"@ 后非保留 token"的串会直接 throw
+      // `SyntaxError: Invalid linked format`，导致依赖此 key 的
+      // `<ContactInfoCard>` 在 setup 阶段崩溃，进而影响兄弟节点
+      // `<ContactForm>` 的渲染（dev 构建只 warn，所以本地看着正常）。
+      // 用 `{'@'}` 字面量插值转义即可，输出仍为 machi2019uk@163.com。
+      emailValue: "machi2019uk{'@'}163.com",
       wechatLabel: '微信',
       wechatValue: 'chi_chi_131',
       form: {
@@ -92,7 +99,8 @@ export default {
         emailLabel: '邮箱',
         // 2026-05 — 占位提示更新为真实示例联系方式（脱敏后的）。原
         // 文本是 Figma 模板自带的英美格式占位，对国内老师不够直观。
-        emailPlaceholder: '1234567890@163.com',
+        // 同上：转义 `@`，避免 vue-i18n linked-format 解析报错。
+        emailPlaceholder: "1234567890{'@'}163.com",
         phoneLabel: '手机',
         phonePlaceholder: '+86 12345678900',
         messageLabel: '信息',
@@ -188,6 +196,22 @@ export default {
       myAccount: {
         title: '我的账号',
         description: '查看账号信息并提交反馈。',
+      },
+    },
+    // 2026-05 — "开始上课" 卡片打开的右侧抽屉。空态 / 列表态共用
+    // 同一组 keys，组件内根据 `projects.length` 切换布局。
+    startTeachingDrawer: {
+      title: '开始上课',
+      subtitle: '选择已完成或最近使用的课件，进入授课模式。',
+      readyToTeach: '可立即上课',
+      recentlyUsed: '最近使用',
+      startTeaching: '开始上课',
+      preview: '预览',
+      closeAria: '关闭抽屉',
+      empty: {
+        title: '暂无课件',
+        body: '创建你的第一堂美术课吧。',
+        create: '新建课件',
       },
     },
   },
