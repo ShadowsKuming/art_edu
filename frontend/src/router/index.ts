@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useProjectsStore } from '@/stores/projects'
 import HomePage from '@/views/HomePage.vue'
 
 const router = createRouter({
@@ -56,22 +55,17 @@ const router = createRouter({
       component: () => import('@/views/MyAccount.vue'),
     },
     {
-      path: '/workspace',
+      path: '/workspace/:projectId',
       name: 'workspace',
       component: () => import('@/views/CreateLesson.vue'),
     },
   ],
 })
 
-// Workspace requires an active project. If a user deep-links to
-// /workspace without one, send them to the lesson list (where they
-// can pick or create a project), not the hub.
 router.beforeEach((to) => {
-  if (to.name === 'workspace') {
-    const projectsStore = useProjectsStore()
-    if (!projectsStore.activeProjectId) {
-      return { name: 'lessons' }
-    }
+  // Workspace requires a project ID in the URL.
+  if (to.name === 'workspace' && !to.params.projectId) {
+    return { name: 'lessons' }
   }
 })
 

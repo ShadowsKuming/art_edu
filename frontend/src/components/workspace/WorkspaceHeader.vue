@@ -14,6 +14,8 @@ defineProps<{
   canStartTeaching?: boolean
 }>()
 
+const emit = defineEmits<{ startTeaching: [] }>()
+
 const router = useRouter()
 const slideStore = useSlideStore()
 const part5Store = usePart5Store()
@@ -51,6 +53,7 @@ function goBack() {
           class="btn-filled"
           :class="canStartTeaching ? 'btn-filled--active' : 'btn-filled--disabled'"
           :disabled="!canStartTeaching"
+          @click="canStartTeaching && emit('startTeaching')"
         >
           {{ t('nav.startTeaching') }}
         </button>
@@ -88,17 +91,17 @@ function goBack() {
 }
 
 .btn-lang {
-  padding: clamp(3px, 0.16vw, 4px) clamp(8px, -1.5px + 1.04vw, 14px);
+  padding: clamp(3px, 0.16vw, 4px) clamp(8px, -1.5px + 1.04vw, 16px);
   border-radius: 999px;
-  border: 1.5px solid #d1d5db;
+  border: 1px solid #111827;
   background: #fff;
-  font-size: clamp(11px, 10px + 0.1vw, 13px);
-  font-weight: 600;
+  font-size: clamp(12px, 10px + 0.17vw, 14px);
+  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  color: #374151;
+  color: #111827;
 }
-.btn-lang:hover { border-color: #7FEC8F; background: #f0fdf4; }
+.btn-lang:hover { background: #B2F4BC; border-color: transparent; }
 
 .btn-outline,
 .btn-filled {
@@ -127,12 +130,14 @@ function goBack() {
 }
 
 .btn-filled--active {
-  background: #22c55e;
+  background: #04dd7b;
+  color: #111827;
   cursor: pointer;
 }
 
 .btn-filled--active:hover {
-  background: #16a34a;
+  background: #03c46e;
+  color: #111827;
 }
 
 .btn-filled--disabled {

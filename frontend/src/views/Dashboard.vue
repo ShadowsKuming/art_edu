@@ -142,7 +142,7 @@ function onTeachingSelect(projectId: string) {
         part5Store.clearVideo()
     }
     showTeachingDrawer.value = false
-    router.push('/workspace')
+    router.push(`/workspace/${projectId}`)
 }
 
 /**
@@ -196,7 +196,7 @@ function onTeachingCreate() {
  * header, once it surfaces project names) read naturally regardless of
  * which language the teacher is in.
  */
-function onLessonSelect(payload: {
+async function onLessonSelect(payload: {
     volume: CurriculumVolume
     unit: CurriculumUnit
     lesson: CurriculumLesson
@@ -219,14 +219,13 @@ function onLessonSelect(payload: {
 
     const name = locale.value === 'zh' ? lesson.titleZh : lesson.titleEn
 
-    projectsStore.createProject(name, meta)
-    // Reset workspace state — same dance MyLessons does for its
-    // "+ New Lesson" prompt, kept here so we don't carry state from
-    // a previously-open project into the new deck.
+    const projectId = await projectsStore.createProject(name, meta)
+    // Reset workspace state so we don't carry slides from a previously-
+    // open project into the brand-new deck.
     slideStore.reset()
     part5Store.clearVideo()
 
-    router.push('/workspace')
+    router.push(`/workspace/${projectId}`)
 }
 </script>
 

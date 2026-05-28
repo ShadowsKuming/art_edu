@@ -1,35 +1,36 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
-#
-# When you click "New → Blueprint" in the Render dashboard and select
-# this repo, Render reads this file, proposes the FastAPI service, and
-# (on Apply) provisions it. You then paste the secrets under
-# Environment in the Render UI — they're marked `sync: false` so they
-# never leave your browser.
-#
-# Free tier notes:
-#   • 750 instance-hours/month (one always-on service fits comfortably).
-#   • Sleeps after 15 min idle; cold-start ~50 s on first request.
-#   • Public URL: https://<name>.onrender.com
 services:
   - type: web
     name: artbloom-api
     runtime: python
     plan: free
-    region: oregon          # change to "frankfurt" or "singapore" if latency matters
+    region: oregon
     rootDir: backend
     buildCommand: pip install --no-cache-dir -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
-    autoDeploy: true        # redeploy on push to main
+    autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
       - key: CORS_ALLOW_ORIGINS
-        value: "*"          # dev pilot — lock down later (comma-separated origins)
+        value: "*"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: artbloom-db
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false         # paste a random secret in Render dashboard
+      - key: INVITE_CODE_1
+        sync: false         # e.g. BLOOM-2026-A  — add INVITE_CODE_4, _5, … to expand
+      - key: INVITE_CODE_2
+        sync: false
+      - key: INVITE_CODE_3
+        sync: false
       - key: TEXTBOOK_ASSETS_URL
-        sync: false         # paste the R2 public bucket URL after Phase 3
+        sync: false
       - key: ARK_API_KEY
-        sync: false         # paste in Render dashboard (Volcengine Ark)
+        sync: false
       - key: ARK_STORY_MODEL
         sync: false
       - key: ARK_CHAT_MODEL
@@ -38,3 +39,10 @@ services:
         sync: false
       - key: ARK_IMAGE_MODEL
         sync: false
+
+databases:
+  - name: artbloom-db
+    databaseName: artbloom
+    user: artbloom
+    plan: free
+    region: oregon

@@ -10,8 +10,23 @@ defineProps<{ slide: Slide }>()
     <div v-if="slide.bgColor" class="st-bg-color" :style="{ background: slide.bgColor }" />
     <img v-if="slide.background" :src="slide.background" class="st-bg" />
     <template v-for="el in slide.elements" :key="el.id">
+      <!-- Video placeholder -->
+      <div
+        v-if="el.type === 'video'"
+        class="st-video"
+        :style="{
+          left:   (el.x / CANVAS_W * 100) + '%',
+          top:    (el.y / CANVAS_H * 100) + '%',
+          width:  (el.width  / CANVAS_W * 100) + '%',
+          height: (el.height / CANVAS_H * 100) + '%',
+        }"
+      >
+        <svg viewBox="0 0 24 24" fill="white" class="st-play-icon">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
       <img
-        v-if="el.type === 'image'"
+        v-else-if="el.type === 'image'"
         :src="el.src"
         class="st-img"
         :style="{
@@ -37,6 +52,12 @@ defineProps<{ slide: Slide }>()
         }"
       >{{ el.content }}</div>
     </template>
+    <!-- Audio badge -->
+    <div v-if="slide.audioBg" class="st-audio-badge" title="Has audio">
+      <svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10">
+        <path d="M9 2v12L4 10H1V6h3L9 2zM11.5 5.5a3 3 0 010 5M13 3.5a5.5 5.5 0 010 9"/>
+      </svg>
+    </div>
   </div>
 </template>
 
@@ -69,6 +90,36 @@ defineProps<{ slide: Slide }>()
   position: absolute;
   object-fit: contain;
   pointer-events: none;
+}
+
+.st-video {
+  position: absolute;
+  background: #1f2937;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.st-play-icon {
+  width: 30%;
+  height: 30%;
+  opacity: 0.7;
+}
+
+.st-audio-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(4, 221, 123, 0.85);
+  color: #fff;
+  border-radius: 999px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .st-text {

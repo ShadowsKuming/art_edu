@@ -80,6 +80,21 @@ const defaultEmbedUrl = computed(() => {
   return buildBilibiliEmbed(bvid)
 })
 
+/** Extract a YouTube video ID from watch or short URLs. */
+function extractYouTubeId(raw: string): string | null {
+  const s = raw.trim()
+  // https://www.youtube.com/watch?v=aKYAuGsvkV8
+  const watch = s.match(/[?&]v=([a-zA-Z0-9_-]{11})/)
+  if (watch) return watch[1]
+  // https://youtu.be/aKYAuGsvkV8
+  const short = s.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/)
+  if (short) return short[1]
+  // https://www.youtube.com/embed/aKYAuGsvkV8
+  const embed = s.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/)
+  if (embed) return embed[1]
+  return null
+}
+
 /** Extract a Bilibili BVID from any of the supported URL shapes. */
 function extractBvid(raw: string): string | null {
   const s = raw.trim()
@@ -108,8 +123,9 @@ const customRender = computed<RenderTarget>(() => {
   if (part5Store.customSourceType === 'url' && part5Store.customUrl) {
     const bvid = extractBvid(part5Store.customUrl)
     if (bvid) return { kind: 'iframe', url: buildBilibiliEmbed(bvid) }
-    // Treat any other URL as a direct video file. The <video> element
-    // will surface its own error UI if the URL isn't playable.
+    const ytId = extractYouTubeId(part5Store.customUrl)
+    if (ytId) return { kind: 'iframe', url: `https://www.youtube.com/embed/${ytId}?rel=0` }
+    // Treat any other URL as a direct video file.
     return { kind: 'video', url: part5Store.customUrl }
   }
   return null
@@ -153,10 +169,10 @@ function onSubmitUrl() {
   // Quick validation: must be a BV id, a bilibili.com URL, or
   // http(s) URL ending in a video extension.
   const bvid = extractBvid(url)
+  const ytId = extractYouTubeId(url)
   const isMediaUrl = /^https?:\/\/.+\.(mp4|m3u8|webm|mov)(\?|$)/i.test(url)
-  if (!bvid && !isMediaUrl && !/^https?:\/\//.test(url)) {
+  if (!bvid && !ytId && !isMediaUrl && !/^https?:\/\//.test(url)) {
     toast.show(t('part5.errors.badUrl'), 'warning')
-
     return
   }
   part5Store.setPastedUrl(url)
@@ -281,7 +297,6 @@ function saveAndNext() {
     </div>
 
     <div class="p5-footer">
-      <button class="p5-save-plain-btn" @click="() => {}">{{ t('content.save') }}</button>
       <button class="p5-save-btn" @click="saveAndNext">{{ t('content.saveNext') }}</button>
     </div>
   </section>

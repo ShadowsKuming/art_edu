@@ -4,7 +4,7 @@ import { ref, computed } from 'vue'
 export const CANVAS_W = 960
 export const CANVAS_H = 540
 
-export type ElementType = 'text' | 'image'
+export type ElementType = 'text' | 'image' | 'video'
 
 export interface SlideElement {
   id: string
@@ -57,6 +57,7 @@ export interface Slide {
   background?: string    // image data URL
   bgColor?: string       // solid color
   isLocalBackground?: boolean  // true = teacher override, false/undefined = follows global theme
+  audioBg?: string       // audio data URL played when this slide is active in teaching mode
 }
 
 let elCounter = 0
@@ -134,6 +135,29 @@ export const useSlideStore = defineStore('slides', () => {
       color: '#111827',
     })
     selectedElementId.value = id
+  }
+
+  function addVideoElement(slideId: string, src: string, width: number, height: number) {
+    checkpoint()
+    const slide = slides.value.find(s => s.id === slideId)
+    if (!slide) return
+    const id = `el-${++elCounter}`
+    slide.elements.push({
+      id, type: 'video', src,
+      x: Math.round((CANVAS_W - width) / 2),
+      y: Math.round((CANVAS_H - height) / 2),
+      width, height,
+      content: '', fontSize: 24, fontWeight: 'Normal',
+      fontFamily: 'Albert Sans', textAlign: 'left', color: '#111827',
+    })
+    selectedElementId.value = id
+  }
+
+  function setSlideAudio(slideId: string, dataUrl: string | undefined) {
+    checkpoint()
+    const slide = slides.value.find(s => s.id === slideId)
+    if (!slide) return
+    slide.audioBg = dataUrl
   }
 
   function addImageElement(slideId: string, src: string, width: number, height: number) {
@@ -430,7 +454,7 @@ export const useSlideStore = defineStore('slides', () => {
     locale, setLocale,
     activeSlide, selectedElement,
     slidesForPart, addSlide, selectSlide,
-    addElement, addImageElement, updateElement, removeElement, selectElement,
+    addElement, addImageElement, addVideoElement, setSlideAudio, updateElement, removeElement, selectElement,
     setSlideBackground, setSlideBgColor, resetSlideToGlobal,
     navigateToNextPart, navigateToPart,
     part5VideoSlideId, isPart5VideoSlide,

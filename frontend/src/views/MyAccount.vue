@@ -28,7 +28,9 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
+import { useProjectsStore } from '@/stores/projects'
 import { getAvatar } from '@/data/avatars'
+import { clearToken } from '@/api/client'
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue'
 import AvatarPickerPopover from '@/components/account/AvatarPickerPopover.vue'
 
@@ -44,6 +46,14 @@ import underlineUrl from '@/assets/images/Underline.svg'
 const router = useRouter()
 const { t } = useI18n()
 const userStore = useUserStore()
+const projectsStore = useProjectsStore()
+
+function signOut() {
+  clearToken()
+  userStore.clearAll()
+  projectsStore.clearLocal()
+  router.push('/')
+}
 
 // Local refs mirror the store so typing is responsive without round-tripping
 // through localStorage on every keystroke.
@@ -188,6 +198,17 @@ function onBack() {
                     </svg>
                 </button>
             </section>
+
+            <!-- Sign out ────────────────────────────────────────────── -->
+            <div class="acc-signout-row">
+                <button type="button" class="acc-signout-btn" @click="signOut">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    {{ t('account.signOut') }}
+                </button>
+            </div>
 
             <!-- Quote card ───────────────────────────────────────────── -->
             <figure class="acc-quote">
@@ -544,6 +565,34 @@ function onBack() {
     box-shadow:
         0 10px 12px -6px rgba(47, 51, 52, 0.15),
         0 24px 30px -5px rgba(47, 51, 52, 0.15);
+}
+
+.acc-signout-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -8px;
+}
+
+.acc-signout-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1.5px solid #e5e7eb;
+    background: transparent;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    padding: 8px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.acc-signout-btn:hover {
+    color: #ef4444;
+    border-color: #fca5a5;
+    background: #fef2f2;
 }
 
 .acc-feedback__btn:focus-visible {

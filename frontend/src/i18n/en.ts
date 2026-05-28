@@ -253,6 +253,7 @@ export default {
       ariaLabel: 'Avatar picker',
       closeAria: 'Close avatar picker',
     },
+    signOut: 'Sign Out',
   },
   dashboard: {
     myLessons: 'My Lessons',
@@ -333,7 +334,7 @@ export default {
     noSelection: 'Click Tt to add text, or select an element to edit.',
     noSlide: 'Add a slide to get started.',
     save: 'Save',
-    saveNext: 'Save & Next',
+    saveNext: 'Next Part',
     defaultText: 'Double-click to edit',
     imageMenu: {
       addAsElement: 'Add as element',
@@ -368,7 +369,7 @@ export default {
     animationN: 'Animation {n}',
     selectVersionHint: 'Select an animation version to continue',
     save: 'Save',
-    saveNext: 'Save & Next',
+    saveNext: 'Next Part',
     storyPanel: {
       storyPreview: 'Story Preview',
       designRationale: 'Design Rationale',
@@ -599,7 +600,7 @@ export default {
     convertingOverlay: 'Converting...',
     convertAgain: 'Convert again',
     save: 'Save',
-    saveNext: 'Save & Next',
+    saveNext: 'Next Part',
     // 2026-05 chat redesign — see zh.ts for the rationale. The bot
     // already knows the lesson from the LKP, so the teacher picks
     // one of three intent chips (or chats freely). Legacy keys
@@ -622,5 +623,10 @@ export default {
       previewEmpty: 'No Chinese prompt available for this style yet.',
       errorChat: 'Sorry, something went wrong. Please try again.',
     },
+  },
+  teaching: {
+    exit: 'Exit',
+    prev: 'Previous slide',
+    next: 'Next slide',
   },
 }

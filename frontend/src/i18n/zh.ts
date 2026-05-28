@@ -244,6 +244,7 @@ export default {
       ariaLabel: '头像选择器',
       closeAria: '关闭头像选择器',
     },
+    signOut: '退出登录',
   },
   dashboard: {
     myLessons: '我的课件',
@@ -325,7 +326,7 @@ export default {
     noSelection: '点击 Tt 添加文字，或选择元素进行编辑。',
     noSlide: '添加幻灯片以开始。',
     save: '保存',
-    saveNext: '保存并继续',
+    saveNext: '下一部分',
     defaultText: '双击编辑',
     imageMenu: {
       addAsElement: '添加为元素',
@@ -358,7 +359,7 @@ export default {
     animationN: '动画 {n}',
     selectVersionHint: '选择动画版本以继续',
     save: '保存',
-    saveNext: '保存并继续',
+    saveNext: '下一部分',
     storyPanel: {
       storyPreview: '故事预览',
       designRationale: '设计理念',
@@ -581,7 +582,7 @@ export default {
     convertingOverlay: '转换中...',
     convertAgain: '再次转换',
     save: '保存',
-    saveNext: '保存并继续',
+    saveNext: '下一部分',
     // 2026-05 chat redesign — the panel now opens with a greeting +
     // 3 clickable intent chips. The bot already knows the lesson from
     // the LKP, so the teacher no longer needs to type a course
@@ -605,5 +606,10 @@ export default {
       previewEmpty: '该风格暂无中文提示词。',
       errorChat: '抱歉，出了些问题，请重试。',
     },
+  },
+  teaching: {
+    exit: '退出',
+    prev: '上一页',
+    next: '下一页',
   },
 }

@@ -20,8 +20,8 @@ configs to inject into each Executor call.  See
 
 import json
 import os
-import re
-from datetime import datetime, date, timezone
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
@@ -49,6 +49,9 @@ except ImportError:  # pragma: no cover — defensive
     _BOTO3_AVAILABLE = False
 
 from lesson_context import lesson_manager
+from auth import create_token, get_current_user_id
+from db import Base, db_available, engine, get_db
+from models import CommunityLesson, Project, User
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -57,7 +60,58 @@ from lesson_context import lesson_manager
 
 load_dotenv()
 
-app = FastAPI(title="ArtBloom API")
+# ── Invitation codes ─────────────────────────────────────────────────────────
+# Each code lives in its own numbered env var so adding a new one never
+# requires editing the existing ones.
+#
+#   INVITE_CODE_1=BLOOM-2026-A   ← teacher 1
+#   INVITE_CODE_2=BLOOM-2026-B   ← teacher 2
+#   INVITE_CODE_3=BLOOM-2026-C   ← teacher 3
+#   INVITE_CODE_4=...            ← add more without touching the rest
+#
+# Also accepts the legacy INVITE_CODES=A,B,C format for backward compat.
+import re as _re
+
+INVITE_CODES: set[str] = set()
+
+# Numbered vars: INVITE_CODE_1, INVITE_CODE_2, …
+for _k, _v in os.environ.items():
+    if _re.match(r'^INVITE_CODE_\d+$', _k) and _v.strip():
+        INVITE_CODES.add(_v.strip().upper())
+
+# Legacy comma-separated var (still supported)
+_legacy = os.getenv("INVITE_CODES", "").strip()
+if _legacy:
+    for _c in _legacy.split(","):
+        if _c.strip():
+            INVITE_CODES.add(_c.strip().upper())
+
+# Hard-coded pilot defaults if nothing is configured
+if not INVITE_CODES:
+    INVITE_CODES = {"BLOOM-2026-A", "BLOOM-2026-B", "BLOOM-2026-C"}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create DB tables and pre-seed invite-code users on startup."""
+    if engine is not None:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        # Pre-create a User row for every whitelisted code so the account
+        # exists before the teacher's first login on any device.
+        async with get_db() as db:
+            for code in INVITE_CODES:
+                existing = await db.execute(select(User).where(User.invite_code == code))
+                if existing.scalar_one_or_none() is None:
+                    db.add(User(invite_code=code))
+            await db.commit()
+        print(f"[startup] database ready — {len(INVITE_CODES)} invite codes active", flush=True)
+    else:
+        print("[startup] DATABASE_URL not set — running without persistence", flush=True)
+    yield
+
+
+app = FastAPI(title="ArtBloom API", lifespan=lifespan)
 
 # CORS — origins are env-driven so production can be locked down later.
 # Default keeps the local Vite dev ports working. In production we set
@@ -2329,238 +2383,317 @@ async def text_to_speech(req: TTSRequest):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# 10. Per-user state (Cloudflare R2 user "database")
+# 10. Database — Users / Projects / Community
 # ════════════════════════════════════════════════════════════════════════
-#
-# 2026-05 — Pilot teachers complained that hitting the browser refresh
-# in the workspace nuked all their work (slides, chat history, AI
-# story etc.). Root cause: every workspace store lived only in browser
-# memory + (best case) localStorage. There was no server-side user
-# database.
-#
-# This section adds a minimal per-user persistence layer on top of
-# Cloudflare R2 (S3-compatible). The teacher's invitation code is
-# their primary key; each user owns exactly one JSON blob at
-# `user-state/{invite_code}.json`. The frontend reads it on login,
-# debounce-saves it on every change.
-#
-# Why R2 and not Postgres / KV / disk:
-#   • R2 is already provisioned for textbook assets — credentials and
-#     the wrangler/dashboard workflow are familiar.
-#   • Free tier is enormous (10 GB / 1M write Class A ops / 10M
-#     read Class A ops per month). For 1-4 pilot users this costs $0.
-#   • Object-per-user keeps the schema flat — no migrations needed
-#     when we add a Pinia store.
-#   • Easy to inspect / export post-pilot: `wrangler r2 object get
-#     artbloom-user-state/<code>.json` dumps the entire teacher's
-#     workspace as a single JSON file we can hand off.
-#
-# Audit log: a separate object `user-state/{code}.log.{YYYY-MM-DD}.jsonl`
-# records each save with timestamp, size and current schema_version.
-# These are append-only-per-day (because R2 doesn't natively append,
-# we read-modify-write the day's file). For higher-volume audit we'd
-# switch to Postgres or Cloudflare D1; for 1-4 pilots this is fine.
 
-_R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL", "").strip()
-_R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "").strip()
-_R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
-_R2_USER_STATE_BUCKET = os.getenv("R2_USER_STATE_BUCKET", "artbloom-user-state").strip()
-
-# Singleton boto3 client. Lazy-init so we don't blow up startup when
-# the secrets aren't set — the endpoints below return 503 instead.
-_r2_user_client = None
+from fastapi import Depends
+from sqlalchemy import select, update as sql_update, delete as sql_delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-def _get_r2_user_client():
-    """Return a cached boto3 S3 client pointed at R2, or None if the
-    env vars / boto3 aren't available. Endpoints check the return
-    value and respond with HTTP 503 when the persistence layer isn't
-    configured, so the frontend can degrade gracefully to
-    localStorage-only mode (same as the chatbot store's existing
-    behaviour in offline environments)."""
-    global _r2_user_client
-    if _r2_user_client is not None:
-        return _r2_user_client
-    if not _BOTO3_AVAILABLE:
-        return None
-    if not (_R2_ENDPOINT_URL and _R2_ACCESS_KEY_ID and _R2_SECRET_ACCESS_KEY):
-        return None
-    try:
-        # `signature_version="s3v4"` is what R2 expects — using the
-        # legacy v2 sig will yield 403 SignatureDoesNotMatch.
-        _r2_user_client = boto3.client(  # type: ignore[union-attr]
-            "s3",
-            endpoint_url=_R2_ENDPOINT_URL,
-            aws_access_key_id=_R2_ACCESS_KEY_ID,
-            aws_secret_access_key=_R2_SECRET_ACCESS_KEY,
-            config=_BotoConfig(signature_version="s3v4"),  # type: ignore[arg-type]
-        )
-        print(
-            f"[startup] user-state R2 ready: bucket={_R2_USER_STATE_BUCKET}, "
-            f"endpoint={_R2_ENDPOINT_URL}",
-            flush=True,
-        )
-        return _r2_user_client
-    except Exception as exc:  # pragma: no cover — defensive
-        print(f"[startup] user-state R2 init failed: {exc}", flush=True)
-        return None
+# ── Pydantic request / response schemas ──────────────────────────────────
+
+class LoginRequest(BaseModel):
+    invite_code: str
 
 
-# Invite codes are pilot-issued + human-readable. We allow letters,
-# digits, and a single class of separators. Everything else is
-# rejected as 400 to keep the R2 object-key surface tight (no path
-# traversal, no spaces, no UTF-8).
-_USER_CODE_RE = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
+class LoginResponse(BaseModel):
+    token: str
+    user_id: str
+    invite_code: str
+    display_name: str | None
+    bio: str | None
+    avatar_index: int
 
 
-def _ensure_safe_code(user_code: str) -> str:
-    """Normalise + validate the invite code. Returns the canonical
-    form (upper-cased) used everywhere as the R2 object key segment.
-
-    We upper-case because the access UX in `AccessModal.vue` is
-    case-insensitive — the teacher might type lowercase by mistake
-    and that should still land in the same R2 object. Whitespace is
-    rejected explicitly so a stray space at the end of the code
-    can't create a phantom user.
-    """
-    if not isinstance(user_code, str):
-        raise HTTPException(400, "user_code must be a string")
-    candidate = user_code.strip().upper()
-    if not _USER_CODE_RE.match(candidate):
-        raise HTTPException(
-            400,
-            "user_code must be 4-64 chars, letters / digits / '-' / '_' only",
-        )
-    return candidate
+class ProfileUpdate(BaseModel):
+    display_name: str | None = None
+    bio: str | None = None
+    avatar_index: int | None = None
 
 
-@app.get("/api/state/{user_code}")
-async def load_user_state(user_code: str):
-    """Return the user's full state blob from R2.
-
-    Response shape:
-        200 → the JSON blob (whatever the frontend last PUT).
-        204 → "no state yet for this user" — frontend should start fresh.
-        503 → R2 not configured (frontend falls back to localStorage).
-    """
-    code = _ensure_safe_code(user_code)
-    client = _get_r2_user_client()
-    if client is None:
-        # Persistence layer unavailable — let the frontend know so it
-        # can degrade gracefully instead of looping retries.
-        raise HTTPException(503, "user-state persistence is not configured")
-
-    key = f"user-state/{code}.json"
-    try:
-        obj = client.get_object(Bucket=_R2_USER_STATE_BUCKET, Key=key)
-    except _BotoClientError as exc:  # type: ignore[misc]
-        # NoSuchKey → empty 204 (first login on this code).
-        code_str = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
-        if code_str in ("NoSuchKey", "404"):
-            return Response(status_code=204)
-        # Any other client error is a real problem.
-        print(f"[user-state] GET {key} failed: {exc}", flush=True)
-        raise HTTPException(502, f"R2 read failed: {exc}")
-    except Exception as exc:  # pragma: no cover — defensive
-        print(f"[user-state] GET {key} unexpected failure: {exc}", flush=True)
-        raise HTTPException(502, f"R2 read failed: {exc}")
-
-    body = obj["Body"].read()
-    # Stream the bytes back unchanged (already JSON) so we don't pay
-    # the parse → re-serialise round-trip cost.
-    return Response(
-        content=body,
-        media_type="application/json",
-        headers={"Cache-Control": "no-store"},
-    )
+class ProjectCreate(BaseModel):
+    id: str
+    name: str
+    status: str = "draft"
+    meta: dict | None = None
+    snapshot: dict
+    part5_video_name: str | None = None
 
 
-class UserStateBody(BaseModel):
-    """Pydantic wrapper around the opaque payload. We let the
-    frontend decide the schema; the only field we read here is
-    `schema_version` for the audit log. Everything else is stored
-    verbatim. Using a `dict` field instead of a typed schema keeps
-    the contract loose so adding a new Pinia store later doesn't
-    require a backend deploy."""
-    payload: dict[str, Any]
+class ProjectSave(BaseModel):
+    name: str | None = None
+    status: str | None = None
+    snapshot: dict | None = None
+    part5_video_name: str | None = None
 
 
-@app.put("/api/state/{user_code}")
-async def save_user_state(user_code: str, body: UserStateBody, request: Request):
-    """Persist the user's full state blob.
+class ProjectOut(BaseModel):
+    id: str
+    name: str
+    status: str
+    meta: dict | None
+    snapshot: dict
+    part5_video_name: str | None
+    created_at: str
+    updated_at: str
 
-    The frontend POSTs a JSON envelope `{ payload: <opaque> }` so the
-    Pydantic validator can stay simple (a dict is JSON-safe by
-    construction). Body size is implicitly capped by the upstream
-    proxy (Render's free tier ~ 100 MB request body, well above the
-    20 MB target).
-    """
-    code = _ensure_safe_code(user_code)
-    client = _get_r2_user_client()
-    if client is None:
-        raise HTTPException(503, "user-state persistence is not configured")
 
-    # Add server-side timestamp so the frontend can detect "newer on
-    # backend" even if its local clock drifts. We don't trust the
-    # client's `updated_at` for conflict resolution.
-    payload = dict(body.payload)
-    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-    payload.setdefault("schema_version", 1)
+class CommunityLessonOut(BaseModel):
+    community_id: str
+    project_id: str
+    author_display: str
+    name: str
+    meta: dict | None
+    snapshot: dict
+    published_at: str
 
-    raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    key = f"user-state/{code}.json"
-    try:
-        client.put_object(
-            Bucket=_R2_USER_STATE_BUCKET,
-            Key=key,
-            Body=raw,
-            ContentType="application/json",
-            CacheControl="no-store",
-        )
-    except Exception as exc:
-        print(f"[user-state] PUT {key} failed: {exc}", flush=True)
-        raise HTTPException(502, f"R2 write failed: {exc}")
 
-    # ── Append a one-line audit entry per save. We use a per-day
-    # file so the read-modify-write cost stays bounded (one day of
-    # one user's saves is maybe a few hundred lines, ~ tens of KB).
-    log_entry = json.dumps(
-        {
-            "ts": payload["updated_at"],
-            "size": len(raw),
-            "schema_version": payload.get("schema_version", 1),
-            "ip": (request.client.host if request.client else None),
-        },
-        ensure_ascii=False,
-    ) + "\n"
-    log_key = f"user-state/{code}.log.{date.today().isoformat()}.jsonl"
-    try:
-        existing = b""
-        try:
-            existing_obj = client.get_object(
-                Bucket=_R2_USER_STATE_BUCKET, Key=log_key
-            )
-            existing = existing_obj["Body"].read()
-        except _BotoClientError as exc:  # type: ignore[misc]
-            code_str = (
-                getattr(exc, "response", {}).get("Error", {}).get("Code", "")
-            )
-            if code_str not in ("NoSuchKey", "404"):
-                raise
-        client.put_object(
-            Bucket=_R2_USER_STATE_BUCKET,
-            Key=log_key,
-            Body=existing + log_entry.encode("utf-8"),
-            ContentType="application/x-ndjson",
-        )
-    except Exception as exc:  # pragma: no cover — best-effort
-        # Audit log failure must NOT cascade into a failed save. The
-        # canonical state is already on R2; we just lose one log
-        # entry. Print to stderr so the operator can investigate.
-        print(f"[user-state] audit log append failed for {code}: {exc}", flush=True)
+# ── Helpers ───────────────────────────────────────────────────────────────
 
+def _db_required():
+    if not db_available():
+        raise HTTPException(503, "Database not configured on this instance")
+
+
+def _project_out(p: Project) -> dict:
     return {
-        "ok": True,
-        "updated_at": payload["updated_at"],
-        "size": len(raw),
+        "id": p.id,
+        "name": p.name,
+        "status": p.status or "draft",
+        "meta": p.meta,
+        "snapshot": p.snapshot,
+        "part5_video_name": p.part5_video_name,
+        "created_at": p.created_at.isoformat() if p.created_at else "",
+        "updated_at": p.updated_at.isoformat() if p.updated_at else "",
     }
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────
+
+@app.post("/api/auth/login")
+async def login(req: LoginRequest):
+    """Login with a whitelisted invite code.  One code = one user across all devices."""
+    _db_required()
+    code = req.invite_code.strip().upper()
+    if not code or code not in INVITE_CODES:
+        raise HTTPException(401, "Invalid invitation code")
+    async with get_db() as db:
+        result = await db.execute(select(User).where(User.invite_code == code))
+        user = result.scalar_one_or_none()
+        if user is None:
+            # Shouldn't happen after pre-seeding in lifespan, but handle gracefully
+            user = User(invite_code=code)
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+        token = create_token(str(user.id))
+        return {
+            "token": token,
+            "user_id": str(user.id),
+            "invite_code": user.invite_code,
+            "display_name": user.display_name,
+            "bio": user.bio,
+            "avatar_index": user.avatar_index if user.avatar_index is not None else 8,
+        }
+
+
+@app.get("/api/auth/me")
+async def get_me(user_id: str = Depends(get_current_user_id)):
+    _db_required()
+    async with get_db() as db:
+        user = await db.get(User, user_id)
+        if not user:
+            raise HTTPException(404, "User not found")
+        return {
+            "user_id": str(user.id),
+            "invite_code": user.invite_code,
+            "display_name": user.display_name,
+            "bio": user.bio,
+            "avatar_index": user.avatar_index if user.avatar_index is not None else 8,
+        }
+
+
+@app.patch("/api/auth/me")
+async def update_me(body: ProfileUpdate, user_id: str = Depends(get_current_user_id)):
+    _db_required()
+    async with get_db() as db:
+        user = await db.get(User, user_id)
+        if not user:
+            raise HTTPException(404, "User not found")
+        if body.display_name is not None:
+            user.display_name = body.display_name
+        if body.bio is not None:
+            user.bio = body.bio
+        if body.avatar_index is not None:
+            user.avatar_index = body.avatar_index
+        await db.commit()
+        return {"ok": True}
+
+
+# ── Projects ──────────────────────────────────────────────────────────────
+
+@app.get("/api/projects")
+async def list_projects(user_id: str = Depends(get_current_user_id)):
+    _db_required()
+    async with get_db() as db:
+        result = await db.execute(
+            select(Project).where(Project.user_id == user_id).order_by(Project.updated_at.desc())
+        )
+        return [_project_out(p) for p in result.scalars().all()]
+
+
+@app.post("/api/projects", status_code=201)
+async def create_project(body: ProjectCreate, user_id: str = Depends(get_current_user_id)):
+    _db_required()
+    async with get_db() as db:
+        project = Project(
+            id=body.id,
+            user_id=user_id,
+            name=body.name,
+            status=body.status,
+            meta=body.meta,
+            snapshot=body.snapshot,
+            part5_video_name=body.part5_video_name,
+        )
+        db.add(project)
+        await db.commit()
+        await db.refresh(project)
+        return _project_out(project)
+
+
+@app.get("/api/projects/{project_id}")
+async def get_project(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    _db_required()
+    async with get_db() as db:
+        project = await db.get(Project, project_id)
+        if not project or str(project.user_id) != user_id:
+            raise HTTPException(404, "Project not found")
+        return _project_out(project)
+
+
+@app.put("/api/projects/{project_id}")
+async def save_project(
+    project_id: str,
+    body: ProjectSave,
+    user_id: str = Depends(get_current_user_id),
+):
+    _db_required()
+    async with get_db() as db:
+        project = await db.get(Project, project_id)
+        if not project or str(project.user_id) != user_id:
+            raise HTTPException(404, "Project not found")
+        if body.name is not None:
+            project.name = body.name
+        if body.status is not None:
+            project.status = body.status
+        if body.snapshot is not None:
+            project.snapshot = body.snapshot
+        if body.part5_video_name is not None:
+            project.part5_video_name = body.part5_video_name
+        from datetime import datetime, timezone as _tz
+        project.updated_at = datetime.now(_tz.utc)
+        await db.commit()
+        return _project_out(project)
+
+
+@app.delete("/api/projects/{project_id}", status_code=204)
+async def delete_project(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    _db_required()
+    async with get_db() as db:
+        project = await db.get(Project, project_id)
+        if not project or str(project.user_id) != user_id:
+            raise HTTPException(404, "Project not found")
+        await db.delete(project)
+        await db.commit()
+
+
+# ── Community ─────────────────────────────────────────────────────────────
+
+@app.get("/api/community")
+async def list_community(skip: int = 0, limit: int = 20):
+    _db_required()
+    async with get_db() as db:
+        result = await db.execute(
+            select(CommunityLesson, Project, User)
+            .join(Project, CommunityLesson.project_id == Project.id)
+            .join(User, CommunityLesson.user_id == User.id)
+            .order_by(CommunityLesson.published_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        rows = result.all()
+        return [
+            {
+                "community_id": str(cl.id),
+                "project_id": cl.project_id,
+                "author_display": u.display_name or u.invite_code,
+                "name": p.name,
+                "meta": p.meta,
+                "snapshot": p.snapshot,
+                "published_at": cl.published_at.isoformat(),
+            }
+            for cl, p, u in rows
+        ]
+
+
+@app.post("/api/community/publish/{project_id}", status_code=201)
+async def publish_to_community(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    _db_required()
+    async with get_db() as db:
+        project = await db.get(Project, project_id)
+        if not project or str(project.user_id) != user_id:
+            raise HTTPException(404, "Project not found")
+        # Check not already published
+        existing = await db.execute(
+            select(CommunityLesson).where(CommunityLesson.project_id == project_id)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(409, "Already published")
+        cl = CommunityLesson(project_id=project_id, user_id=user_id)
+        db.add(cl)
+        await db.commit()
+        await db.refresh(cl)
+        return {"community_id": str(cl.id), "published_at": cl.published_at.isoformat()}
+
+
+@app.post("/api/community/save/{community_id}", status_code=201)
+async def save_community_lesson(
+    community_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Copy a community lesson into the requesting user's projects."""
+    _db_required()
+    async with get_db() as db:
+        result = await db.execute(
+            select(CommunityLesson, Project)
+            .join(Project, CommunityLesson.project_id == Project.id)
+            .where(CommunityLesson.id == community_id)
+        )
+        row = result.one_or_none()
+        if not row:
+            raise HTTPException(404, "Community lesson not found")
+        cl, source = row
+        import time
+        new_id = f"proj-{int(time.time() * 1000)}"
+        copy = Project(
+            id=new_id,
+            user_id=user_id,
+            name=source.name,
+            status="saved",
+            meta=source.meta,
+            snapshot=source.snapshot,
+        )
+        db.add(copy)
+        await db.commit()
+        await db.refresh(copy)
+        return _project_out(copy)

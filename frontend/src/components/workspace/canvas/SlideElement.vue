@@ -260,6 +260,17 @@ function commitEdit() {
       draggable="false"
     />
 
+    <!-- Video -->
+    <video
+      v-else-if="element.type === 'video'"
+      :src="element.src"
+      class="video-content"
+      controls
+      preload="metadata"
+      @mousedown.stop
+      @click.stop
+    />
+
     <!-- Text -->
     <div
       v-else
@@ -369,6 +380,15 @@ function commitEdit() {
   display: block;
   pointer-events: none;
   user-select: none;
+}
+
+.video-content {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: #000;
+  border-radius: 4px;
 }
 
 .text-content {
