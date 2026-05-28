@@ -39,13 +39,13 @@ function openCreate() {
   showCreateModal.value = true
 }
 
-function confirmCreate() {
+async function confirmCreate() {
   const name = newName.value.trim() || t('dashboard.untitled')
-  projectsStore.createProject(name)
+  const projectId = await projectsStore.createProject(name)
   slideStore.reset()
   part5Store.clearVideo()
   showCreateModal.value = false
-  router.push('/workspace')
+  router.push(`/workspace/${projectId}`)
 }
 
 function cancelCreate() {
@@ -69,6 +69,19 @@ function resumeProject(id: string) {
     part5Store.clearVideo()
   }
   router.push(`/workspace/${id}`)
+}
+
+function startTeaching(id: string) {
+  const project = projectsStore.projects.find(p => p.id === id)
+  if (!project) return
+  projectsStore.setActiveProject(id)
+  slideStore.loadSnapshot(project.snapshot)
+  if (project.part5VideoDataUrl) {
+    part5Store.setVideo(project.part5VideoDataUrl, project.part5VideoName ?? '')
+  } else {
+    part5Store.clearVideo()
+  }
+  router.push({ path: `/workspace/${id}`, query: { teach: '1' } })
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
@@ -296,7 +309,7 @@ function statusLabel(status?: string) {
               <svg viewBox="0 0 16 16" fill="none"><path d="M2 2.5l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 2.5l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               {{ t('dashboard.actions.edit') }}
             </button>
-            <button class="action-btn action-btn--green" @click="resumeProject(project.id)">
+            <button class="action-btn action-btn--green" @click="startTeaching(project.id)">
               <svg viewBox="0 0 16 16" fill="none"><path d="M4 3l9 5-9 5V3z" fill="currentColor"/></svg>
               {{ t('dashboard.actions.startTeaching') }}
             </button>

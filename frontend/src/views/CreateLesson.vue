@@ -105,6 +105,12 @@ onMounted(async () => {
   } else if (projectId && !projectsStore.activeProjectId) {
     projectsStore.setActiveProject(projectId)
   }
+
+  // Auto-launch teaching mode if URL has ?teach=1 (from "Start Teaching" buttons).
+  // Wait one tick so the slides are visible in the DOM before going fullscreen.
+  if (route.query.teach === '1' && slideStore.slides.length > 0) {
+    teachingActive.value = true
+  }
 })
 
 let startX     = 0
