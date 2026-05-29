@@ -926,7 +926,49 @@ export const usePart3Store = defineStore('part3', () => {
   }
 
   /**
+   * 2026-05-29 — Teacher-driven manual edits to the generated story.
+   *
+   * Pilot teachers asked for the same "edit-in-place" affordance that
+   * Part 6's prompt-preview now has: in addition to discussing
+   * revisions with 艺芽 (which still works as before via
+   * `sendDesignChat` + `applyRevisedStory`), the teacher can now type
+   * directly into the Story Preview textareas and the changes flow
+   * straight back into `storyData` / `generatedContinuations`.
+   *
+   * Story Preview is the single source of truth. The Sound-Design
+   * TTS reads from the SAME fields, so any edit here is automatically
+   * what the TTS narrates — no separate sync needed.
+   *
+   * We expose 3 named setters (rather than letting the panel v-model
+   * directly into nested objects) so Pinia's reactivity cleanly
+   * notifies the autosave watcher in CreateLesson.vue, which already
+   * deep-watches `part3Store.pairs` for cross-device sync.
+   */
+  function setStoryPart1(text: string) {
+    const pair = activePair.value
+    if (!pair?.storyData) return
+    pair.storyData.part1 = text
+  }
+
+  function setStoryChoice(choiceId: number, field: 'label' | 'desc', text: string) {
+    const pair = activePair.value
+    if (!pair?.storyData) return
+    const choice = pair.storyData.choices.find(c => c.id === choiceId)
+    if (choice) choice[field] = text
+  }
+
+  function setContinuation(choiceId: number, text: string) {
+    const pair = activePair.value
+    if (!pair) return
+    pair.generatedContinuations = {
+      ...pair.generatedContinuations,
+      [choiceId]: text,
+    }
+  }
+
+  /**
    * 2026-05-29 — Wipe Part-3 state back to factory defaults so the
+
    * previous project's artwork pairs, generated stories, animation
    * versions, branch continuations, and design-chat messages cannot
    * leak when the workspace opens a different project. Mirrors
@@ -955,6 +997,7 @@ export const usePart3Store = defineStore('part3', () => {
     addUploadedArtwork, selectUploadedArtwork, removeUploadedArtwork,
     generateStory, generateAnimation, saveChosenVideo, generateContinuation,
     sendDesignChat, applyRevisedStory,
+    setStoryPart1, setStoryChoice, setContinuation,
     getSnapshot, loadSnapshot, reset,
   }
 })

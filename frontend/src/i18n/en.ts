@@ -443,6 +443,12 @@ export default {
       chatApplied: 'Applied',
       chatViewStory: 'View Story Preview ›',
       chatStoryUpdated: 'Story updated',
+      // 2026-05-29 — see zh.ts for the rationale; these are direct
+      // translations for the in-place editable Story Preview UI.
+      editPlaceholderPart1: 'Click here to edit the first half of the story…',
+      editPlaceholderPart3: 'Click here to edit the second half of the story…',
+      editPlaceholderChoiceLabel: 'Option name',
+      editPlaceholderChoiceDesc: 'Option description',
     },
     // Right-side panel that lets the teacher iterate on the
     // generated animation. Title intentionally reuses

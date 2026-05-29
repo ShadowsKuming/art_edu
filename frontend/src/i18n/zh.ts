@@ -430,6 +430,15 @@ export default {
       chatApplied: '已应用',
       chatViewStory: '查看「故事预览」 ›',
       chatStoryUpdated: '故事已更新',
+      // 2026-05-29 — Placeholder copy for the new in-place editable
+      // story textareas / choice inputs. Story Preview is now the
+      // single source of truth: edits flow back to storyData and the
+      // Sound-Design TTS reads from the same fields, so manually
+      // edited text is automatically narrated.
+      editPlaceholderPart1: '点击此处编辑故事前半段…',
+      editPlaceholderPart3: '点击此处编辑故事后半段…',
+      editPlaceholderChoiceLabel: '选项名',
+      editPlaceholderChoiceDesc: '选项描述',
     },
     // 第三部分右侧动画助手面板。标题复用
     // `chatbot.title`（创意助手）以保持品牌一致，所以这里只放

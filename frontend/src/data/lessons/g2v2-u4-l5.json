@@ -164,8 +164,8 @@
     "styles": [
       {
         "style_id": 1,
-        "style_name_zh": "字形随义",
-        "style_description_zh": "把每个字的字形按它的含义夸张变形,让字本身就在讲故事",
+        "style_name_zh": "字形更随义",
+        "style_description_zh": "让每个字的字形依据自身含义被大幅夸张变形，字本身就在讲故事",
         "linked_learning_objective": "根据文字的含义来装饰、改变字形笔画",
         "image_gen_prompt_template_zh": "以原稿为起点，识别画面中原有的汉字（不要替换或额外添加文字），保留每个汉字的可识别度和整体布局位置。让每个汉字的字形依据自身含义被大幅夸张、变形与拉扯：圆类字外轮廓接近圆形，大类字向四周膨胀扩张，高类字向上延伸突破字框，弯类字呈波浪形弯曲。变形后仍需基本可读。每个汉字内部填充彩色蜡笔的渐变色彩或撞色，字体边缘保留蜡笔自然颗粒感和轻微飞白。背景为干净纯色或柔和渐变，可加入少量与字义相关的视觉小元素（如小动物、纹理）作为点缀，但变形字体始终是绝对视觉焦点。字与字之间保持适当间距避免笔画重叠。Image-to-image 强度 0.78。",
         "image_gen_prompt_template_en": "Start from the original — identify the Chinese characters already present in the picture (do not replace or add new text), preserve each character's recognisability and overall layout. Let each character's shape be exaggerated, deformed, and stretched according to its own meaning: 'round-class' characters take on circular outlines, 'big-class' characters expand outwards in all directions, 'tall-class' characters extend upward breaking past the character frame, 'bent-class' characters take on a wavy curve. The deformed characters must still remain basically readable. Fill each character internally with gradient colour-crayon strokes or contrasting colour blocks; keep crayon-style grainy edges with slight whitespace. The background is a clean monotone or soft gradient, with a small number of meaning-related visual accents (such as small animals, textures) as decoration — but the deformed characters always remain the absolute visual focus. Keep adequate spacing between characters to avoid overlapping strokes. Image-to-image strength 0.78.",
@@ -173,8 +173,8 @@
       },
       {
         "style_id": 2,
-        "style_name_zh": "情绪色彩",
-        "style_description_zh": "根据标题情绪选择颜色,让色彩本身就传递故事的心情",
+        "style_name_zh": "色彩更有情绪",
+        "style_description_zh": "根据标题的核心情绪注入强烈色彩，让画面色调本身就传递故事心情",
         "linked_learning_objective": "根据文字的含义改变字的颜色",
         "image_gen_prompt_template_zh": "以原稿为起点，保留每个字的形状识别度和整体布局位置。先分析图中汉字传达的核心情绪，据此为整个画面注入强烈的情绪色彩：温暖情绪（如\"拥抱\"\"家人\"）→ 橙红、珊瑚粉、暖黄渐变；宁静情绪（如\"星空\"\"晚安\"）→ 天蓝、薄荷绿、淡紫渐变；欢快情绪（如\"生日\"\"玩耍\"）→ 柠檬黄、粉红、草绿，高饱和明亮；紧张情绪（如\"危险\"\"比赛\"）→ 深紫、暗红、墨蓝点缀，对比强烈。每个汉字的笔画内部加入丰富渐变，让色彩有层次感，不同字之间可用邻近色或对比色形成微妙差异但整体情绪基调统一。整体采用饱和明亮的童书蜡笔色调，颜色饱满但不刺眼，字体边缘保留蜡笔自然颗粒感和轻微飞白。背景使用与情绪呼应的浅色单色或柔和渐变，与饱和字体形成对比。Image-to-image 强度 0.75。",
         "image_gen_prompt_template_en": "Start from the original — preserve each character's shape recognisability and overall layout. First analyse the core emotion conveyed by the characters, then inject that emotional colour into the entire picture: Warm emotions (e.g. 'hug', 'family') → orange-red, coral pink, warm yellow gradients; Calm emotions (e.g. 'starry sky', 'goodnight') → sky blue, mint green, light purple gradients; Joyful emotions (e.g. 'birthday', 'play') → lemon yellow, pink, grass green, high-saturation bright; Tense emotions (e.g. 'danger', 'race') → deep purple, dark red, ink blue accents, strong contrast. Add rich gradients inside each character's strokes for depth and layering. Different characters may use neighbouring or contrasting colours to create subtle differences, while the overall emotional palette stays unified. Use a saturated, bright children's-crayon palette — full colour but not harsh, with crayon-style grainy edges and slight whitespace. The background uses a light monotone or soft gradient that echoes the emotion and contrasts with the saturated characters. Image-to-image strength 0.75.",
@@ -182,8 +182,8 @@
       },
       {
         "style_id": 3,
-        "style_name_zh": "笔画装饰",
-        "style_description_zh": "在字的笔画里和周围添加与故事内容相关的装饰图案",
+        "style_name_zh": "更多画更有趣",
+        "style_description_zh": "把字的部分笔画替换为与主题相关的装饰图形，让字既能识别又有插画感",
         "linked_learning_objective": "在文字周围添加装饰细节,让标题更有吸引力",
         "image_gen_prompt_template_zh": "以原稿为起点，识别画面中原有的汉字（不要替换或额外添加文字），保留每个字的整体可读性和基本布局位置。分析图中汉字的核心主题，将部分字的非关键笔画（点、横、竖、撇、捺中的2-3处）大胆替换为与主题强相关的装饰图形，保留字形骨架以确保认读。例如\"果\"字\"田\"的四格可替换为四颗小苹果或叶子，\"雨\"字的四点底替换为四滴雨滴或小云朵。装饰图形采用与字体统一、贴合主题的鲜艳童书绘本色彩，边缘圆润可爱、蜡笔或水彩质感，与笔画自然衔接不显突兀。未替换笔画保持原形态、颜色与装饰协调。整体鲜艳明亮的童书蜡笔色调，色彩饱满，所有边缘保留蜡笔颗粒感和轻微飞白。背景干净纯色或柔和渐变，让装饰字体清晰突出。字间距充足避免装饰互相干扰。Image-to-image 强度 0.78。",
         "image_gen_prompt_template_en": "Start from the original — identify the Chinese characters already present (do not replace or add new text), preserve each character's overall readability and basic layout. Analyse the core theme of the characters and boldly replace some non-critical strokes (2-3 of the dots, horizontals, verticals, left-falling and right-falling strokes) with decorative shapes strongly related to the theme, while keeping the character's skeleton intact for legibility. For example, the four squares of '田' in '果' (apple) could be replaced with four small apples or leaves; the four-dot bottom of '雨' (rain) could be replaced with four raindrops or small clouds. The decorative shapes use vivid children's-book colours unified with the typography and matching the theme — rounded, cute edges in crayon or watercolour texture, blending naturally with the strokes without feeling abrupt. Unreplaced strokes keep their original form, with colours coordinated to the decoration. Use a vivid bright children's-crayon palette throughout — full colours, all edges keep crayon-style graininess and slight whitespace. The background is a clean monotone or soft gradient so the decorated typography pops. Keep ample spacing between characters to avoid decorations interfering. Image-to-image strength 0.78.",

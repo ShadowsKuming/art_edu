@@ -765,8 +765,8 @@
     "styles": [
       {
         "style_id": 1,
-        "style_name_zh": "更夸张",
-        "style_description_zh": "把孩子画的'长'元素拉得更长更夸张,让主体延伸到画面之外",
+        "style_name_zh": "更长更夸张",
+        "style_description_zh": "把孩子画里最突出的「长」元素夸张拉伸成蜿蜒曲线，让主体流动突破画面边界",
         "linked_learning_objective": "大胆、夸张地表现主体",
         "image_gen_prompt_template_zh": "以原稿为创作起点，仅保留画面主体的大致位置和轮廓识别度。把画面中最突出的\"长\"方向元素沿原方向夸张拉伸至3-4倍长度，并重构为波浪形的蜿蜒曲线（使用韵律波纹结构），从画面一端柔软流动到另一端。其余元素依曲线节奏重新排布，并丰富画面的装饰细节，在空白处增加平面纹理，例如彩色蜡笔涂抹、水彩晕染、波点与气泡、柔和横向渐变等等。整体重绘为明快童书绘本风格，融合彩色蜡笔与水彩质感，清亮通透，色彩饱满鲜亮，确保画面背景全部上色。主体角色/物体边缘保留手绘蜡笔的自然肌理，略带粗糙感和留白。蜿蜒曲线部分使用渐变色或彩色撞色，增强流动感和视觉张力；Image-to-image 强度 0.78。",
         "image_gen_prompt_template_en": "Use the original sketch as a creative starting point — only preserve the rough position and silhouette recognisability of the main subjects. Stretch the most prominent 'long' directional elements 3-4x along their original direction, restructuring them into a winding wavy curve (rhythmic ripple structure) that flows softly from one edge of the canvas to the other. Reposition the remaining elements along the curve's rhythm and enrich the picture with decorative details — fill empty spaces with flat textures such as colour-crayon strokes, watercolour washes, dots and bubbles, soft horizontal gradients. Repaint everything in a bright children's picture-book style fusing colour crayon and watercolour textures: clear and translucent, with full-saturation vivid colours and the entire background coloured in. Keep crayon-style natural edge texture on subject outlines, slightly rough with some white space. The winding curve uses gradient or contrasting colour blocks for flow and visual tension. Image-to-image strength 0.78.",
@@ -774,8 +774,8 @@
       },
       {
         "style_id": 2,
-        "style_name_zh": "添画背景与角色",
-        "style_description_zh": "在孩子画的主体周围添加场景、角色和情节细节,让画面像在讲故事",
+        "style_name_zh": "背景更丰富",
+        "style_description_zh": "在主体周围添加 3-5 个互动小角色和近中远三层环境，让画面像在讲完整故事",
         "linked_learning_objective": "依据画面需要添画背景,让画面看起来更有趣",
         "image_gen_prompt_template_zh": "以原稿为基础，保留主体的大致轮廓、姿态和画面位置。围绕主体重新构建一个充满故事感的完整场景。在主体行进的方向或视线延伸处，添加3-5个与之互动的小角色（例如：小动物、小精灵），它们或跟随、或指向、或仰望主体，形成叙事联动。背景填满与主体故事呼应的环境层次，例如：蜿蜒的小径、层叠的树木、飘浮的云朵或远山轮廓，构成近景、中景、远景三个空间层次。整体采用鲜艳的童书绘本风重绘。主体使用高饱和度的明亮色块，边缘保留蜡笔自然涂抹的颗粒感和轻微飞白。背景中的天空/地面采用多层蜡笔叠加渐变，色彩饱满但不刺眼。小角色使用对比色或邻近色点缀，增强画面活泼感。Image-to-image 强度 0.75。",
         "image_gen_prompt_template_en": "Use the original as the base — keep the main subject's rough silhouette, pose, and position on the canvas. Rebuild a complete story-rich scene around the subject. In the direction the subject is heading or where their gaze extends, add 3-5 small interactive characters (e.g. small animals or sprites) that follow, point at, or look up at the subject, forming a narrative link. Fill the background with environmental layers that echo the subject's story — e.g. a winding path, layered trees, drifting clouds, distant mountains — composing three spatial layers of foreground, midground, and background. Repaint in a vivid children's picture-book style. The main subject uses high-saturation bright colour blocks with crayon-style grainy edges and slight whitespace. The sky and ground use multi-layer crayon gradient overlays — full colour but not harsh. Small characters use complementary or analogous accent colours to liven things up. Image-to-image strength 0.75.",
@@ -783,8 +783,8 @@
       },
       {
         "style_id": 3,
-        "style_name_zh": "蜿蜒展开构图",
-        "style_description_zh": "把主体的'长'元素重新组织成 S 形蜿蜒走向,引导视线追随故事",
+        "style_name_zh": "更整齐更规律",
+        "style_description_zh": "把「长」元素拆解为相似的单元模块，沿原方向重复排列出生长般的节奏感",
         "linked_learning_objective": "蜿蜒构图与形式和内容的关系",
         "image_gen_prompt_template_zh": "以原稿为基础，保留主体的大致轮廓和姿态。将原稿中最突出的\"长\"方向元素，拆解为4-6个相似的\"单元模块\"，沿着原方向以等距或渐变间距重复排列。每个单元保持形态相似但略有变化（例如：大小递进、颜色渐变、角度微调），形成从画面一端\"生长\"或\"流动\"到另一端的节奏感。其余元素保持完整即可。整体采用明亮的童书绘本风，彩色蜡笔与水彩融合质感。重复单元使用渐变色彩或撞色，增强向前延伸的动势。单元之间的间隙填满柔和单色背景。在重复单元的路径上，添加小型点缀元素（如脚印、花瓣、星星、波点），引导视线沿排列方向移动。主体首尾两端可适当放大或添加细节（如表情、装饰），强化起点与终点的叙事感。背景保持简洁，使用单一或双色渐变平涂，避免干扰节奏。Image-to-image 强度 0.75。",
         "image_gen_prompt_template_en": "Use the original as the base — keep the rough silhouette and pose of the main subject. Take the most prominent 'long' directional element from the sketch and decompose it into 4-6 similar 'modular units' arranged repetitively along the original direction at equal or gradient spacing. Each unit keeps a similar form with slight variations (e.g. progressive size, gradient colour, micro-angle shifts), creating a rhythm that 'grows' or 'flows' from one edge of the canvas to the other. Keep the rest of the picture intact. Use a bright children's picture-book style with a fusion of colour-crayon and watercolour textures. The repeating units use gradient colours or contrasting blocks to enhance the forward-extending momentum. Fill the gaps between units with a soft monotone background. Along the path of repeating units, add small accent elements (footprints, petals, stars, dots) to guide the gaze along the arrangement direction. The first and last units of the subject can be slightly enlarged or given extra details (expression, decoration) to strengthen the narrative sense of beginning and end. Keep the background simple with single- or two-colour gradient flat fill, avoiding interference with the rhythm. Image-to-image strength 0.75.",

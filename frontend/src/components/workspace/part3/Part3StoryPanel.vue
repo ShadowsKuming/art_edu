@@ -24,6 +24,71 @@ function selectChoice(id: number) {
   store.generateContinuation(id, locale.value)
 }
 
+// ── Manual story-text edits (2026-05-29) ────────────────────────
+//
+// Pilot teachers asked for the same direct-edit affordance Part 6's
+// prompt preview has: in addition to chatting with 艺芽 about
+// revisions, they can type straight into the Story Preview
+// textareas / inputs. Edits flow through the store's three setters
+// (setStoryPart1 / setStoryChoice / setContinuation) so Pinia's
+// reactivity cleanly notifies the cross-device autosave watcher in
+// CreateLesson.vue. The Sound-Design TTS reads from the SAME source
+// fields, so manual edits automatically become what gets narrated —
+// no separate sync needed.
+//
+// Refs to the two main textareas drive a small autogrow util: each
+// `input` event resets the element's height to fit the content,
+// avoiding inner scrollbars on long stories.
+const part1TextareaRef = ref<HTMLTextAreaElement | null>(null)
+const part3TextareaRef = ref<HTMLTextAreaElement | null>(null)
+
+function autogrow(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+function onEditPart1(ev: Event) {
+  const el = ev.target as HTMLTextAreaElement
+  store.setStoryPart1(el.value)
+  autogrow(el)
+}
+
+function onEditChoiceLabel(choiceId: number, ev: Event) {
+  const el = ev.target as HTMLInputElement
+  store.setStoryChoice(choiceId, 'label', el.value)
+}
+
+function onEditChoiceDesc(choiceId: number, ev: Event) {
+  const el = ev.target as HTMLInputElement
+  store.setStoryChoice(choiceId, 'desc', el.value)
+}
+
+function onEditPart3(ev: Event) {
+  const el = ev.target as HTMLTextAreaElement
+  if (store.selectedChoiceId === null) return
+  store.setContinuation(store.selectedChoiceId, el.value)
+  autogrow(el)
+}
+
+// Whenever the story payload changes (regenerated, AI applied, branch
+// switched), re-size the textareas so the new content fits without
+// scrollbars. nextTick because the textarea may not yet exist on the
+// first storyData arrival (v-else-if branch toggle).
+watch(
+  [
+    () => store.storyData?.part1,
+    () => store.activeContinuation,
+    () => store.selectedChoiceId,
+  ],
+  () => nextTick(() => {
+    autogrow(part1TextareaRef.value)
+    autogrow(part3TextareaRef.value)
+  }),
+  { immediate: true },
+)
+
+
 // ── Design-Rationale chat (Part 3 iterative revision) ─────────────────
 //
 // The chat lives inside the Design tab so teachers can keep talking
@@ -412,25 +477,71 @@ onUnmounted(_cleanupAudio)
          before the story payload arrives. -->
     <div v-else-if="!store.storyData" class="sp-empty" />
 
-    <!-- Story Preview tab -->
+    <!-- Story Preview tab.
+         2026-05-29 — Every text section is now directly editable. The
+         teacher can either let the AI draft + iterate via the design-
+         chat tab, OR type straight into these textareas / inputs.
+         Story Preview is the single source of truth: the Sound-Design
+         TTS narrates whatever lives in `storyData.part1` /
+         `generatedContinuations[selectedChoiceId]`, so a manual edit
+         flows automatically into narration too. -->
     <div v-else-if="activeTab === 'story'" class="sp-body">
       <h3 class="sp-section-title">{{ t('part3.storyPanel.part1Title') }}</h3>
-      <p class="sp-text">{{ store.storyData.part1 }}</p>
+      <textarea
+        class="sp-edit-textarea"
+        :value="store.storyData.part1"
+        :placeholder="t('part3.storyPanel.editPlaceholderPart1')"
+        :disabled="store.storyLoading"
+        @input="onEditPart1($event)"
+        ref="part1TextareaRef"
+      />
 
       <h3 class="sp-section-title">{{ t('part3.storyPanel.part2Title') }}</h3>
       <p class="sp-subtext">{{ t('part3.storyPanel.choicesHint') }}</p>
       <div class="sp-choices">
-        <button
+        <!-- 2026-05-29 — Was a single `<button class="sp-choice">` per
+             row. Refactored to a `<div>` shell so we can host editable
+             `<input>` fields inside without violating HTML's "no
+             interactive content inside <button>" rule. Branch-select
+             still happens by clicking the dot / blank space; clicks
+             on the inputs are stopped so they edit text instead. -->
+        <div
           v-for="c in store.storyData.choices"
           :key="c.id"
-          class="sp-choice"
-          :class="{ 'sp-choice--selected': store.selectedChoiceId === c.id }"
-          :disabled="store.continuationLoading"
+          class="sp-choice sp-choice--editable"
+          :class="{
+            'sp-choice--selected': store.selectedChoiceId === c.id,
+            'sp-choice--disabled': store.continuationLoading,
+          }"
+          role="button"
+          tabindex="0"
           @click="selectChoice(c.id)"
+          @keydown.enter.prevent="selectChoice(c.id)"
+          @keydown.space.prevent="selectChoice(c.id)"
         >
           <span class="sp-choice-dot" />
-          <span><strong>{{ c.label }}</strong> – {{ c.desc }}</span>
-        </button>
+          <div class="sp-choice-edit-row">
+            <input
+              class="sp-choice-label-input"
+              :value="c.label"
+              :placeholder="t('part3.storyPanel.editPlaceholderChoiceLabel')"
+              :disabled="store.continuationLoading || store.storyLoading"
+              @input="onEditChoiceLabel(c.id, $event)"
+              @click.stop
+              @keydown.stop
+            />
+            <span class="sp-choice-dash">–</span>
+            <input
+              class="sp-choice-desc-input"
+              :value="c.desc"
+              :placeholder="t('part3.storyPanel.editPlaceholderChoiceDesc')"
+              :disabled="store.continuationLoading || store.storyLoading"
+              @input="onEditChoiceDesc(c.id, $event)"
+              @click.stop
+              @keydown.stop
+            />
+          </div>
+        </div>
       </div>
 
       <h3 class="sp-section-title">{{ t('part3.storyPanel.part3Title') }}</h3>
@@ -451,15 +562,21 @@ onUnmounted(_cleanupAudio)
         {{ store.continuationError }}
       </p>
 
-      <!-- No choice selected yet -->
+      <!-- No choice selected yet — show the "pick a path" hint exactly
+           as before; nothing to edit until a branch is chosen. -->
       <p v-else-if="store.selectedChoiceId === null" class="sp-cont-hint">
         {{ t('part3.storyPanel.choosePathHint') }}
       </p>
 
-      <!-- Generated continuation -->
-      <p v-else-if="store.activeContinuation" class="sp-text">
-        {{ store.activeContinuation }}
-      </p>
+      <!-- Generated continuation, now editable. -->
+      <textarea
+        v-else
+        class="sp-edit-textarea"
+        :value="store.activeContinuation ?? ''"
+        :placeholder="t('part3.storyPanel.editPlaceholderPart3')"
+        @input="onEditPart3($event)"
+        ref="part3TextareaRef"
+      />
     </div>
 
     <!-- Design Rationale tab -->
@@ -878,6 +995,116 @@ onUnmounted(_cleanupAudio)
 
 .sp-choice--selected .sp-choice-dot { background: #16a34a; }
 .sp-choice:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* 2026-05-29 — Editable variants of the .sp-choice row.
+   The row stays clickable (branch select) but hosts two inline
+   inputs for `label` and `desc`. Disabled state matches Part 6's
+   pattern: dim the row + block pointer events during continuation
+   generation so the teacher can't edit mid-stream. */
+.sp-choice--editable { align-items: center; }
+.sp-choice--disabled { opacity: 0.6; pointer-events: none; }
+
+.sp-choice-edit-row {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;       /* let children shrink */
+}
+
+.sp-choice-label-input,
+.sp-choice-desc-input {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 4px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  color: #111827;
+  outline: none;
+  min-width: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sp-choice-label-input {
+  font-weight: 700;
+  flex-shrink: 0;
+  width: 9em;     /* fits ~6 ZH chars comfortably; grows to flex if longer */
+}
+
+.sp-choice-desc-input { flex: 1; }
+
+.sp-choice-label-input:hover,
+.sp-choice-desc-input:hover {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: #e5e7eb;
+}
+.sp-choice-label-input:focus,
+.sp-choice-desc-input:focus {
+  background: #ffffff;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.10);
+}
+.sp-choice-label-input::placeholder,
+.sp-choice-desc-input::placeholder {
+  color: #d1d5db;
+  font-weight: normal;
+}
+.sp-choice-label-input:disabled,
+.sp-choice-desc-input:disabled {
+  background: transparent;
+  cursor: not-allowed;
+}
+
+.sp-choice-dash {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* 2026-05-29 — Story-text editable textareas (part1 + part3 body).
+   Visually identical to the former `<p class="sp-text">` paragraph
+   (same font-size, line-height, colour) so the page doesn't suddenly
+   look like a form. Borderless by default; on hover, a faint dashed
+   underline tells the teacher this is editable; on focus, a soft
+   green outline matches Part 6's prompt-preview textarea language. */
+.sp-edit-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #374151;
+  resize: none;          /* autogrow handler controls height */
+  overflow: hidden;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  min-height: 2.5em;
+}
+.sp-edit-textarea:hover {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: #e5e7eb;
+}
+.sp-edit-textarea:focus {
+  background: #ffffff;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.10);
+}
+.sp-edit-textarea::placeholder {
+  color: #d1d5db;
+  font-style: italic;
+}
+.sp-edit-textarea:disabled {
+  background: transparent;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
 
 .sp-cont-loading {
   display: flex;

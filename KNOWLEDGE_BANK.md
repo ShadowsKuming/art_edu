@@ -2337,3 +2337,455 @@ hot-path time; the i18n key is kept as documentation).
 clean (~577 ms). `python -c "import main"` from `backend/` succeeds.
 
 
+
+
+## 24. Editable Part-6 prompts + Editable Part-3 story + cross-project leak fixes + cross-device autosave + Part-5 blank-project empty state + Part-6 prompt rewrites/labels (2026-05-29)
+
+This is the largest single-day landing since the pilot shipped. It
+addresses **eight pilot-feedback items** that all touch the same
+"teacher needs to be able to fine-tune what the AI generated" theme,
+plus four foundational stability bugs that surfaced as teachers
+started building multi-project decks across devices.
+
+### 24.1 — Part 6 prompt editing (right-side textarea, edit-in-place)
+
+**What teachers asked for:** in addition to discussing with 艺芽,
+they wanted to *directly type into* the "提示词预览" box and have
+THAT text — not the model's default — be what gets sent to Doubao
+Seedream i2i.
+
+**Data flow added.** `Style` interface (`frontend/src/stores/part6.ts`)
+gained a 3rd optional field:
+
+```ts
+export interface Style {
+  label: string
+  prompt: string             // EN, kept for back-compat
+  promptZh?: string          // default ZH from backend
+  promptZhEdited?: string    // ← NEW: teacher's textarea content
+}
+```
+
+Resolution order in `convert()` now:
+```
+edited = (style.promptZhEdited ?? '').trim()
+promptToSend = edited || style.promptZh || style.prompt
+```
+
+Doubao Seedream i2i accepts both ZH and EN, so sending the edited
+ZH is correct. Backend `/api/part6/transfer` was **not changed** —
+it just forwards `body.prompt` to the model.
+
+**Store helpers.** Two new actions route every edit through Pinia so
+the cross-device autosave watcher picks them up cleanly:
+- `setPromptEdit(messageId, idx, text)` writes
+  `msg.proposedStyles[idx].promptZhEdited`.
+- `resetPromptEdit(messageId, idx)` clears it, snapping the textarea
+  back to `promptZh`.
+
+`confirmStyles()` was also tightened — it now **deep-copies** each
+Style when committing to `styles.value`:
+```ts
+styles.value = msg.proposedStyles.map(s => ({ ...s }))
+```
+Pre-2026-05-29 it spread the same object references, which meant
+post-confirm edits on `msg.proposedStyles[i].promptZhEdited` would
+silently mutate the confirmed pigs. The deep-copy isolates them; to
+sync a post-confirm edit, the panel exposes a "重新确认" pill
+button that re-runs `confirmStyles(messageId)` for the same id.
+
+**UI** (`Part6AssistancePanel.vue`): the read-only `<p>` paragraph
+inside the 提示词预览 box became an autogrow `<textarea>` with the
+same font/size/colour as before. Below it:
+- 已编辑 badge appears when
+  `promptZhEdited.trim() !== promptZh.trim()`.
+- 重置为默认 link clears the edit.
+- 应用修改 · 重新确认 button appears only when the message is the
+  currently-confirmed one AND the message-level edit differs from
+  the confirmed `styles[i].promptZhEdited` (computed by
+  `needsReconfirm(msg)`).
+
+**i18n.** Three new keys in `part6.bot`:
+`previewEdited` / `previewReset` / `previewReconfirm` (both zh + en).
+
+### 24.2 — Part 3 story editing (every section in 故事预览 is a textarea)
+
+**What teachers asked for:** same edit-in-place affordance for the
+story text. Part-1 paragraph, the three choice (label + desc)
+chips, and the Part-3 continuation should all be directly editable
+in 故事预览. After editing, the Sound-Design TTS must narrate the
+edited text — not the AI's original.
+
+**Architectural realisation.** TTS already reads from
+`pair.storyData.part1` (for segment=part1) and
+`pair.generatedContinuations[selectedChoiceId]` (for segment=part3)
+— the **exact** same fields Story Preview displays. So if we make
+Story Preview directly mutate those fields, the TTS picks up edits
+for free. No separate sync, no shadow `*Edited` fields like Part 6
+needed.
+
+**Store helpers** (`frontend/src/stores/part3.ts`):
+```ts
+function setStoryPart1(text: string) {
+  activePair.value.storyData.part1 = text
+}
+function setStoryChoice(id: number, field: 'label'|'desc', text: string) {
+  activePair.value.storyData.choices.find(c => c.id === id)[field] = text
+}
+function setContinuation(choiceId: number, text: string) {
+  activePair.value.generatedContinuations = {
+    ...activePair.value.generatedContinuations,
+    [choiceId]: text,
+  }
+}
+```
+
+Routing through helpers (rather than `v-model="storyData.part1"`
+directly) ensures Pinia reactivity cleanly notifies the
+`CreateLesson.vue` autosave watcher, which already deep-watches
+`part3Store.pairs`.
+
+**UI** (`Part3StoryPanel.vue`): four read-only surfaces became
+editable:
+1. Part-1 paragraph `<p>` → autogrow `<textarea class="sp-edit-textarea">`
+2. Choice button `<button>` → `<div role="button">` with two inline
+   `<input>` fields (label + desc). Branch-select click still fires
+   on the row; clicks on the inputs are stopped (`@click.stop`) so
+   they edit text. HTML doesn't allow form inputs inside `<button>`
+   — this refactor was unavoidable.
+3. Part-3 continuation `<p>` → another autogrow `<textarea>`,
+   wired to `generatedContinuations[selectedChoiceId]`.
+4. (designRationale stays read-only — it's not narrated and not part
+   of the story's narrative content; pilot teachers told us they
+   don't edit it.)
+
+**Autogrow helper.** A tiny `autogrow(el)` function sets
+`el.style.height = el.scrollHeight + 'px'` on every `input` event
+and on every reactive change to the underlying field (so AI-applied
+revisions and branch switches also re-fit). Cheaper than
+`field-sizing: content` while supporting all 2026-era browsers.
+
+**Visual language.** The textareas inherit `<p class="sp-text">`'s
+font (13px / line-height 1.7 / colour #374151) and are borderless
+by default. On hover a soft #e5e7eb border appears with a subtle
+white-tint background; on focus the border turns #16a34a with a
+small green box-shadow — same language as Part 6's prompt-preview
+textarea. The choice inputs follow the same pattern but more
+compact.
+
+**i18n.** Four new keys in `part3.storyPanel`:
+`editPlaceholderPart1` / `editPlaceholderPart3` /
+`editPlaceholderChoiceLabel` / `editPlaceholderChoiceDesc`.
+
+**AI / manual edit interplay.** Both routes mutate the same
+`storyData` object:
+- Manual edit → `setStoryPart1` → `storyData.part1 = newText`.
+- AI revision → "应用此版本" → `applyRevisedStory()` does
+  `storyData = JSON.parse(JSON.stringify(revisedStory))`.
+
+So clicking "Apply" after editing overwrites the manual edit (which
+is what the teacher just asked for by clicking the button). When the
+chat sends `current_story` to the backend, it includes the manual
+edits — so the AI sees what the teacher just wrote and can iterate
+on top of it. Zero conflict.
+
+### 24.3 — Cross-project leak fix (Part 6 sketch / styles / chat were sticky)
+
+**Bug.** Teacher uploaded a sketch in《好长好长》, confirmed 3
+styles, navigated back to MyLessons, opened《吸引人的标题》—
+Part 6 still showed the《好长好长》sketch + styles + chat history.
+Same leak observed in Part 3 (story state) and Part 7 (student
+works) and Part 5 (custom video URL).
+
+**Root cause.** Every project-switch entry point
+(`MyLessons.resumeProject`, `Dashboard` startTeaching drawer,
+`CreateLesson` onMounted, `Community` back-navigation,
+`loadFromAPI` hydration) had its own scattered:
+```ts
+if (s.part6Snapshot) usePart6Store().loadSnapshot(s.part6Snapshot)
+```
+When the incoming project had no `part6Snapshot`, the `if` guard
+skipped the call — leaving the old project's store intact.
+
+**Fix.** Three new `reset()` actions:
+- `usePart3Store().reset()` — clears `pairs` + `activePairId`.
+- `usePart6Store().reset()` — clears sketch / styles / messages /
+  confirmedMessageId / usedStyleIndices / view / latestResult /
+  chatLoading / chatError / stylesError / conversionError. Rewinds
+  `_msgIdSeq` to 1. `teacherPreviewMode` is intentionally NOT reset
+  (it's a session-level UI preference, like locale).
+- `usePart7Store().reset()` — clears pairs + activePairId.
+
+Then **centralised the hydrate-or-reset logic in
+`projects.ts → setActiveProject(id)`** so every caller gets the
+correct behaviour for free:
+```ts
+if (s.part3Snapshot) part3.loadSnapshot(s.part3Snapshot)
+else                 part3.reset()
+if (s.part6Snapshot) part6.loadSnapshot(s.part6Snapshot)
+else                 part6.reset()
+if (s.part7Snapshot) part7.loadSnapshot(s.part7Snapshot)
+else                 part7.reset()
+if (s.part5CustomUrl) part5.setPastedUrl(s.part5CustomUrl)
+else                  part5.clearCustom()
+```
+`createProject()` was also routed through `setActiveProject(id)`
+(rather than assigning `activeProjectId.value = id` directly) so
+the new "+新建课件" flow gets the same reset.
+
+`clearLocal()` (sign-out) now also calls all four reset/clear
+methods so the next user starting from a clean device doesn't see
+the previous user's leftovers.
+
+### 24.4 — Cross-device autosave (Part 6 styles weren't persisting)
+
+**Bug.** Teacher confirmed 3 styles in Part 6, closed the tab
+without ever switching parts or pressing Back. On another device,
+the same account opened the same project — styles were missing.
+
+**Root cause.** The pre-2026-05-29 autosave in `CreateLesson.vue`
+was a single-source watch:
+```ts
+watch(() => slideStore.activePart, () => { saveCurrentProject(...) })
+```
+It only fired when `activePart` changed (Part 1 → Part 2 sidebar
+click) or when the explicit Back button ran `goBack()`. Edits made
+*inside* Part 6 (or Part 3 / Part 7 / Part 5) that didn't trigger
+either event were never persisted.
+
+**Fix** (`frontend/src/views/CreateLesson.vue`): replaced with a
+16-source deep watch + 1.5 s debounce:
+```ts
+watch(
+  [
+    () => slideStore.activePart,
+    () => slideStore.slides,
+    () => part6Store.sketchDataUrl,
+    () => part6Store.messages,
+    () => part6Store.confirmedMessageId,
+    () => part6Store.styles,
+    () => part6Store.usedStyleIndices,
+    () => part6Store.latestResult,
+    () => part6Store.view,
+    () => part6Store.teacherPreviewMode,
+    () => part3Store.pairs,
+    () => part3Store.activePairId,
+    () => part7Store.pairs,
+    () => part7Store.activePairId,
+    () => part5Store.customUrl,
+    () => part5Store.customSourceType,
+  ],
+  flushDebouncedSave,
+  { deep: true },
+)
+```
+
+`flushDebouncedSave` re-arms a 1500 ms `setTimeout` on every burst
+of changes and calls `saveCurrentProject()` once when the burst
+settles. Typical effect: confirming 3 styles fires three rapid
+mutations in <50 ms; only one PUT goes out 1.5 s later.
+
+**Hydration race guard.** `setActiveProject(id)` synchronously
+mutates several stores when loading a project. Without protection,
+those mutations would immediately trip the watcher and re-PUT the
+just-loaded snapshot back to the server. So `projects.ts` now
+exposes a `_isHydrating: ref<boolean>` flag that's set true at the
+start of `setActiveProject` and cleared 200 ms later via
+`setTimeout`. The watcher checks `if (projectsStore._isHydrating) return`
+at the top of `flushDebouncedSave`.
+
+Vue's default `watch` doesn't fire on creation, so the very first
+hydration on `CreateLesson` mount doesn't need the flag — only
+later `setActiveProject` calls (e.g. switching projects from
+MyLessons → workspace) do. The 200 ms window is generous: the
+actual mutations are flushed within the same microtask.
+
+### 24.5 — Part 5 blank-project empty state (no more 好长好长 default)
+
+**Bug.** Teacher clicks "新建课件" from MyLessons → opens new
+empty project → Part 5 shows the《好长好长》Bilibili demo video.
+
+**Root cause** (`Part5Content.vue`):
+```ts
+const defaultEmbedUrl = computed(() => {
+  const lessonId = projectsStore.activeLessonId
+  const bvid = (lessonId && LESSON_VIDEO_MAP[lessonId]) || DEFAULT_BVID
+  //                                                       ^^^^^^^^^^^^
+  // 'BV1VjVc6tEhK' = 好长好长. Fallback fires for blank projects.
+  return buildBilibiliEmbed(bvid)
+})
+```
+
+**Fix.**
+```ts
+const defaultEmbedUrl = computed(() => {
+  const lessonId = projectsStore.activeLessonId
+  if (!lessonId) return null                  // blank project
+  const bvid = LESSON_VIDEO_MAP[lessonId]
+  if (!bvid) return null                      // unknown lesson
+  return buildBilibiliEmbed(bvid)
+})
+```
+
+Template gains a third branch: when `defaultEmbedUrl === null &&
+!customRender`, render a dashed-border `.p5-empty-state` with the
+new `part5.upload.emptyHint` i18n string (and a generic video-camera
+SVG icon). The "恢复默认视频" button is also hidden in this state —
+no default to restore to.
+
+`DEFAULT_BVID` constant + the import were deleted. The three pilot
+lessons (g2v2-u4-l4 / g2v2-u4-l5 / g2v2-u5-l1) all map cleanly in
+`LESSON_VIDEO_MAP` and keep their Bilibili clips.
+
+### 24.6 — Part 6 prompt rewrites (round 3) + style names + descriptions
+
+Three separate copy updates in the same Part 6 surface:
+
+**24.6a — Image-gen prompt content** (per user-supplied docx).
+Replaced all 9 `image_gen_prompt_template_zh` + `_en` strings
+across 6 JSON files (3 lessons × backend + frontend). All new
+prompts are between 227 and 308 Chinese characters (within
+Doubao's 200-300 char sweet spot — long enough to carry every
+visual rule, short enough that the model's attention doesn't dilute
+in the prompt tail). Key strategies:
+
+- L4 (《好长好长》): kept user's docx text verbatim — 241/241/272
+  chars, already optimal.
+- L5 (《吸引人的标题》): compressed from 301/364/422 → 227/254/271
+  by collapsing the "5 example characters + 'don't add these
+  characters' double declarations" into a single opening clause
+  "识别画面中原有的汉字（不要替换或额外添加文字）".
+- U5 (《听听画画》): compressed from 402/487/483 → 264/290/308 by
+  trimming each emotion category's colour list from 4 → 3 names and
+  deduplicating "形状服务情绪" / "笔触质感" mentions.
+
+All numeric parameters (3-4x, 3-5mm / 0.5-1mm, 1/3 of canvas, 80%
+saturation, i2i strength 0.78 / 0.75 / 0.75 / 0.78 / 0.75 / 0.78
+/ 0.8 / 0.78 / 0.85) were preserved character-for-character. The
+review document is checked in at the repo root:
+`REVIEW_compressed_part6_prompts.md`.
+
+**24.6b — Chip labels.** Curriculum team finalised the user-facing
+chip labels:
+
+| Lesson | Style 1 | Style 2 | Style 3 |
+|---|---|---|---|
+| g2v2-u4-l4 | 更长更夸张 | 背景更丰富 | 更整齐更规律 |
+| g2v2-u4-l5 | 字形更随义 | 色彩更有情绪 | 更多画更有趣 |
+| g2v2-u5-l1 | 节奏感更强 | 情绪更浓烈 | 形状更抽象 |
+
+Updated `executor_d_styles.styles[i].style_name_zh` in all 6 JSON
+files.
+
+**24.6c — One-line descriptions.** The AI's recommendation message
+contains "• {style_name}：{style_description}" bullets pulled from
+`style_description_zh`. Each description was rewritten to reflect
+the actual prompt content rather than the older paraphrases. E.g.
+
+- L4 Style 1: "把孩子画里最突出的「长」元素夸张拉伸成蜿蜒曲线，
+  让主体流动突破画面边界"
+- L5 Style 3: "把字的部分笔画替换为与主题相关的装饰图形，让字
+  既能识别又有插画感"
+- U5 Style 3: "把具象形状大胆推向几何与曲线的抽象造型，借鉴
+  康定斯基的音乐抽象画语言"
+
+All three patches (24.6a/b/c) were applied via three Python scripts
+in `/tmp/` (`patch_part6_v3.py`, `patch_part6_names.py`) that read
+each JSON, write the new fields, and round-trip with
+`ensure_ascii=False, indent=2` so diffs are clean. No `npm run
+sync-lessons` is needed because the scripts touch both
+`backend/data/lessons/` and `frontend/src/data/lessons/`
+simultaneously.
+
+### 24.7 — Part 3 design-chat UI tweak
+
+Trivial but worth noting for changelog purposes:
+- `chatHint` updated from "可以说「把故事修改得更贴近本课学习
+  目标」，或「让故事更有想象力」" → "可以说「把前半段故事修改
+  得更贴近本课学习目标」，或「让三个互动选项更有想象力」".
+  Examples now map 1:1 onto the two MODE-B targets (Part 1 + the
+  three choices), training teachers to write more precise prompts.
+- 修改后的故事 card no longer renders the `designRationale`
+  section (backend was already filtering it out of
+  `revision_scope`; this is the matching frontend change).
+
+### 24.8 — Files touched (this whole rollout)
+
+**Backend** (zero functional changes; pure data updates):
+- `backend/data/lessons/{g2v2-u4-l4,g2v2-u4-l5,g2v2-u5-l1}.json` —
+  9 styles × prompt rewrites + 9 name/description rewrites.
+
+**Frontend stores:**
+- `frontend/src/stores/projects.ts` — `_isHydrating` ref, centralised
+  hydrate-or-reset in `setActiveProject`, route `createProject` +
+  `loadFromAPI` through it, `clearLocal` resets all stores.
+- `frontend/src/stores/part3.ts` — `reset()`, `setStoryPart1`,
+  `setStoryChoice`, `setContinuation`.
+- `frontend/src/stores/part5.ts` — (no functional change; already
+  had `clearCustom`).
+- `frontend/src/stores/part6.ts` — `Style.promptZhEdited` field,
+  `convert()` prompt-resolution priority, deep-copy in
+  `confirmStyles`, `setPromptEdit` / `resetPromptEdit` / `reset()`.
+- `frontend/src/stores/part7.ts` — `reset()`.
+
+**Frontend views / components:**
+- `frontend/src/views/CreateLesson.vue` — 16-source deep watch +
+  1.5 s debounce + hydration-flag check.
+- `frontend/src/views/MyLessons.vue` — `confirmCreate` now uses
+  `setActiveProject` for the new project; no other changes.
+- `frontend/src/components/workspace/part3/Part3StoryPanel.vue` —
+  4 editable surfaces + autogrow + new CSS.
+- `frontend/src/components/workspace/part5/Part5Content.vue` —
+  `defaultEmbedUrl` null-when-unknown + empty-state branch +
+  conditional "恢复默认视频" button.
+- `frontend/src/components/workspace/part6/Part6AssistancePanel.vue` —
+  textarea preview + "已编辑" badge + "重置" link + "重新确认" pill +
+  store helpers `setPromptEdit` / `resetPromptEdit` /
+  `reconfirmFromMessage` / `needsReconfirm`.
+
+**Frontend data:**
+- `frontend/src/data/lessons/{g2v2-u4-l4,g2v2-u4-l5,g2v2-u5-l1}.json` —
+  mirror of backend updates (kept in sync via the scripts).
+
+**i18n** (zh + en):
+- `part6.bot.previewEdited` / `previewReset` / `previewReconfirm`
+- `part5.upload.emptyHint`
+- `part3.storyPanel.editPlaceholderPart1` / `editPlaceholderPart3`
+  / `editPlaceholderChoiceLabel` / `editPlaceholderChoiceDesc`
+- `part3.storyPanel.chatHint` (revised example wording)
+
+**Helper scripts kept under `/tmp/` (not checked in):**
+- `patch_part6_v3.py` — 9 prompt content rewrites with verification
+  print-out.
+- `patch_part6_names.py` — 9 name + description updates.
+- `verify_part6_patch.py` — 4 sanity assertions (JSON parity
+  backend↔frontend, banned phrases removed, i2i strengths correct,
+  prompt-length sanity).
+
+**Review doc kept at repo root:**
+- `REVIEW_compressed_part6_prompts.md` — character-by-character
+  diff for the 6 compressed prompts (L5 + U5), with rationale for
+  every deletion.
+
+### 24.9 — Verification
+
+- `vue-tsc -b && vite build` clean, 551-606 ms across all stages.
+- All three `python3 /tmp/patch_part6_*.py` runs printed
+  before→after diffs for every touched style.
+- `verify_part6_patch.py` (4/4) passes: JSON parity, no banned
+  phrases, i2i strengths match expected set, prompt lengths in
+  recommended range.
+- Manual smoke-test (`npm run dev`):
+  1. Open lesson A → upload Part 6 sketch + confirm styles. Wait
+     2 s. Close tab. Open device B with same invite code. Open
+     same project. ✅ sketch + styles + chat all present.
+  2. Open lesson B from MyLessons. ✅ Part 6 / 3 / 7 empty —
+     no leak from lesson A.
+  3. New blank project from MyLessons → Part 5. ✅ shows
+     "本课件暂未设置创意示范视频…" empty state, no Bilibili
+     iframe.
+  4. Part 3 → type into Part-1 textarea. Switch to Sound Design
+     tab → click Play. ✅ TTS narrates the edited text.
+  5. Part 6 → click chip → edit textarea → save → click 重新确认
+     → click 开始转换. ✅ i2i call carries the edited Chinese
+     prompt (verified in network tab).
