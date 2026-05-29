@@ -49,7 +49,14 @@ class AssessmentCriterion(_LKPModel):
 
 
 class SlideElement(_LKPModel):
-    type: Literal["text", "image"]
+    # 2026-05-29 — Added 'audio' for embedded `<audio controls>` players
+    # on slide canvases (e.g. G2V2-U5-L1 P4-S2 ships two教材音频). The
+    # frontend `SlideElementSeed` type in `frontend/src/types/lesson.ts`
+    # and `ElementType` in `frontend/src/stores/slides.ts` were widened
+    # at the same time; this keeps Pydantic validation of LKP JSON
+    # `default_elements[].type` in sync so `/api/story/*` endpoints
+    # don't 404 on lessons that contain audio elements.
+    type: Literal["text", "image", "audio"]
     x: float
     y: float
     width: float
