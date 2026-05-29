@@ -629,6 +629,11 @@ export default {
       // before applying. `{name}` is the chip's label.
       previewLabel: 'Prompt preview · {name}',
       previewEmpty: 'No Chinese prompt available for this style yet.',
+      // 2026-05-29 — Editable preview textarea status copy. See zh.ts
+      // for the per-string rationale; these are direct translations.
+      previewEdited: 'Edited',
+      previewReset: 'Reset to default',
+      previewReconfirm: 'Apply edit · Reconfirm',
       errorChat: 'Sorry, something went wrong. Please try again.',
     },
   },

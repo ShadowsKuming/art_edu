@@ -139,6 +139,81 @@ function confirmFromMessage(msgId: number) {
 }
 
 /**
+ * 2026-05-29 — Prompt-preview edit helpers.
+ *
+ * `onPromptInput` writes the textarea's current value into the
+ * message's `proposedStyles[idx].promptZhEdited` via the store. We
+ * pass through the store rather than v-modeling the nested object
+ * directly so the autosave watcher in CreateLesson.vue picks the
+ * mutation up (it deep-watches `part6Store.messages`).
+ *
+ * `isPromptEdited` returns true when the teacher's edit differs
+ * from the original `promptZh` (after trimming). Used to gate the
+ * "已编辑" badge + "重置" link + "重新确认" button.
+ *
+ * `displayPrompt` is what we feed the textarea: the edited version
+ * if it exists, otherwise the default ZH. We don't lazily initialise
+ * `promptZhEdited` until the teacher actually types — that way an
+ * untouched chip still reports `isPromptEdited === false` and the
+ * "已编辑" badge stays hidden.
+ */
+function displayPrompt(msg: { proposedStyles?: any[] }, idx: number): string {
+  const style = msg.proposedStyles?.[idx]
+  if (!style) return ''
+  return style.promptZhEdited ?? style.promptZh ?? ''
+}
+
+function isPromptEdited(msg: { proposedStyles?: any[] }, idx: number): boolean {
+  const style = msg.proposedStyles?.[idx]
+  if (!style) return false
+  const edited = (style.promptZhEdited ?? '').trim()
+  if (!edited) return false
+  return edited !== (style.promptZh ?? '').trim()
+}
+
+function onPromptInput(msgId: number, idx: number, ev: Event) {
+  const target = ev.target as HTMLTextAreaElement
+  store.setPromptEdit(msgId, idx, target.value)
+}
+
+function onPromptReset(msgId: number, idx: number) {
+  store.resetPromptEdit(msgId, idx)
+}
+
+/**
+ * 2026-05-29 — Re-apply edits that were made AFTER the teacher
+ * confirmed the style set. `confirmStyles()` deep-copies the
+ * message's proposedStyles into `styles[]`, so post-confirm edits
+ * to the message don't automatically reach the pigs / convert()
+ * call. Clicking this button just re-runs `confirmStyles(msgId)`
+ * for the same message, which re-copies the (now-edited) version.
+ */
+function reconfirmFromMessage(msgId: number) {
+  store.confirmStyles(msgId)
+}
+
+/**
+ * 2026-05-29 — Should we show the "重新确认" hint button under the
+ * preview textarea?
+ *
+ *   Only when:
+ *     1. This message is the one currently confirmed
+ *        (confirmedMessageId === msg.id), AND
+ *     2. The teacher has edited the prompt of the currently-open
+ *        chip AFTER confirming — i.e. the message-level edit and
+ *        the confirmed `styles[idx].promptZhEdited` are out of sync.
+ */
+function needsReconfirm(msg: { id: number; proposedStyles?: any[]; previewIdx?: number | null }): boolean {
+  if (store.confirmedMessageId !== msg.id) return false
+  const idx = msg.previewIdx
+  if (idx === null || idx === undefined) return false
+  const msgEdited = (msg.proposedStyles?.[idx]?.promptZhEdited ?? '').trim()
+  const confirmedEdited = (store.styles[idx]?.promptZhEdited ?? '').trim()
+  return msgEdited !== confirmedEdited
+}
+
+
+/**
  * 2026-05 — should the Confirm button on this proposal message still
  * be clickable? Rules:
  *   • If the teacher has already locked a set (`confirmedMessageId`
@@ -226,9 +301,16 @@ function onKeydown(e: KeyboardEvent) {
               </button>
             </div>
 
-            <!-- 提示词预览 box. 2026-05: open chip click expands this; the
-                 teacher can review the Chinese prompt verbatim before
-                 deciding to apply. -->
+            <!-- 提示词预览 box.
+                 2026-05-29 — Upgraded from a read-only paragraph to
+                 a free-form editable textarea. The teacher can rewrite
+                 the prompt that gets sent to Doubao Seedream i2i, or
+                 leave it untouched to use the default. Edits live on
+                 `msg.proposedStyles[idx].promptZhEdited` and are
+                 preserved across chip switches, project switches, and
+                 device switches (autosave watcher already deep-watches
+                 `messages`). See store helpers `setPromptEdit` /
+                 `resetPromptEdit` for the mutation paths. -->
             <div
               v-if="msg.previewIdx !== null && msg.previewIdx !== undefined"
               class="ap-preview-box"
@@ -236,12 +318,35 @@ function onKeydown(e: KeyboardEvent) {
               <p class="ap-preview-label">
                 {{ t('part6.bot.previewLabel', { name: msg.proposedStyles[msg.previewIdx]?.label }) }}
               </p>
-              <p class="ap-preview-text">
-                {{
-                  msg.proposedStyles[msg.previewIdx]?.promptZh
-                    || t('part6.bot.previewEmpty')
-                }}
-              </p>
+              <textarea
+                class="ap-preview-textarea"
+                :value="displayPrompt(msg, msg.previewIdx)"
+                :placeholder="t('part6.bot.previewEmpty')"
+                rows="8"
+                @input="onPromptInput(msg.id, msg.previewIdx, $event)"
+              />
+              <!-- "已编辑" badge + reset link + (if confirmed AND edited
+                   after confirm) the "重新确认" reapply button. -->
+              <div v-if="isPromptEdited(msg, msg.previewIdx)" class="ap-preview-meta">
+                <span class="ap-preview-edited-badge">
+                  ✎ {{ t('part6.bot.previewEdited') }}
+                </span>
+                <button
+                  type="button"
+                  class="ap-preview-reset-btn"
+                  @click="onPromptReset(msg.id, msg.previewIdx)"
+                >
+                  {{ t('part6.bot.previewReset') }}
+                </button>
+                <button
+                  v-if="needsReconfirm(msg)"
+                  type="button"
+                  class="ap-preview-reconfirm-btn"
+                  @click="reconfirmFromMessage(msg.id)"
+                >
+                  {{ t('part6.bot.previewReconfirm') }}
+                </button>
+              </div>
             </div>
 
             <!-- Confirm button. Only the *latest* proposal in
@@ -428,6 +533,87 @@ function onKeydown(e: KeyboardEvent) {
   color: #1f2937;
   white-space: pre-line;
 }
+
+/* 2026-05-29 — Editable preview textarea. Visually identical to the
+   former read-only paragraph (so the teacher recognises this as the
+   same prompt-preview surface) but with a hairline focus ring + the
+   ability to grow vertically. The textarea inherits the panel's
+   font-family so Chinese punctuation renders exactly as before. */
+.ap-preview-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #d1fadf;
+  border-radius: 8px;
+  background: #fefffe;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #1f2937;
+  resize: vertical;
+  min-height: 180px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ap-preview-textarea:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+.ap-preview-textarea::placeholder {
+  color: #9ca3af;
+}
+
+/* "已编辑" status row sits directly under the textarea. Only renders
+   when the teacher has changed the prompt vs the default. */
+.ap-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.ap-preview-edited-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ap-preview-reset-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: #6b7280;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ap-preview-reset-btn:hover { color: #111827; }
+
+/* "重新确认" reapply button — only renders when the teacher edited
+   AFTER the styles were confirmed (so the pigs in the middle still
+   hold the stale prompt). Styled as a subtle pill, distinct from
+   the big green confirm button so it doesn't compete visually. */
+.ap-preview-reconfirm-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: #fff;
+  border: 1.5px solid #16a34a;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #15803d;
+  cursor: pointer;
+}
+.ap-preview-reconfirm-btn:hover { background: #f0fdf4; }
 
 /* Intent chips look slightly more "button-like" — they are
    primary CTAs on the greeting bubble, not just toggles. */

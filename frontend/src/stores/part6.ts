@@ -14,7 +14,25 @@ export interface Style {
    * an empty placeholder when missing.
    */
   promptZh?: string
+  /**
+   * 2026-05-29 — Teacher's edit of the Chinese prompt preview box.
+   *
+   * Empty / undefined ⇒ teacher hasn't touched the default, convert()
+   * uses `promptZh` (or `prompt` as final fallback).
+   *
+   * Non-empty trimmed string ⇒ teacher overrode the default in the
+   * panel's textarea, convert() sends THIS verbatim to Doubao Seedream
+   * (which accepts ZH or EN equally). Doubao i2i does not care which
+   * language the prompt is in.
+   *
+   * Lives on both the `proposedStyles[]` entries inside chat messages
+   * (so the edit survives chip switches and previewIdx toggles) AND on
+   * the confirmed `styles[]` entries (so convert() can read it). The
+   * confirm path copies the edit forward, see `confirmStyles()` below.
+   */
+  promptZhEdited?: string
 }
+
 
 export interface StyleResult {
   originalUrl: string
@@ -273,8 +291,15 @@ export const usePart6Store = defineStore('part6', () => {
     const msg = messages.value.find(m => m.id === messageId)
     if (!msg || !msg.proposedStyles || msg.proposedStyles.length !== 3) return
 
-    styles.value = [...msg.proposedStyles]
+    // 2026-05-29 — Deep-copy each Style so that subsequent edits to
+    // the message's `proposedStyles` (teacher tweaking the preview
+    // textarea after confirm) don't silently mutate the confirmed
+    // `styles[]` array. To re-sync edits done after confirm, the
+    // panel re-calls `confirmStyles(messageId)` for the same id —
+    // see Part6AssistancePanel.vue's "reconfirm" button.
+    styles.value = msg.proposedStyles.map(s => ({ ...s }))
     selectedStyleIdx.value = null
+
     usedStyleIndices.value = []
     latestResult.value = null
     view.value = 'steps'
@@ -368,6 +393,18 @@ export const usePart6Store = defineStore('part6', () => {
 
     const lessonId = useProjectsStore().activeLessonId
 
+    // 2026-05-29 — Prompt resolution order, highest priority first:
+    //   1. `style.promptZhEdited`  — teacher's edit in the preview
+    //      textarea (Doubao Seedream accepts ZH natively, so we send
+    //      this verbatim).
+    //   2. `style.promptZh`        — the default ZH prompt the
+    //      backend returned alongside the EN one.
+    //   3. `style.prompt`          — original EN, ultimate fallback
+    //      for legacy projects whose Style objects predate the
+    //      `promptZh` field (no ZH available).
+    const edited = (style.promptZhEdited ?? '').trim()
+    const promptToSend = edited || style.promptZh || style.prompt
+
     try {
       const res = await fetch(`${API_BASE}/api/part6/transfer`, {
         method: 'POST',
@@ -375,7 +412,7 @@ export const usePart6Store = defineStore('part6', () => {
         body: JSON.stringify({
           image_base64: sketchBase64.value,
           image_mime: sketchMime.value,
-          prompt: style.prompt,
+          prompt: promptToSend,
           lesson_id: lessonId ?? undefined,
         }),
       })
@@ -387,7 +424,7 @@ export const usePart6Store = defineStore('part6', () => {
       const data = await res.json()
       latestResult.value = {
         originalUrl: sketchDataUrl.value!,
-        prompt: style.prompt,
+        prompt: promptToSend,
         resultUrl: data.image_url,
       }
       view.value = 'result'
@@ -396,6 +433,34 @@ export const usePart6Store = defineStore('part6', () => {
       view.value = 'steps'
     }
   }
+
+  /**
+   * 2026-05-29 — Helper for Part6AssistancePanel.vue: write the
+   * teacher's preview-box edit into `msg.proposedStyles[idx].promptZhEdited`.
+   *
+   * Centralised in the store (rather than a v-model on a deeply
+   * nested object) so the mutation routes through Pinia's reactive
+   * system cleanly and the cross-device autosave watcher in
+   * CreateLesson.vue picks it up via its existing deep-watch on
+   * `part6Store.messages`.
+   */
+  function setPromptEdit(messageId: number, idx: number, text: string) {
+    const msg = messages.value.find(m => m.id === messageId)
+    if (!msg || !msg.proposedStyles || !msg.proposedStyles[idx]) return
+    msg.proposedStyles[idx].promptZhEdited = text
+  }
+
+  /**
+   * 2026-05-29 — Clear the teacher's edit on a specific chip so the
+   * preview box snaps back to the original `promptZh`. Called by the
+   * "重置为默认" link below the textarea.
+   */
+  function resetPromptEdit(messageId: number, idx: number) {
+    const msg = messages.value.find(m => m.id === messageId)
+    if (!msg || !msg.proposedStyles || !msg.proposedStyles[idx]) return
+    msg.proposedStyles[idx].promptZhEdited = undefined
+  }
+
 
   function convertAgain() {
     // 2026-05 — only mark a pig as "used" in classroom mode. In
@@ -498,6 +563,7 @@ export const usePart6Store = defineStore('part6', () => {
     messages, chatLoading, chatError, phase,
     confirmedMessageId, teacherPreviewMode,
     initChat, sendChat, confirmStyles, unlockStyles, setPreview, setTeacherPreviewMode,
+    setPromptEdit, resetPromptEdit,
     // conversion
     view, latestResult, conversionError,
     // actions

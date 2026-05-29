@@ -614,6 +614,16 @@ export default {
       // 后，该框展开显示对应风格的中文 prompt（95-105 字）。
       previewLabel: '提示词预览 · {name}',
       previewEmpty: '该风格暂无中文提示词。',
+      // 2026-05-29 — Editable preview textarea status copy. `previewEdited`
+      // is the "已编辑" badge under the textarea once the teacher's edit
+      // diverges from the default. `previewReset` is the inline link
+      // button that wipes the edit back to default. `previewReconfirm`
+      // is the small pill shown when the teacher edits AFTER having
+      // confirmed the style set — clicking it re-runs confirmStyles()
+      // so the pigs in the middle canvas pick up the latest text.
+      previewEdited: '已编辑',
+      previewReset: '重置为默认',
+      previewReconfirm: '应用修改 · 重新确认',
       errorChat: '抱歉，出了些问题，请重试。',
     },
   },
