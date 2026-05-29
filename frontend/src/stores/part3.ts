@@ -925,6 +925,24 @@ export const usePart3Store = defineStore('part3', () => {
     activePairId.value = snap.activePairId ?? null
   }
 
+  /**
+   * 2026-05-29 — Wipe Part-3 state back to factory defaults so the
+   * previous project's artwork pairs, generated stories, animation
+   * versions, branch continuations, and design-chat messages cannot
+   * leak when the workspace opens a different project. Mirrors
+   * `usePart6Store().reset()` — see that store's docstring for the
+   * full rationale.
+   *
+   * All per-pair state lives inside `pairs` (storyData /
+   * animationVersions / designChatMessages / generatedContinuations
+   * are read off `activePair.value.X`), so wiping `pairs` is
+   * sufficient to clear every downstream derived ref.
+   */
+  function reset() {
+    pairs.value = []
+    activePairId.value = null
+  }
+
   return {
     pairs, activePairId, activePair,
     imageDataUrl, storyData, storyLoading, storyError,
@@ -937,7 +955,7 @@ export const usePart3Store = defineStore('part3', () => {
     addUploadedArtwork, selectUploadedArtwork, removeUploadedArtwork,
     generateStory, generateAnimation, saveChosenVideo, generateContinuation,
     sendDesignChat, applyRevisedStory,
-    getSnapshot, loadSnapshot,
+    getSnapshot, loadSnapshot, reset,
   }
 })
 

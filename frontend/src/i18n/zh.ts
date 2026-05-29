@@ -527,6 +527,11 @@ export default {
       defaultLabel: '当前播放：默认示范视频',
       urlPlaceholder: '粘贴 Bilibili 链接、BV 号，或 mp4 直链',
       urlConfirm: '使用此链接',
+      // 2026-05-29 — shown on the Part-5 canvas when the active
+      // project has no curated default video AND the teacher hasn't
+      // uploaded a custom one yet. Replaces the silent fallback to
+      // 《好长好长》's Bilibili clip on blank "新建课件" projects.
+      emptyHint: '本课件暂未设置创意示范视频。请使用下方按钮上传本地视频或粘贴 Bilibili / mp4 链接。',
     },
     errors: {
       notVideo: '请选择视频文件（mp4 / mov / webm）',

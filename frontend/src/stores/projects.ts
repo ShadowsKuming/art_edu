@@ -125,6 +125,23 @@ export const useProjectsStore = defineStore('projects', () => {
   const projects = ref<Project[]>(migrateProjects(load(`${STORAGE_KEY}-list`, [])))
   const activeProjectId = ref<string | null>(load(`${STORAGE_KEY}-active`, null))
 
+  /**
+   * 2026-05-29 — Hydration guard.
+   *
+   * `setActiveProject(id)` flips this `true` for ~200 ms while it
+   * calls `loadSnapshot(...)` / `reset()` on every per-part store.
+   * The cross-device autosave watcher in `CreateLesson.vue` checks
+   * this flag and bails — otherwise the synchronous mutations from
+   * the hydrate path would immediately fire the watcher and PUT the
+   * just-loaded snapshot straight back to the server, which is
+   * harmless but wasteful and risks racing with a freshly-saved
+   * remote update.
+   *
+   * Reading code only ever needs `if (projectsStore._isHydrating) return`
+   * at the top of the autosave callback — see CreateLesson.vue.
+   */
+  const _isHydrating = ref(false)
+
   const activeProject = computed(() =>
     projects.value.find(p => p.id === activeProjectId.value) ?? null
   )
@@ -165,7 +182,14 @@ export const useProjectsStore = defineStore('projects', () => {
       meta,
     }
     projects.value.push(newProject)
-    activeProjectId.value = id
+    // 2026-05-29 — Route the activation through `setActiveProject(id)`
+    // instead of assigning `activeProjectId.value` directly. That
+    // function also resets every per-part store, which is critical
+    // for the "新建课件" flow: without this, a blank new project
+    // would inherit the previous project's Part-6 sketch / chat /
+    // Part-3 stories / Part-7 feedback. See setActiveProject's
+    // docstring for the full rationale on cross-project leaks.
+    setActiveProject(id)
 
     // Fire-and-forget API sync so navigation isn't blocked by Render cold start.
     // The project already exists in the local store, so the workspace can open
@@ -251,8 +275,77 @@ export const useProjectsStore = defineStore('projects', () => {
     }
   }
 
+  /**
+   * Set the active project AND fully rehydrate every per-part store
+   * from that project's snapshot.
+   *
+   * 2026-05-29 — Before this consolidation, every entry point that
+   * opened a project (`MyLessons.resumeProject`, `Dashboard` start-
+   * teaching drawer, `CreateLesson` onMounted, `Community` "back to
+   * preview origin", `loadFromAPI` hydration) had its own scattered
+   * `if (s.partXSnapshot) usePartXStore().loadSnapshot(...)` lines.
+   *
+   * The `if` guard caused the cross-project leak teachers reported:
+   * when the incoming project had NO `part6Snapshot`, the previous
+   * project's Part-6 sketch / chat / style triple stayed in the
+   * store and showed up under the new project. Same for Part 3 /
+   * Part 7 / Part 5's custom video URL.
+   *
+   * Centralising the hydrate-or-reset here means every caller gets
+   * the same correct behaviour for free, and the scattered guards
+   * have all been removed.
+   *
+   * `useSlideStore().loadSnapshot()` is intentionally NOT called
+   * here — the slide store is loaded by each route handler with
+   * project-specific context (e.g. `MyLessons.resumeProject` may
+   * also need to wire `part5VideoDataUrl` into Part-5's legacy
+   * `setVideo()` API). Keeping slides outside this function avoids
+   * accidentally re-hydrating the canvas while the route is still
+   * setting up.
+   */
   function setActiveProject(id: string) {
+    // 2026-05-29 — Raise the hydration flag for the duration of the
+    // loadSnapshot / reset burst so the autosave watcher (in
+    // CreateLesson.vue) doesn't bounce the freshly-loaded data back
+    // to the server. 200 ms is generous: the actual mutations are
+    // synchronous and Vue flushes its reactive effects on the next
+    // microtask; we leave the flag up a beat longer just in case a
+    // child component (e.g. Part6AssistancePanel's initChat) does
+    // some onMounted bookkeeping that mutates the store too.
+    _isHydrating.value = true
+
     activeProjectId.value = id
+    const proj = projects.value.find(p => p.id === id)
+    if (!proj) {
+      _isHydrating.value = false
+      return
+    }
+
+    // Hydrate-or-reset every per-part store so the previous
+    // project's state cannot leak into this one. See block comment
+    // above for the full rationale.
+    const snap = proj.snapshot
+    const part3 = usePart3Store()
+    const part5 = usePart5Store()
+    const part6 = usePart6Store()
+    const part7 = usePart7Store()
+
+    if (snap.part3Snapshot) part3.loadSnapshot(snap.part3Snapshot)
+    else part3.reset()
+
+    if (snap.part6Snapshot) part6.loadSnapshot(snap.part6Snapshot)
+    else part6.reset()
+
+    if (snap.part7Snapshot) part7.loadSnapshot(snap.part7Snapshot)
+    else part7.reset()
+
+    // Part 5 doesn't have a full snapshot — only `part5CustomUrl`
+    // travels in the snapshot. Apply it if present, else clear any
+    // residual custom source from the previous project.
+    if (snap.part5CustomUrl) part5.setPastedUrl(snap.part5CustomUrl)
+    else part5.clearCustom()
+
+    setTimeout(() => { _isHydrating.value = false }, 200)
   }
 
   /**
@@ -275,9 +368,11 @@ export const useProjectsStore = defineStore('projects', () => {
       }))
       projects.value = migrateProjects(mapped)
 
-      // Restore chatbot histories and Part 5 URL from DB snapshots.
+      // Restore chatbot histories from DB snapshots. Part-5 custom
+      // URL hydration moved into `setActiveProject()` below — see
+      // its docstring for the rationale; we no longer need the
+      // `part5Store` reference here.
       const chatbotStore = useChatbotStore()
-      const part5Store = usePart5Store()
       for (const p of projects.value) {
         const history = p.snapshot.chatbotHistory
         if (history) {
@@ -286,14 +381,12 @@ export const useProjectsStore = defineStore('projects', () => {
           }
         }
       }
-      // Restore part-specific state for the active project
-      const active = projects.value.find(p => p.id === activeProjectId.value)
-      if (active) {
-        const s = active.snapshot
-        if (s.part5CustomUrl) part5Store.setPastedUrl(s.part5CustomUrl)
-        if (s.part3Snapshot) usePart3Store().loadSnapshot(s.part3Snapshot)
-        if (s.part6Snapshot) usePart6Store().loadSnapshot(s.part6Snapshot)
-        if (s.part7Snapshot) usePart7Store().loadSnapshot(s.part7Snapshot)
+      // Restore part-specific state for the active project. We just
+      // call `setActiveProject(id)` for the side effect — it does
+      // the full hydrate-or-reset for every per-part store and is
+      // the single source of truth for this logic now.
+      if (activeProjectId.value) {
+        setActiveProject(activeProjectId.value)
       }
     } catch (err) {
       console.error('[projects] loadFromAPI failed, keeping local data', err)
@@ -302,11 +395,21 @@ export const useProjectsStore = defineStore('projects', () => {
 
   // Wipe in-memory and localStorage state — called on sign-out so the
   // next user who logs in on this device starts with a clean slate.
+  //
+  // 2026-05-29 — Also resets every per-part store so the next user
+  // doesn't see the previous user's Part-6 sketch / chat / Part-3
+  // stories / Part-7 feedback. (The slide store and chatbot store
+  // were already cleared elsewhere on sign-out via
+  // `userStore.clearAll()` and `useChatbotStore().clearProject()`.)
   function clearLocal() {
     projects.value = []
     activeProjectId.value = null
     localStorage.removeItem(`${STORAGE_KEY}-list`)
     localStorage.removeItem(`${STORAGE_KEY}-active`)
+    usePart3Store().reset()
+    usePart5Store().clearCustom()
+    usePart6Store().reset()
+    usePart7Store().reset()
   }
 
   watch(projects, val => localStorage.setItem(`${STORAGE_KEY}-list`, JSON.stringify(val)), { deep: true })
@@ -314,6 +417,7 @@ export const useProjectsStore = defineStore('projects', () => {
 
   return {
     projects, activeProjectId, activeProject, activeLessonId,
+    _isHydrating,
     createProject, saveCurrentProject, deleteProject, setActiveProject, loadFromAPI, clearLocal,
   }
 })

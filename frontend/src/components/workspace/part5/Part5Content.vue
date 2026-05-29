@@ -43,14 +43,19 @@ const part5Store = usePart5Store()
 const toast = useToastStore()
 const { t } = useI18n()
 
-/** Per-lesson Bilibili BVIDs. Falls back to U4-L4 clip for legacy
- *  projects without a `meta.lessonId`. */
+/** Per-lesson Bilibili BVIDs. Projects whose `meta.lessonId` is not
+ *  in this map (e.g. blank "新建课件" projects) get NO default video
+ *  — the canvas falls through to the empty-state placeholder. See
+ *  the `defaultEmbedUrl` docstring below for the 2026-05-29 change.
+ *
+ *  Previously a `DEFAULT_BVID` fallback (《好长好长》's clip) was
+ *  applied to any unrecognised lesson, but that silently baked the
+ *  wrong demo video into every new blank project. Removed. */
 const LESSON_VIDEO_MAP: Record<string, string> = {
   'g2v2-u4-l4': 'BV1VjVc6tEhK',
   'g2v2-u4-l5': 'BV155Vc6fEpd',
   'g2v2-u5-l1': 'BV1ETVc6eENm',
 }
-const DEFAULT_BVID = 'BV1VjVc6tEhK'
 
 // 2026-05-28: was reading the now-retired `slideStore.globalBackground`
 // / `globalBgColor` ("master slide" theme) to decide the Part 5 video
@@ -82,10 +87,28 @@ function buildBilibiliEmbed(bvid: string): string {
   )
 }
 
-/** Default per-lesson Bilibili embed URL. */
+/**
+ * Default per-lesson Bilibili embed URL.
+ *
+ * 2026-05-29 — Returns `null` for projects that don't map to one of
+ * the curated pilot lessons in `LESSON_VIDEO_MAP`. Previously the
+ * fallback always landed on `DEFAULT_BVID` (《好长好长》's clip), so
+ * a teacher who clicked "新建课件" from MyLessons would open a blank
+ * project and STILL see the 好长好长 video baked into Part 5 — even
+ * though their new project has no curriculum context. The fix is to
+ * surface `null` here and let the template render a "请上传视频" empty
+ * state instead (alongside the existing upload / paste-URL row that
+ * already lives below the canvas).
+ *
+ * The three pilot lessons (g2v2-u4-l4 / g2v2-u4-l5 / g2v2-u5-l1)
+ * all have entries in `LESSON_VIDEO_MAP` and an `activeLessonId`,
+ * so their default Bilibili clip still loads exactly like before.
+ */
 const defaultEmbedUrl = computed(() => {
   const lessonId = projectsStore.activeLessonId
-  const bvid = (lessonId && LESSON_VIDEO_MAP[lessonId]) || DEFAULT_BVID
+  if (!lessonId) return null
+  const bvid = LESSON_VIDEO_MAP[lessonId]
+  if (!bvid) return null
   return buildBilibiliEmbed(bvid)
 })
 
@@ -206,10 +229,18 @@ function onRestoreDefault() {
   <section class="p5-content">
     <div class="p5-canvas-area">
 
-      <!-- Slide preview: shows custom source if set, otherwise the
-           default per-lesson Bilibili iframe. We branch in template
-           (rather than computing one src) because the custom path may
-           need <video> instead of <iframe>. -->
+      <!-- Slide preview. Three branches:
+           1. Teacher uploaded a custom source → render <video> or
+              <iframe> from `customRender`.
+           2. No custom source AND we have a curated default for this
+              lesson (`defaultEmbedUrl` non-null) → render the
+              curriculum's bundled Bilibili clip.
+           3. No custom source AND no default (e.g. blank "新建课件"
+              project that isn't tied to one of the pilot lessons)
+              → render an "upload-or-paste-link" placeholder. This is
+              the 2026-05-29 fix for blank-project Part 5 silently
+              showing 好长好长's video.
+      -->
       <div class="p5-slide-preview" :style="slideStyle">
         <template v-if="customRender">
           <iframe
@@ -235,7 +266,7 @@ function onRestoreDefault() {
           />
         </template>
         <iframe
-          v-else
+          v-else-if="defaultEmbedUrl"
           class="p5-video-frame"
           :src="defaultEmbedUrl"
           :title="t('part5.slideTitle')"
@@ -247,6 +278,18 @@ function onRestoreDefault() {
           referrerpolicy="no-referrer"
           loading="lazy"
         />
+        <!-- Empty state for blank / non-curriculum projects. The
+             upload/url-paste row below the canvas is unchanged, so
+             the teacher already has the controls they need to fill
+             this in. -->
+        <div v-else class="p5-empty-state" role="status">
+          <svg viewBox="0 0 64 64" fill="none" class="p5-empty-icon" aria-hidden="true">
+            <rect x="6" y="14" width="44" height="36" rx="4" stroke="#9ca3af" stroke-width="2.5"/>
+            <path d="M22 28l16 8-16 8V28z" fill="#9ca3af"/>
+            <path d="M50 22l8-4v28l-8-4V22z" stroke="#9ca3af" stroke-width="2.5" stroke-linejoin="round"/>
+          </svg>
+          <p class="p5-empty-hint">{{ t('part5.upload.emptyHint') }}</p>
+        </div>
       </div>
 
       <!-- Upload / URL paste / restore-default row. The chip at the
@@ -269,8 +312,13 @@ function onRestoreDefault() {
           {{ t('part5.upload.urlBtn') }}
         </button>
 
+        <!-- "恢复默认视频" — only meaningful when there IS a default
+             to fall back to (i.e. the active project maps to one of
+             the curated pilot lessons). For blank / new projects,
+             `defaultEmbedUrl` is null and clicking restore would
+             leave the teacher staring at the empty state anyway. -->
         <button
-          v-if="part5Store.customSourceType"
+          v-if="part5Store.customSourceType && defaultEmbedUrl"
           class="p5-restore-btn"
           @click="onRestoreDefault"
         >
@@ -353,6 +401,40 @@ function onRestoreDefault() {
   display: block;
   border: 0;
   background: #000;
+}
+
+/* 2026-05-29 — Empty state shown when the active project doesn't
+   map to a curated pilot lesson AND the teacher hasn't supplied a
+   custom video yet. Visual language mirrors Part 3's "click to
+   upload" placeholder so teachers recognise it as the same "add
+   media here" affordance. */
+.p5-empty-state {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  border: 2px dashed #d1d5db;
+  border-radius: 14px;
+  box-sizing: border-box;
+}
+
+.p5-empty-icon {
+  width: 56px;
+  height: 56px;
+}
+
+.p5-empty-hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
+  max-width: 420px;
 }
 
 /* ── Upload row ───────────────────────────────────────────────── */

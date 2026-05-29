@@ -190,6 +190,18 @@ export const usePart7Store = defineStore('part7', () => {
         activePairId.value = snap.activePairId ?? null
     }
 
+    /**
+     * 2026-05-29 — Wipe Part-7 state back to factory defaults so the
+     * previous project's student-work uploads and AI feedback do not
+     * leak when the workspace opens a different project. Mirrors
+     * `usePart6Store().reset()` and `usePart3Store().reset()` — see
+     * those docstrings for the full rationale.
+     */
+    function reset() {
+        pairs.value = []
+        activePairId.value = null
+    }
+
     return {
         pairs,
         activePairId,
@@ -203,5 +215,6 @@ export const usePart7Store = defineStore('part7', () => {
         generateComment,
         getSnapshot,
         loadSnapshot,
+        reset,
     }
 })

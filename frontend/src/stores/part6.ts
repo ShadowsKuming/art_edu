@@ -446,6 +446,48 @@ export const usePart6Store = defineStore('part6', () => {
     conversionError.value = null
   }
 
+  /**
+   * 2026-05-29 — Wipe the entire Part-6 state back to factory defaults.
+   *
+   * Used when switching between projects (or after sign-out) to stop
+   * the previous project's sketch, style triple, chat history,
+   * confirmation lock, and conversion results from leaking into the
+   * next project. Before this existed, every entry point that opened
+   * a project only conditionally called `loadSnapshot()` — if the
+   * incoming project had no `part6Snapshot`, the old state silently
+   * survived, which is the cross-project leak teachers reported.
+   *
+   * The internal `_msgIdSeq` counter is also rewound so a fresh
+   * conversation in the new project starts message ids back at 1
+   * (purely cosmetic — collisions across resets were impossible
+   * anyway because messages live inside the per-store `messages`
+   * array, not in any global registry).
+   *
+   * `teacherPreviewMode` is intentionally NOT reset — it's a teacher-
+   * level UI preference, not project-level data. Same rationale as
+   * `App.vue`'s locale toggle: we don't want every project switch
+   * to undo a deliberate UX choice the teacher made for the session.
+   */
+  function reset() {
+    sketchDataUrl.value = null
+    sketchBase64.value = null
+    sketchMime.value = 'image/jpeg'
+    styles.value = []
+    lessonSummary.value = ''
+    selectedStyleIdx.value = null
+    usedStyleIndices.value = []
+    confirmedMessageId.value = null
+    messages.value = []
+    _msgIdSeq = 1
+    view.value = 'steps'
+    latestResult.value = null
+    chatLoading.value = false
+    chatError.value = null
+    stylesError.value = null
+    conversionError.value = null
+    // `teacherPreviewMode` left untouched on purpose — see docstring.
+  }
+
   return {
     // sketch
     sketchDataUrl, sketchBase64, sketchMime,
@@ -460,6 +502,6 @@ export const usePart6Store = defineStore('part6', () => {
     view, latestResult, conversionError,
     // actions
     setSketch, generateStyles, convert, convertAgain,
-    getSnapshot, loadSnapshot,
+    getSnapshot, loadSnapshot, reset,
   }
 })

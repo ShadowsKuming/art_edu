@@ -39,18 +39,73 @@ const isPart7 = computed(() => slideStore.activePart === 7)
 const canStartTeaching = computed(() => slideStore.slides.length > 0)
 const teachingActive = ref(false)
 
-// Auto-save the snapshot to the API whenever the teacher moves to a new part.
-// This means every "Next Part" click persists slide data to the DB — not just
-// the explicit "Back" button press. The watch fires on change only (not on mount).
-watch(
-  () => slideStore.activePart,
-  () => {
+// ── Cross-device autosave ──────────────────────────────────────────
+//
+// 2026-05-29 — Previously the autosave only fired on `activePart`
+// changes (i.e. when the teacher switched between Parts). That meant
+// a teacher who did all their Part 6 work *without ever switching
+// parts* would not save: closing the tab or logging in on another
+// device would surface a project missing the sketch, the confirmed
+// styles, the chat history, and the conversion results.
+//
+// Now we watch every per-part store's principal reactive state plus
+// the slide list, debounce by 1.5 s, and fire a single
+// `saveCurrentProject()` after the burst settles. Vue watchers don't
+// fire immediately on creation, so the very first hydration in
+// `onMounted` below isn't bounced back to the server — but for ANY
+// later `setActiveProject(id)` call (e.g. opening a different
+// project from MyLessons) the synchronous loadSnapshot()/reset()
+// mutations *would* trip the watcher. That's why
+// `projects.ts → _isHydrating` exists: the store flips it true for
+// ~200 ms during the hydrate burst, and `flushDebouncedSave()`
+// below short-circuits while it's up.
+
+let _saveTimer: ReturnType<typeof setTimeout> | null = null
+function flushDebouncedSave() {
+  if (_saveTimer) clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => {
+    if (projectsStore._isHydrating) return
+    if (!projectsStore.activeProjectId) return
     projectsStore.saveCurrentProject(
       slideStore.getSnapshot(),
       part5Store.videoDataUrl ?? undefined,
       part5Store.videoName || undefined,
     )
-  },
+  }, 1500)
+}
+
+watch(
+  [
+    // Slide-deck shape and the active part (cheap reactive deps).
+    () => slideStore.activePart,
+    () => slideStore.slides,
+    // Part 6 — sketch + style triple + chat history + conversion result.
+    // We list each ref the user can mutate so Vue can subscribe
+    // precisely (rather than a deep-watch on getSnapshot() which
+    // rebuilds objects every fire). `messages` / `pairs` / `styles`
+    // still need `deep: true` because they hold object arrays.
+    () => part6Store.sketchDataUrl,
+    () => part6Store.messages,
+    () => part6Store.confirmedMessageId,
+    () => part6Store.styles,
+    () => part6Store.usedStyleIndices,
+    () => part6Store.latestResult,
+    () => part6Store.view,
+    () => part6Store.teacherPreviewMode,
+    // Part 3 — pairs carry story / animation / continuation /
+    // design-chat / artwork state per slide.
+    () => part3Store.pairs,
+    () => part3Store.activePairId,
+    // Part 7 — student works + AI feedback.
+    () => part7Store.pairs,
+    () => part7Store.activePairId,
+    // Part 5 — the only thing that needs to persist is the teacher's
+    // custom video URL (uploaded blob URLs are device-local).
+    () => part5Store.customUrl,
+    () => part5Store.customSourceType,
+  ],
+  flushDebouncedSave,
+  { deep: true },
 )
 
 // Part 3 mode state

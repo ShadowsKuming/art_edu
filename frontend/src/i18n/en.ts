@@ -542,6 +542,11 @@ export default {
       defaultLabel: 'Playing: default demonstration video',
       urlPlaceholder: 'Paste a Bilibili link, BV id, or direct mp4 URL',
       urlConfirm: 'Use this link',
+      // 2026-05-29 — shown on the Part-5 canvas when the active
+      // project has no curated default video AND the teacher hasn't
+      // uploaded a custom one yet. See the matching zh string for
+      // the full rationale.
+      emptyHint: 'No demonstration video is set for this lesson. Use the buttons below to upload a local video or paste a Bilibili / mp4 link.',
     },
     errors: {
       notVideo: 'Please choose a video file (mp4 / mov / webm).',
