@@ -46,7 +46,19 @@ export interface SlideElementSeed {
     flipH?: boolean
     flipV?: boolean
     rotation?: number
+    /**
+     * Optional CSS `object-fit` for image elements. Defaults to
+     * `contain`. Set to `"cover"` for full-bleed design images
+     * (cover, scene illustrations) that should fill the bounding box.
+     */
+    objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down'
+    /**
+     * Optional CSS `object-position` (e.g. `"center bottom"` so the
+     * image is bottom-anchored under `object-fit: cover`).
+     */
+    objectPosition?: string
 }
+
 
 
 export interface SlideFrameworkEntry {

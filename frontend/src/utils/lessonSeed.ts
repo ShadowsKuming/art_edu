@@ -64,7 +64,10 @@ function buildElements(
                 flipH: srcEl.flipH,
                 flipV: srcEl.flipV,
                 rotation: srcEl.rotation,
+                objectFit: srcEl.objectFit,
+                objectPosition: srcEl.objectPosition,
             }
+
         })
     }
 

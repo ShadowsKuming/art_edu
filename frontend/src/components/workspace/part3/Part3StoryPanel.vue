@@ -88,6 +88,25 @@ watch(
   { immediate: true },
 )
 
+// 2026-05-29 — When the teacher switches between the three tabs
+// (Story Preview / Design Rationale / Sound Design), the Story
+// Preview textareas are unmounted by the `v-else-if` guard. When
+// the teacher comes back, the textareas are freshly mounted with
+// their default browser height (a few rows) — autogrow never re-ran
+// because none of the reactive deps above changed. Result: long
+// stories get clipped to a tiny scrollless box. The fix is to call
+// autogrow on the new element after the DOM has caught up with the
+// tab swap. See bug repro: Story Preview → Sound Design → Play →
+// Story Preview, story text collapsed into a narrow window.
+watch(activeTab, (tab) => {
+  if (tab !== 'story') return
+  nextTick(() => {
+    autogrow(part1TextareaRef.value)
+    autogrow(part3TextareaRef.value)
+  })
+})
+
+
 
 // ── Design-Rationale chat (Part 3 iterative revision) ─────────────────
 //

@@ -47,7 +47,20 @@ export interface SlideElement {
   cropR?: number
   cropB?: number
   cropL?: number
+  /**
+   * Optional CSS `object-fit` override for image elements. Defaults to
+   * `contain` (preserves aspect ratio, letterboxes inside the box).
+   * Set to `cover` for full-bleed design images that should fill the
+   * bounding box without whitespace.
+   */
+  objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down'
+  /**
+   * Optional CSS `object-position` override (e.g. `"center bottom"`).
+   * Only meaningful with `object-fit: cover` / `contain`.
+   */
+  objectPosition?: string
 }
+
 
 
 export interface Slide {

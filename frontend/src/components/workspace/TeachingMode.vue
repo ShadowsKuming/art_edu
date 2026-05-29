@@ -3,6 +3,18 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useSlideStore } from '@/stores/slides'
 import { useI18n } from 'vue-i18n'
 import SlideThumbnail from './SlideThumbnail.vue'
+// 2026-05-29 — Part 3/5/6/7 carry app-specific state (generated
+// animations, demo videos, AI style results, AI feedback) that the
+// generic SlideThumbnail renderer can't show — it would just paint
+// the underlying blank canvas + placeholder text. In teaching mode
+// we mount the *same* Part components the teacher used to prepare
+// the lesson, so what they saw in the editor is exactly what the
+// classroom sees on the projector. Plain Part 1/2/4 slides keep
+// rendering through SlideThumbnail.
+import Part3Content from './part3/Part3Content.vue'
+import Part5Content from './part5/Part5Content.vue'
+import Part6Content from './part6/Part6Content.vue'
+import Part7Content from './part7/Part7Content.vue'
 
 const emit = defineEmits<{ close: [] }>()
 const slideStore = useSlideStore()
@@ -16,6 +28,27 @@ const slides = computed(() =>
 )
 const currentIndex = ref(0)
 const currentSlide = computed(() => slides.value[currentIndex.value] ?? null)
+
+// Part 3 internal mode (story | animation). Part3Content emits this
+// via v-model:mode — teaching mode just holds it locally and starts
+// in animation view so the teacher's generated clip is the first
+// thing students see (story panel lives in the right-hand chat
+// panel during editing, which we don't show in teaching mode).
+const part3Mode = ref<'story' | 'animation'>('animation')
+
+/**
+ * Sync the slide store's `activeSlideId` with the slide the teacher
+ * has navigated to in fullscreen mode. The Part 3/5/6/7 components
+ * read app state keyed by `activeSlideId` (e.g. `usePart3Store`
+ * looks up the pair by the active slide), so without this they'd
+ * keep showing whichever slide was active when fullscreen opened.
+ */
+watch(currentSlide, (slide) => {
+  if (slide && slide.id !== slideStore.activeSlideId) {
+    slideStore.selectSlide(slide.id)
+  }
+})
+
 
 const controlsVisible = ref(true)
 let hideTimer: ReturnType<typeof setTimeout> | null = null
@@ -121,16 +154,54 @@ const partLabel = computed(() => {
     :class="{ 'tm-cursor-hidden': !controlsVisible }"
     tabindex="-1"
     @mousemove="resetHideTimer"
-    @click="next"
     @keydown.esc.stop.prevent="exit"
   >
-    <!-- Slide stage -->
-    <div class="tm-stage">
-      <div v-if="currentSlide" class="tm-slide-frame">
-        <SlideThumbnail :slide="currentSlide" />
-      </div>
+    <!-- Slide stage.
+         2026-05-29 — Click-to-advance is bound on the stage wrapper
+         only (not the overlay root), and the inner Part 3/5/6/7
+         containers stop propagation so teachers can click the
+         interactive UI (animation thumbnails, video player, upload
+         buttons, AI generate button…) without accidentally jumping
+         to the next slide. The slot below the inner container still
+         counts as "background" and advances on click. -->
+    <div class="tm-stage" @click="next">
+      <template v-if="currentSlide">
+        <!-- Part 3 — generated story / animation player -->
+        <div v-if="currentSlide.partId === 3" class="tm-part-frame" @click.stop>
+          <Part3Content v-model:mode="part3Mode" />
+        </div>
+
+        <!-- Part 5 — embedded video (Bilibili / YouTube / mp4 / blob).
+             Falls back to the generic slide for non-video Part-5
+             slides (teacher-added blank canvases come after the
+             first auto-seeded video slide). -->
+        <div
+          v-else-if="currentSlide.partId === 5 && slideStore.isPart5VideoSlide(currentSlide.id)"
+          class="tm-part-frame"
+          @click.stop
+        >
+          <Part5Content />
+        </div>
+
+        <!-- Part 6 — style picker steps / conversion comparison -->
+        <div v-else-if="currentSlide.partId === 6" class="tm-part-frame" @click.stop>
+          <Part6Content />
+        </div>
+
+        <!-- Part 7 — student work upload + AI feedback -->
+        <div v-else-if="currentSlide.partId === 7" class="tm-part-frame" @click.stop>
+          <Part7Content />
+        </div>
+
+        <!-- Parts 1 / 2 / 4 (and Part-5 non-video slides) — designed
+             slides authored on the regular canvas. -->
+        <div v-else class="tm-slide-frame">
+          <SlideThumbnail :slide="currentSlide" />
+        </div>
+      </template>
       <div v-else class="tm-empty">No slides to present.</div>
     </div>
+
 
     <!-- Control bar -->
     <Transition name="tm-fade">
@@ -211,6 +282,28 @@ const partLabel = computed(() => {
   overflow: hidden;
   box-shadow: 0 8px 48px rgba(0, 0, 0, 0.6);
 }
+
+/* 2026-05-29 — Frame for the Part 3/5/6/7 interactive content
+   components in fullscreen. These components were designed to fill
+   the centre column of the editor (which is wider than 16:9 and has
+   its own scrolling), so in teaching mode we give them a larger
+   landscape canvas — 90% of viewport width, capped at 92% of height
+   minus the control bar. The components handle their own internal
+   layout (scroll, padding, dot-pattern background). */
+.tm-part-frame {
+  width: min(92vw, calc((100vh - 64px) * 1.6));
+  height: min(calc(100vh - 96px), 92vh);
+  background: #F3F4F4;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.6);
+  display: flex;
+  /* Tell child Part*Content sections to fill the frame. Their
+     `.p3-content` / `.p5-content` / `.p6-content` / `.p7` already
+     have `flex: 1` + `display: flex; flex-direction: column;` so
+     this works out of the box. */
+}
+
 
 .tm-empty {
   color: #6b7280;

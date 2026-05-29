@@ -69,8 +69,11 @@ const imgStyle = computed(() => {
   return {
     transform: (sx !== 1 || sy !== 1) ? `scale(${sx}, ${sy})` : undefined,
     clipPath:  (t || r || b || l) ? `inset(${t*100}% ${r*100}% ${b*100}% ${l*100}%)` : undefined,
+    objectFit:      props.element.objectFit,
+    objectPosition: props.element.objectPosition,
   }
 })
+
 
 // ── Crop handles ──────────────────────────────────────────────────────────
 

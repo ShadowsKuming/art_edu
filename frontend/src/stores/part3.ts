@@ -149,18 +149,71 @@ function makePair(id: string): Part3Pair {
  * data URL so the Doubao Vision LLM can ingest it inline. We do this
  * client-side so the existing endpoint contract (base64 in body) stays
  * intact — keeps the change surface small.
+ *
+ * 2026-05-29 — high-res textbook artworks (e.g. `art01-2000jiaoxiang.jpg`
+ * at 3.4 MB) were silently failing the Story Generation SSE: the
+ * payload either timed out the stream or hit Doubao Vision's input-
+ * size ceiling, returning empty content and surfacing as a
+ * `JSON.parse failed (raw empty)` in the UI. Anything above 1.5 MB
+ * or with a long edge > 1600 px is now resized to a max edge of
+ * 1280 px and re-encoded as JPEG q=0.85 client-side before the
+ * base64 leaves the browser. The Vision model only consumes a
+ * downsampled tensor anyway, so visual quality is preserved.
  */
 async function fetchImageAsDataUrl(url: string): Promise<string> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to fetch artwork: ${res.status}`)
   const blob = await res.blob()
-  return await new Promise<string>((resolve, reject) => {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result as string)
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(blob)
   })
+  return await _downsampleIfLarge(dataUrl)
 }
+
+/** Maximum edge length (px) the LLM gets after downscaling. */
+const _LLM_MAX_EDGE = 1280
+/** Skip the canvas detour when the data URL is already this small. */
+const _LLM_SIZE_OK_BYTES = 1_500_000  // ~1.5 MB
+
+/**
+ * Downsample a data URL when it exceeds the LLM-friendly size band.
+ * No-op for small images (skips the canvas hop for the kandinsky
+ * 355 KB case). Falls back to returning the original on any decode /
+ * canvas failure so a single odd image can't take Part 3 offline.
+ */
+async function _downsampleIfLarge(dataUrl: string): Promise<string> {
+  // Quick byte-size shortcut. Base64 is ~4/3 of raw bytes; comparing
+  // string length is close enough for the threshold.
+  const approxBytes = (dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75
+  if (approxBytes < _LLM_SIZE_OK_BYTES) return dataUrl
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('image decode failed'))
+      el.src = dataUrl
+    })
+    const longEdge = Math.max(img.naturalWidth, img.naturalHeight)
+    // If the image is already within budget by pixel count, just
+    // re-encode to JPEG quality 0.85 to shed bytes.
+    const scale = longEdge > _LLM_MAX_EDGE ? _LLM_MAX_EDGE / longEdge : 1
+    const targetW = Math.max(1, Math.round(img.naturalWidth * scale))
+    const targetH = Math.max(1, Math.round(img.naturalHeight * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = targetW
+    canvas.height = targetH
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return dataUrl
+    ctx.drawImage(img, 0, 0, targetW, targetH)
+    return canvas.toDataURL('image/jpeg', 0.85)
+  } catch {
+    return dataUrl
+  }
+}
+
 
 
 export const usePart3Store = defineStore('part3', () => {
@@ -365,15 +418,38 @@ export const usePart3Store = defineStore('part3', () => {
    * Ensures `pair.imageBase64` is populated before an LLM call.
    * If the image came from a curated artwork URL, fetch and convert now.
    * If it's already a data URL (user upload), extract base64 from it.
+   *
+   * 2026-05-29 — also runs the cached base64 through the downsample
+   * pass so a previously-saved oversized payload (e.g. legacy project
+   * snapshots from before downsampling shipped, or a re-upload of
+   * a 3+ MB image) is shrunk on the fly instead of silently failing
+   * the SSE. The downsample is a cheap no-op for already-small
+   * images (skips canvas entirely under 1.5 MB).
    */
   async function _ensureBase64(pair: Part3Pair): Promise<boolean> {
-    if (pair.imageBase64) return true
+    if (pair.imageBase64) {
+      // Approx size check on the already-cached base64. If it's
+      // bigger than the LLM-friendly budget, re-run it through the
+      // downsampler so the model doesn't time out.
+      const approxBytes = pair.imageBase64.length * 0.75
+      if (approxBytes < _LLM_SIZE_OK_BYTES) return true
+      try {
+        const cachedDataUrl = `data:${pair.imageMime};base64,${pair.imageBase64}`
+        const trimmed = await _downsampleIfLarge(cachedDataUrl)
+        const [meta, b64] = trimmed.split(',')
+        pair.imageBase64 = b64
+        pair.imageMime = meta.match(/:(.*?);/)?.[1] ?? pair.imageMime
+        return true
+      } catch {
+        return true   // fall through with original; the LLM may still cope
+      }
+    }
     const src = pair.imageUrl ?? pair.imageDataUrl
     if (!src) return false
     try {
       let dataUrl: string
       if (src.startsWith('data:')) {
-        dataUrl = src
+        dataUrl = await _downsampleIfLarge(src)
       } else {
         dataUrl = await fetchImageAsDataUrl(src)
       }
@@ -385,6 +461,7 @@ export const usePart3Store = defineStore('part3', () => {
       return false
     }
   }
+
 
 
   async function generateStory(language = 'en') {
