@@ -2789,3 +2789,507 @@ Trivial but worth noting for changelog purposes:
   5. Part 6 → click chip → edit textarea → save → click 重新确认
      → click 开始转换. ✅ i2i call carries the edited Chinese
      prompt (verified in network tab).
+
+
+---
+
+## §25 — 2026-05-29 — Pre-baked slide designs, teaching-mode parity, image downsampling
+
+This session added two production lesson decks to the LKP, taught the
+fullscreen teaching mode to render the same per-Part components the
+teacher uses while editing, fixed two long-running UX bugs (Part 3
+story-textarea collapse on tab swap; Part 3 story generation timing
+out on oversized artwork uploads), and introduced a generic image
+positioning hook (`objectFit` / `objectPosition`) on slide elements.
+Everything ships behind backwards-compatible defaults — legacy data
+is unaffected.
+
+### 25.1 — Pre-baked slide_framework for G2V2-U4-L4 《好长好长……》 and G2V2-U4-L5 《吸引人的标题》
+
+Both lessons now ship a full `slide_framework` with `default_elements`
+arrays — not just a "title + content_points" placeholder. When a
+teacher saves either lesson from the Community page,
+`hydrateProjectFromLesson()` materialises **fully designed slides**
+into the project's snapshot: every cover, chapter divider, three-
+column compare, magic-reveal, and step-card layout from the
+curriculum reference deck appears verbatim on the canvas.
+
+**Authoring contract** (re-affirmed for these two decks):
+
+- Background → `default_background: /textbook-assets/<LESSON>/design/background.png`
+  on every slide.
+- Hand-drawn illustrations live next to it in the same `design/`
+  folder (e.g. `p1-s1-cover.png`, `p2-s4-elephant.png`).
+- Card / band backgrounds use tiny solid-colour PNG swatches kept in
+  the same folder (e.g. `p2-s2-pink.png` is ~8 KB) and stretched via
+  the `width`/`height` on the image element. This lets the element
+  participate in the standard z-order without introducing a new
+  "rectangle" element type.
+- Pages for Parts 3 / 5 / 6 / 7 stay as placeholder entries (no
+  `default_elements`) — those Parts render via their own
+  app-specific components (Part3Content / Part5Content / Part6Content
+  / Part7Content), not via the SlideThumbnail.
+
+**Coordinate system**: all positions are in the canvas's 960 × 540
+"design space". `SlideElement.vue` already turns these into `%` of
+the actual container, so the layout scales identically on every
+screen (MyLessons preview, editor canvas, and the new fullscreen
+teaching mode that this session also wired up).
+
+**Authoring tool**: large decks were generated via small Python
+scripts kept under `/tmp/` (see e.g. `/tmp/build_u4l5_slides.py`).
+The scripts:
+
+1. Re-use a tiny `text(...)` / `image(...)` helper for parity with
+   the U4-L4 deck's coordinate conventions.
+2. Set `objectFit: "cover"` / `objectPosition: "center bottom"` on
+   any bottom-anchored full-bleed illustration (see §25.3).
+3. Read the existing JSON, overwrite only the `slide_framework`
+   array, and write the result back. Other fields (artwork list,
+   executor prompts, etc.) are preserved verbatim.
+4. End with `frontend/scripts/sync-lessons.js`, which copies the
+   three `backend/data/lessons/*.json` into `frontend/src/data/
+   lessons/` for the bundled fallback path.
+
+### 25.2 — Teaching mode now renders per-Part interactive content
+
+`TeachingMode.vue` previously used the generic `SlideThumbnail` for
+every Part — which meant Part 3 / 5 / 6 / 7 slides showed an empty
+canvas plus the placeholder text from `slide_framework[].section` /
+`content_points`. Teachers in the pilot rightly pointed out that
+this defeats the point of "开始上课": Part 3 has a generated
+animation, Part 5 has the embedded demo video, Part 6 has the
+chosen style cards / before-after compare, Part 7 has the student
+feedback panel — those are the things they want students to see.
+
+**Fix**: in `tm-stage` we now dispatch by `currentSlide.partId`:
+
+| partId | Renderer |
+|---|---|
+| 1 / 2 / 4 (and Part-5 non-video slides) | `SlideThumbnail` (designed slides authored on the regular canvas) |
+| 3 | `Part3Content` — image / generated animation / version picker |
+| 5 *(only the auto-seeded "video slide" — `slideStore.isPart5VideoSlide(...)` is true)* | `Part5Content` — iframe / `<video>` player |
+| 6 | `Part6Content` — step1+step2 cards or result compare |
+| 7 | `Part7Content` — student-work upload + AI feedback |
+
+**activeSlideId sync**: the Part 3 / 7 stores key their per-pair
+state off `slideStore.activeSlideId`. A new `watch(currentSlide, …)`
+in `TeachingMode` keeps that ref in lockstep with the slide the
+teacher just navigated to, so the right pair is shown after every
+prev/next.
+
+**Click-to-advance scoping**: the click handler is bound on the
+inner `.tm-stage` wrapper, not the overlay root. Each Part 3 / 5 /
+6 / 7 frame wraps its component in a `<div class="tm-part-frame"
+@click.stop>` so teachers can click animation thumbnails, the video
+player, upload buttons, AI generate buttons, etc. without
+accidentally jumping to the next slide. The "background" area
+around the frame still advances on click as before.
+
+**Frame sizing**: `.tm-part-frame` is `width: min(92vw, calc((100vh
+- 64px) * 1.6))` × `height: min(calc(100vh - 96px), 92vh)`. The
+inner component handles its own scroll/padding (each already has
+`flex: 1; display: flex; flex-direction: column`). Part 1 / 2 / 4
+slides keep the strict 16:9 `.tm-slide-frame` they had before.
+
+### 25.3 — New `objectFit` / `objectPosition` hook for slide images
+
+Pilot feedback on U4-L4 was that bottom-anchored full-bleed
+illustrations (cover, chapter dividers, scene strips) showed white
+letterboxing because `object-fit: contain` centres the image inside
+its bounding box. The fix is a single optional override on the
+slide element:
+
+- `objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down'`
+- `objectPosition?: string` (e.g. `"center bottom"`)
+
+Default behaviour unchanged: `object-fit: contain`, centred. All
+existing snapshots / authored decks render identically. LKP authors
+opt in by setting `objectFit: "cover"` and a sensible
+`objectPosition` on the design image element. Used in U4-L4 for
+the 6 design illustrations that should be bottom-anchored, and in
+U4-L5 for the chapter-divider full-bleed scenes + the P4-S5
+mushroom bottom band. Hand-uploaded image elements (Add Image
+button) leave both undefined and behave as before.
+
+The matching schema fields were added to `frontend/src/types/lesson.ts`
+(`SlideElementSeed`) and `frontend/src/utils/lessonSeed.ts` propagates
+them on hydration.
+
+### 25.4 — Part 3 Story Preview "tab return" text-collapse bug
+
+Bug repro: open Part 3, generate a story, switch to "音效设计",
+click Play (or just open the tab once), switch back to "故事预览"
+→ the part1 + part3 textareas are now ~2 rows tall with the rest
+of the story clipped behind a scrollless box.
+
+Root cause: the three tabs are guarded by `v-else-if`, so the
+textareas are unmounted whenever the teacher leaves "故事预览".
+On return, Vue mounts fresh `<textarea>` elements at their default
+browser height. The existing `autogrow()` only fires on storyData
+/ continuation / branch changes — none of which happen during a
+tab switch — so the elements never get resized.
+
+Fix: a `watch(activeTab, …)` in `Part3StoryPanel.vue` re-runs
+`autogrow()` on both refs in `nextTick` whenever the user returns
+to the `'story'` tab. The teacher's text content is reactively
+preserved by the store, so the textareas immediately expand to
+fit the full part1 / part3 strings.
+
+### 25.5 — Part 3 oversized-artwork story-generation timeout (《2000交响曲》)
+
+Bug repro: 《听听画画》(g2v2-u5-l1) → Part 3 → pick 《2000交响曲》
+→ 「生成故事」prints `[generateStory] JSON.parse failed. Raw
+response:` with an empty raw string; teachers see "生成结果为空,
+可能是后端连接异常". The other artwork in the same lesson
+(《构成第8号》) works first try.
+
+Root cause: `art01-2000jiaoxiang.jpg` is **3.4 MB** (the other
+artwork is 355 KB). Inlined as base64 the payload is ~4.5 MB which
+hits Doubao Vision's effective input-size ceiling — the model
+closes the SSE before emitting any `delta`, so `fullText === ""`
+and `JSON.parse("")` throws.
+
+Fix (in `frontend/src/stores/part3.ts`):
+
+- New `_downsampleIfLarge(dataUrl)` helper. Approximate base64
+  byte size → if under `_LLM_SIZE_OK_BYTES` (1.5 MB) return the
+  data URL untouched (zero-cost no-op for small images). Otherwise
+  decode into an `Image`, redraw onto a `<canvas>` capped at
+  `_LLM_MAX_EDGE` (1280 px) long edge, re-encode as JPEG quality
+  0.85, and return that new data URL.
+- Hook three call paths:
+  1. `fetchImageAsDataUrl(url)` — when the curated artwork is
+     first fetched from `/textbook-assets`.
+  2. `_ensureBase64()` data:URL branch — when teacher-uploaded
+     artworks are first cached.
+  3. `_ensureBase64()` already-cached branch — re-downsamples in
+     place if a legacy snapshot (saved before this fix) holds an
+     oversized base64. Falls back to the original on canvas
+     failure so a single bad image can't take Part 3 offline.
+
+Net effect: 《2000交响曲》's payload to Doubao drops from ~4.5 MB
+to ~300 KB; story generation completes normally. Visual fidelity
+is unchanged for the vision model (it consumes a downsampled
+tensor anyway). Future high-res uploads — including teachers'
+camera-direct images during class — are automatically tamed.
+
+> **Asset hygiene tip**: curriculum researchers should still aim
+> for ≤ 1.5 MB / ≤ 1600 px on the long edge when adding new
+> textbook artwork. The client-side downsampler is a safety net,
+> not a substitute. A pre-baked smaller file saves the canvas
+> round-trip and shrinks first-paint payloads on the dashboard /
+> Part 3 thumbnail.
+
+### 25.6 — Files touched
+
+**Backend** (data only):
+- `backend/data/lessons/g2v2-u4-l4.json` — full 14-slide
+  `slide_framework` with `default_elements`; 6 design images
+  marked `objectFit: "cover"` + `objectPosition: "center bottom"`.
+- `backend/data/lessons/g2v2-u4-l5.json` — full 19-slide
+  `slide_framework` (15 designed + 4 placeholder).
+
+**Frontend stores / types:**
+- `frontend/src/stores/slides.ts` — `SlideElement.objectFit` +
+  `objectPosition` optional fields with JSDoc.
+- `frontend/src/types/lesson.ts` — matching `SlideElementSeed`
+  fields so LKP author-time and runtime stay aligned.
+- `frontend/src/utils/lessonSeed.ts` — propagate the two new
+  fields when materialising elements.
+- `frontend/src/stores/part3.ts` — `_downsampleIfLarge()`,
+  `_LLM_SIZE_OK_BYTES`, `_LLM_MAX_EDGE`; rewired
+  `fetchImageAsDataUrl()` and `_ensureBase64()`.
+
+**Frontend components:**
+- `frontend/src/components/workspace/canvas/SlideElement.vue` —
+  `imgStyle` returns `objectFit` + `objectPosition` so the inline
+  `<img style=…>` picks them up.
+- `frontend/src/components/workspace/TeachingMode.vue` — per-Part
+  dispatch (Part3Content / Part5Content / Part6Content /
+  Part7Content), `activeSlideId` watcher, `.tm-part-frame`
+  styling, click-stop on the inner frames.
+- `frontend/src/components/workspace/part3/Part3StoryPanel.vue` —
+  new `watch(activeTab, …)` calling `autogrow()` on tab return.
+
+**Frontend data (synced via `frontend/scripts/sync-lessons.js`):**
+- `frontend/src/data/lessons/g2v2-u4-l4.json`
+- `frontend/src/data/lessons/g2v2-u4-l5.json`
+
+**Authoring scripts kept under `/tmp/` (not checked in):**
+- `/tmp/build_u4l5_slides.py` — generator for the 19-entry U4-L5
+  framework with per-slide helper functions (`cover_slide`,
+  `chapter_divider`, `magic_reveal_slide`, etc.). Re-runnable: it
+  only overwrites `slide_framework`, leaving all other LKP fields
+  alone.
+
+### 25.7 — Verification
+
+1. **U4-L4** — Community → Save → Open → step through all 14
+   slides in the editor; designed slides render with the correct
+   text / image positions and bottom-anchored full-bleed
+   illustrations. Click 开始上课 → fullscreen → Part 3 shows the
+   generated story / animation picker (not a blank canvas +
+   placeholder text); Part 5 shows the Bilibili iframe; Part 6
+   shows step-1 upload; Part 7 shows the student-work uploader.
+   Click-to-advance still works on the dark margin but not on
+   interactive UI.
+2. **U4-L5** — same path; 15 designed slides + 4 placeholders for
+   parts 3/5/6/7. Chapter dividers (01 / 02 / 03), three-column
+   "封面大对比", "魔法揭秘 1/2/3", and "设计小步骤" all match the
+   teacher-provided PowerPoint reference 1:1 (modulo canvas-rounded
+   text positioning).
+3. **Part 3 textarea autogrow** — open Part 3 with a long story,
+   click 音效设计 → Play → 故事预览; both part1 and part3 textareas
+   re-expand to the full story height with no scrollbar inside.
+4. **Part 3 downsample** — open U5-L1, pick 《2000交响曲》, click
+   生成故事; SSE completes normally, no `JSON.parse failed` in
+   console. Network tab: `/api/story/stream` request body
+   `image_base64` length ≈ 350 KB instead of the previous ~4.5 MB.
+   《构成第8号》still works as before (downsample skipped because
+   under threshold).
+5. `vue-tsc -b && vite build` — clean.
+
+### 25.8 — Open follow-ups
+
+- The Part 6 / 7 components carry editor chrome (the Part 6 "step
+  1 upload" zone, Part 7 "drag-to-upload" zone). In teaching mode
+  the teacher *can* still interact with them — that's intentional
+  so they can demo conversions / upload student photos live. If
+  pilot feedback says students see distracting "click to upload"
+  prompts in classroom view, we can introduce a
+  `teachingMode: boolean` prop and gate the upload affordances
+  behind it.
+- The U4-L4 / U4-L5 hand-coded layouts are written against a fixed
+  960 × 540 design space. Long Chinese strings may overflow the
+  fixed-size text boxes on slides with dense card grids
+  (especially the 4 magic-reveal pages). If the curriculum team
+  edits the body copy substantially, the boxes need a re-check.
+  Consider auto-shrink-to-fit for text elements in a future pass.
+- The asset-folder hygiene rule ("design images ≤ 1.5 MB / ≤ 1600
+  px long edge") should be enforced by a pre-commit lint when we
+  next touch `scripts/sync-r2-assets.js`. For now it's documented
+  here and in the `_downsampleIfLarge` docstring.
+
+## §26 — 2026-05-29 — U5-L1 pre-baked deck + new `audio` slide element type
+
+This session added the third production deck (《听听画画》 / g2v2-u5-l1)
+to the LKP family, introduced a brand-new `'audio'` slide element
+type for embedding curated music tracks inline on a canvas, and
+verified that the teaching-mode parity work from §25 covers the
+new lesson unmodified.
+
+### 26.1 — Pre-baked `slide_framework` for G2V2-U5-L1 《听听画画》
+
+The U5-L1 lesson now ships a full 14-entry `slide_framework`: 10
+designed slides + 4 placeholders for Parts 3/5/6/7 (which render
+through their respective interactive components, not via
+SlideThumbnail). Same authoring contract as §25.1:
+
+- `default_background: /textbook-assets/G2V2-U5-L1/design/background.png`
+  on every designed slide.
+- Hand-drawn illustrations live next to it under `design/` (e.g.
+  `p2-s1-piano.png`, `p4-s2-listening.png`).
+- White / accent card backgrounds are tiny solid-colour PNG
+  swatches kept in the same folder (`p2-s3-white.png`,
+  `p2-s4-white.png`, `p2-s6-white.png`) and stretched via
+  `width`/`height` on the image element so cards participate in
+  the standard z-order without a new "rectangle" element type.
+- Pages for Parts 3 / 5 / 6 / 7 stay as placeholder entries (no
+  `default_elements`) — rendered by Part3Content / Part5Content /
+  Part6Content / Part7Content.
+
+The 10 designed pages map onto the 10 reference layout JPGs the
+curriculum team provided in `~/Desktop/预制课件排版参考/
+G2V2-U5-L1《听听画画》课件排版参考/`:
+
+| Page | Part | Section |
+|---|---|---|
+| 1 | 1 | 封面 (cover with `p1-s1-cover.png` bottom band) |
+| 2 | 2 | 导入 · 声音入画 (`p2-s1-piano.png` + 听想引导) |
+| 3 | 2 | 导入 · 拍手游戏 (`p2-s2-round.png` + 3 step cards) |
+| 4 | 2 | 导入 · 形状变音乐 (圆/三角/自由形状 white-card grid) |
+| 5 | 2 | 导入 · 线条变音乐 (粗/细/起伏 white-card grid) |
+| 6 | 2 | 导入 · 大师示范欣赏 (`p2-s5-drawing.png` + 2 cards) |
+| 7 | 2 | 导入 · 三位小画家 (3 student drawings) |
+| 9 | 4 | 章节扉页 02 音乐入画来 (full-bleed `p4-s1-music.png`) |
+| 10 | 4 | **聆听音乐** — `p4-s2-listening.png` + **2 internal `<audio>` players** |
+| 11 | 4 | 艺术实践 · 小画家范例 (3 student examples) |
+
+Built via `/tmp/build_u5l1_slides.py` modelled on
+`/tmp/build_u4l5_slides.py`; re-runnable (it only overwrites
+`slide_framework`, leaving artwork list / executor prompts / audio
+resources / Part 7 system prompt etc. intact). Ends with
+`frontend/scripts/sync-lessons.js` to mirror the JSON into
+`frontend/src/data/lessons/` for the bundled fallback path.
+
+### 26.2 — New `'audio'` slide element type
+
+Pilot need: G2V2-U5-L1 Part 4 Slide 2 (《聆听音乐》) needs **two
+clickable music players** embedded on the canvas — one per curated
+track from `audio_resources[]` (《火车开啦》、《小小的船》). The
+existing `slide.audioBg` field is a single auto-play
+background-audio data URL and doesn't fit this use case (teachers
+need explicit play/pause per track, and they want both tracks
+visible side-by-side on the slide).
+
+Schema additions (backwards-compatible):
+
+- `frontend/src/stores/slides.ts` — `ElementType` extended from
+  `'text' | 'image' | 'video'` to also include `'audio'`. Reuses
+  the existing `src?: string` field for the mp3 URL; no new fields
+  on `SlideElement`.
+- `frontend/src/types/lesson.ts` — `SlideElementSeed.type` widened
+  to `'text' | 'image' | 'audio'`. The LKP author writes
+  `{ type: "audio", src: "/textbook-assets/.../music.mp3", x, y,
+  width, height }` and the existing `lessonSeed.ts` materialiser
+  propagates `type` + `src` unchanged.
+- No migration needed for legacy snapshots — existing
+  `text` / `image` / `video` elements are untouched.
+
+Render branches (mirrors the existing `video` branch in both
+files):
+
+- `frontend/src/components/workspace/canvas/SlideElement.vue` —
+  new `v-else-if="element.type === 'audio'"` block renders a
+  centred native `<audio controls preload="metadata">` inside the
+  bounding box. `@mousedown.stop` + `@click.stop` keep clicks on
+  the player from triggering element-drag or, in fullscreen,
+  click-to-advance.
+- `frontend/src/components/workspace/SlideThumbnail.vue` —
+  identical render branch under class `.st-audio` / `.st-audio-player`
+  so teaching-mode sees the same player.
+
+The audio element survives `getSnapshot()` / `loadSnapshot()` and
+the undo/redo history since `Slide.elements` is JSON-cloned wholesale
+and the new `type` value passes through untouched.
+
+The `slide.audioBg` (auto-play background) feature is **kept as-is**
+— the audio toolbar button in `WorkspaceContent.vue` still
+toggles it. Teachers can therefore have BOTH:
+
+1. Pre-embedded `audio` elements they explicitly trigger
+   (curriculum-curated tracks; this is what U5-L1 P4-S2 uses), and
+2. An optional auto-play `audioBg` they upload via the toolbar
+   (their own classroom ambient track).
+
+### 26.3 — U5-L1 P4-S2 specifics
+
+The «聆听音乐» canvas now contains, in canvas coordinates:
+
+- Title "聆听音乐：听一听，再画一画" (top, blue).
+- Left: `p4-s2-listening.png` (430×400 illustration at 20,110).
+- Right top: pink accent bar + "老师准备了 2 首音乐" heading +
+  guidance ("…如果你还想听别的曲子，也可以让老师再上传一首").
+  The literal number "**2 首**" replaces the original placeholder
+  text "3 首" the curriculum team called out.
+- Right middle: two stacked rows, each with a Chinese track label
+  (《火车开啦》 / 《小小的船》) above a 440×46 `<audio controls>`
+  element pre-pointed at the corresponding mp3 under
+  `/textbook-assets/G2V2-U5-L1/music/`.
+- Right bottom: a small footnote reminding teachers that the
+  per-slide audio toolbar button still works for extra uploads.
+
+The audio element heights (46 px in canvas-space) match the native
+WebKit audio-player control height so the box hugs the player
+without trailing whitespace.
+
+### 26.4 — Teaching-mode parity (no new code)
+
+§25.2's `TeachingMode.vue` dispatch table already does the right
+thing for U5-L1 unchanged:
+
+| partId | Renderer |
+|---|---|
+| 1 / 2 / 4 | `SlideThumbnail` (designed slides, including the audio elements) |
+| 3 | `Part3Content` (artwork story + animation picker) |
+| 5 | `Part5Content` for the seeded video slide |
+| 6 | `Part6Content` (style cards) |
+| 7 | `Part7Content` (student feedback) |
+
+The new audio element renders identically in fullscreen because
+`SlideThumbnail.vue` is the same component the canvas and
+teaching-mode both mount. The inner `<div class="st-audio">`
+re-stops `mousedown` / `click` so pressing play in fullscreen
+doesn't bubble up to `.tm-stage`'s `@click="next"` handler.
+
+### 26.5 — Files touched
+
+**Backend** (data only):
+- `backend/data/lessons/g2v2-u5-l1.json` — `slide_framework`
+  replaced with 14 entries (10 designed + 4 placeholders).
+
+**Frontend stores / types:**
+- `frontend/src/stores/slides.ts` — `ElementType` adds `'audio'`.
+- `frontend/src/types/lesson.ts` — `SlideElementSeed.type` adds
+  `'audio'`.
+- `frontend/src/utils/lessonSeed.ts` — unchanged; the generic
+  `type: srcEl.type` + `src: srcEl.src` propagation already
+  handles the new branch.
+
+**Frontend components:**
+- `frontend/src/components/workspace/canvas/SlideElement.vue` —
+  new audio render block + `.audio-content` / `.audio-player`
+  styles.
+- `frontend/src/components/workspace/SlideThumbnail.vue` — same
+  render block + `.st-audio` / `.st-audio-player` styles; image
+  branch also now propagates `objectFit` / `objectPosition` so
+  designed thumbnails match the editor canvas.
+
+**Frontend data (synced via `frontend/scripts/sync-lessons.js`):**
+- `frontend/src/data/lessons/g2v2-u5-l1.json`
+
+**Authoring scripts kept under `/tmp/` (not checked in):**
+- `/tmp/build_u5l1_slides.py` — generator for the 14-entry U5-L1
+  framework with helper functions (`cover_slide`,
+  `slide_p2_s1…s6`, `slide_p4_s1…s3`, `audio_element`).
+  Re-runnable: overwrites only `slide_framework`.
+
+### 26.6 — Verification
+
+1. **U5-L1 deck** — Community → Save 《听听画画》 → Open. 10
+   designed slides render with the correct illustrations from
+   `/textbook-assets/G2V2-U5-L1/design/` on the shared background.
+   Sidebar shows 14 entries in Part order; Parts 3/5/6/7
+   placeholders are blank canvases (Parts render their own
+   content).
+2. **Audio playback (editor)** — Click into Part 4 Slide 2: the
+   page caption reads "老师准备了 2 首音乐", both audio players
+   show 0:00 and the standard browser controls. Click play on
+   《火车开啦》 → music plays; clicking the audio control doesn't
+   accidentally drag the element. Adding a third audio via the
+   toolbar (audio icon at bottom of the canvas) still works and
+   triggers the existing `audioBg` autoplay in fullscreen.
+3. **Audio playback (teaching mode)** — 开始上课 → arrow to P4-S2:
+   both players visible at the same position. Pressing play
+   doesn't advance the slide. Pressing arrow / clicking the dark
+   margin advances normally.
+4. **No regressions** — U4-L4 / U4-L5 decks unchanged. Image
+   elements with `objectFit: "cover"` keep working in editor +
+   thumbnail + teaching mode (the SlideThumbnail tweak now
+   propagates them to the thumbnail render path too — they were
+   already coming through in the editor canvas via
+   `SlideElement.vue`'s `imgStyle`).
+5. `vue-tsc -b && vite build` — clean.
+
+### 26.7 — Open follow-ups
+
+- The 10 designed slide layouts were written against the
+  reference JPGs from a high-level reading of each composition;
+  exact text-box widths and per-character spacing may still need
+  fine adjustment once the curriculum team eyeballs the rendered
+  pages side-by-side with the PowerPoint references. Position
+  fixes are cheap — re-run `/tmp/build_u5l1_slides.py` after
+  edits.
+- The `audio` element currently inherits `SlideElement.vue`'s
+  resize handles but the inner `<audio>` always fills width and
+  caps height at 100% — so dragging the corner makes a very tall
+  / short box that still shows a normal-height player at the top.
+  If pilot teachers find this confusing, consider locking
+  audio-element resize to width-only (similar to how text
+  elements lock font scaling). Out of scope for this pass.
+- The `slide.audioBg` autoplay model is still single-track; if a
+  future lesson needs ≥2 ambient tracks we'd need to switch
+  `audioBg` to `audioBg?: string[]` or, more likely, deprecate it
+  in favour of the new `audio` element type with a custom autoplay
+  flag.

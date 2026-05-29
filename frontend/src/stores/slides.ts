@@ -4,7 +4,7 @@ import { ref, computed } from 'vue'
 export const CANVAS_W = 960
 export const CANVAS_H = 540
 
-export type ElementType = 'text' | 'image' | 'video'
+export type ElementType = 'text' | 'image' | 'video' | 'audio'
 
 export interface SlideElement {
   id: string

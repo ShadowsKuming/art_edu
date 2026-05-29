@@ -19,7 +19,7 @@ export interface AssessmentCriterion {
 }
 
 export interface SlideElementSeed {
-    type: 'text' | 'image'
+    type: 'text' | 'image' | 'audio'
     x: number
     y: number
     width: number

@@ -55,50 +55,1490 @@
       "page": 1,
       "part_id": 1,
       "section": "封面",
-      "content_points": "课题《吸引人的标题》、年级、出版社",
-      "asset_types": "设计感标题背景图"
+      "content_points": "课题《吸引人的标题》",
+      "asset_types": "封面插画 + 课题文字",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "image",
+          "x": 0,
+          "y": 169,
+          "width": 960,
+          "height": 371,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p1-s1-cover.png",
+          "objectFit": "cover",
+          "objectPosition": "center bottom"
+        },
+        {
+          "type": "text",
+          "x": 120,
+          "y": 100,
+          "width": 720,
+          "height": 130,
+          "content": "吸引人的标题",
+          "fontSize": 80,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "center",
+          "color": "#A4D4DC"
+        },
+        {
+          "type": "text",
+          "x": 290,
+          "y": 268,
+          "width": 380,
+          "height": 40,
+          "content": "为自己喜欢的故事设计标题",
+          "fontSize": 18,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "center",
+          "color": "#1F2937"
+        }
+      ]
     },
     {
       "page": 2,
       "part_id": 2,
-      "section": "导入·封面对比",
-      "content_points": "展示同一故事两个封面（标题字体不同），提问哪个更吸引人",
-      "asset_types": "两版书封面图"
+      "section": "导入 · 第01章 扉页",
+      "content_points": "章节扉页：01 有趣的标题长什么样?",
+      "asset_types": "扉页插画 + 章节编号 + 标题",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "image",
+          "x": 0,
+          "y": 0,
+          "width": 960,
+          "height": 540,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s1-house.png",
+          "objectFit": "cover",
+          "objectPosition": "center bottom"
+        },
+        {
+          "type": "text",
+          "x": 380,
+          "y": 60,
+          "width": 200,
+          "height": 120,
+          "content": "01",
+          "fontSize": 96,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "center",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 80,
+          "y": 200,
+          "width": 800,
+          "height": 120,
+          "content": "有趣的标题长什么样?",
+          "fontSize": 64,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "center",
+          "color": "#97CFCF"
+        }
+      ]
     },
     {
       "page": 3,
-      "part_id": 3,
-      "section": "新授·欣赏不同风格",
-      "content_points": "展示并通过故事讲解《年》/《糟了！我忘了关水龙头！》/《臭臭的比尔》等标题范例",
-      "asset_types": "封面图、互动故事、动画"
+      "part_id": 2,
+      "section": "导入 · 封面大对比",
+      "content_points": "对比同一故事两种字体封面",
+      "asset_types": "三栏对比卡（普通字体 / 特别字体 / 互动提问）",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "封面大对比：哪本更想读?",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 30,
+          "y": 110,
+          "width": 290,
+          "height": 180,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-duck1.png"
+        },
+        {
+          "type": "image",
+          "x": 30,
+          "y": 300,
+          "width": 290,
+          "height": 220,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 46,
+          "y": 312,
+          "width": 258,
+          "height": 30,
+          "content": "普通字体封面",
+          "fontSize": 20,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        },
+        {
+          "type": "text",
+          "x": 46,
+          "y": 350,
+          "width": 258,
+          "height": 160,
+          "content": "在这个封面中,标题是普通字体。小朋友们,看到这样的标题,是不是感觉有点平平无奇呀?它就是规规矩矩地呈现出来。",
+          "fontSize": 12,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        },
+        {
+          "type": "image",
+          "x": 335,
+          "y": 110,
+          "width": 290,
+          "height": 180,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-duck2.png"
+        },
+        {
+          "type": "image",
+          "x": 335,
+          "y": 300,
+          "width": 290,
+          "height": 220,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 351,
+          "y": 312,
+          "width": 258,
+          "height": 30,
+          "content": "特别字体封面",
+          "fontSize": 20,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        },
+        {
+          "type": "text",
+          "x": 351,
+          "y": 350,
+          "width": 258,
+          "height": 160,
+          "content": "而另一个封面的标题,用了笔画替代等方式进行了字体设计。就好像在和大家玩游戏一样,一下就把人的注意力吸引过来啦。",
+          "fontSize": 12,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        },
+        {
+          "type": "image",
+          "x": 640,
+          "y": 110,
+          "width": 290,
+          "height": 180,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-question.png"
+        },
+        {
+          "type": "image",
+          "x": 640,
+          "y": 300,
+          "width": 290,
+          "height": 220,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 656,
+          "y": 312,
+          "width": 258,
+          "height": 30,
+          "content": "互动提问",
+          "fontSize": 20,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        },
+        {
+          "type": "text",
+          "x": 656,
+          "y": 350,
+          "width": 258,
+          "height": 160,
+          "content": "小朋友们,这两本封面的标题,哪一个让你更想翻开书看看?快来说说为什么呀!",
+          "fontSize": 12,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        }
+      ]
     },
     {
       "page": 4,
-      "part_id": 4,
-      "section": "艺术实践·任务布置",
-      "content_points": "为自己喜欢的故事或自编故事设计一个标题",
-      "asset_types": "任务文字"
+      "part_id": 2,
+      "section": "导入 · 标题宝藏",
+      "content_points": "动画展示 + 吸引之处 + 分享发现",
+      "asset_types": "动画 + 三步引导卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "你的\"标题宝藏\"有哪些?",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 580,
+          "y": 95,
+          "width": 340,
+          "height": 200,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s3-caterpillar.png"
+        },
+        {
+          "type": "image",
+          "x": 580,
+          "y": 305,
+          "width": 340,
+          "height": 200,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s3-david.png"
+        },
+        {
+          "type": "image",
+          "x": 40,
+          "y": 110,
+          "width": 4,
+          "height": 80,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 110,
+          "width": 460,
+          "height": 30,
+          "content": "动画展示",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 148,
+          "width": 460,
+          "height": 80,
+          "content": "老师给大家展示2个熟悉的图画书封面动画,像《好饿的毛毛虫》《大卫,不可以》,大家仔细看看哦。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 40,
+          "y": 270,
+          "width": 4,
+          "height": 80,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 270,
+          "width": 460,
+          "height": 30,
+          "content": "吸引之处",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 308,
+          "width": 460,
+          "height": 80,
+          "content": "这些标题最吸引你的地方是颜色、形状,还是可爱的字体呢?可以开动小脑袋想一想。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 40,
+          "y": 430,
+          "width": 4,
+          "height": 80,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 430,
+          "width": 460,
+          "height": 30,
+          "content": "分享发现",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 468,
+          "width": 460,
+          "height": 80,
+          "content": "现在请小朋友们举手,和大家分享你发现的有意思的图画书标题吧!",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        }
+      ]
     },
     {
       "page": 5,
-      "part_id": 5,
-      "section": "艺术实践·步骤提示",
-      "content_points": "构思布局→添画轮廓→选择颜色",
-      "asset_types": "步骤示意图"
+      "part_id": 2,
+      "section": "导入 · 第02章 扉页",
+      "content_points": "章节扉页：02 艺术家的魔法设计法",
+      "asset_types": "扉页插画 + 章节编号 + 标题",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "image",
+          "x": 0,
+          "y": 0,
+          "width": 960,
+          "height": 540,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s4-elephant.png",
+          "objectFit": "cover",
+          "objectPosition": "center bottom"
+        },
+        {
+          "type": "text",
+          "x": 380,
+          "y": 60,
+          "width": 200,
+          "height": 120,
+          "content": "02",
+          "fontSize": 96,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "center",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 80,
+          "y": 200,
+          "width": 800,
+          "height": 120,
+          "content": "艺术家的魔法设计法",
+          "fontSize": 64,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "center",
+          "color": "#97CFCF"
+        }
+      ]
     },
     {
       "page": 6,
-      "part_id": 6,
-      "section": "作品转化",
-      "content_points": "学生标题草图上传 + 3 种风格转换",
-      "asset_types": "风格示例"
+      "part_id": 2,
+      "section": "导入 · 标题侦探行动",
+      "content_points": "小组观察并标记标题里的设计魔法",
+      "asset_types": "两版标题对比图 + 任务卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "标题侦探行动：分组找魔法",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 30,
+          "y": 95,
+          "width": 440,
+          "height": 320,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s5-city1.png"
+        },
+        {
+          "type": "text",
+          "x": 40,
+          "y": 425,
+          "width": 440,
+          "height": 28,
+          "content": "分组领取任务",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 40,
+          "y": 458,
+          "width": 440,
+          "height": 70,
+          "content": "老师把大家分成5组,每组都拿到一本图画书标题卡片,有《大城市里的小象》等5个有趣标题哦。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "text",
+          "x": 500,
+          "y": 95,
+          "width": 440,
+          "height": 28,
+          "content": "寻找魔法线索",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 500,
+          "y": 128,
+          "width": 440,
+          "height": 70,
+          "content": "老师提问啦,让小侦探们找找标题里\"变大变小\"\"穿花衣服\"\"变形状\"的魔法,快记在任务单上。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 490,
+          "y": 210,
+          "width": 440,
+          "height": 320,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s5-city2.png"
+        }
+      ]
     },
     {
       "page": 7,
+      "part_id": 2,
+      "section": "导入 · 魔法揭秘 1 大小",
+      "content_points": "魔法揭秘1：大小游戏",
+      "asset_types": "范例图 + 观察卡 + 思考卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "魔法揭秘1：字的\"大小游戏\"",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 30,
+          "y": 100,
+          "width": 420,
+          "height": 410,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s6-city3.png"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 125,
+          "width": 414,
+          "height": 28,
+          "content": "观察大小差异",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 165,
+          "width": 414,
+          "height": 110,
+          "content": "看《大城市里的小象》,\"大\"字像高楼那么大,\"小\"字像小象那么小,差别很明显呢。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 480,
+          "y": 310,
+          "width": 450,
+          "height": 200,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 322,
+          "width": 414,
+          "height": 28,
+          "content": "思考设计原因",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 360,
+          "width": 414,
+          "height": 130,
+          "content": "老师提问为啥\"大\"\"小\"字大小不同,这样设计一下就让我们想到故事啦。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "page": 8,
+      "part_id": 2,
+      "section": "导入 · 魔法揭秘 2 颜色",
+      "content_points": "魔法揭秘2：颜色派对",
+      "asset_types": "范例图 + 观察卡 + 思考卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "魔法揭秘2：字的\"颜色派对\"",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 30,
+          "y": 100,
+          "width": 420,
+          "height": 410,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s7-sky.png"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 125,
+          "width": 414,
+          "height": 28,
+          "content": "感受颜色魅力",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 165,
+          "width": 414,
+          "height": 110,
+          "content": "《蓝色的天空》标题用渐变蓝色,就像天空一样美,颜色用得太妙啦。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 480,
+          "y": 310,
+          "width": 450,
+          "height": 200,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 322,
+          "width": 414,
+          "height": 28,
+          "content": "互动颜色想象",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 360,
+          "width": 414,
+          "height": 130,
+          "content": "老师问《红色的苹果》《夜晚的星星》标题颜色咋变,快和同桌讨论讨论。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "page": 9,
+      "part_id": 2,
+      "section": "导入 · 魔法揭秘 3 花纹",
+      "content_points": "魔法揭秘3：花纹变身",
+      "asset_types": "范例图 + 观察卡 + 思考卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "魔法揭秘3：字的\"花纹变身\"",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 30,
+          "y": 100,
+          "width": 420,
+          "height": 410,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s8-monster.png"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 125,
+          "width": 414,
+          "height": 28,
+          "content": "发现花纹秘密",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 165,
+          "width": 414,
+          "height": 110,
+          "content": "《小怪兽也刷牙》里,\"刷\"字像牙刷,\"牙\"字有牙膏泡沫花纹,真有趣。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 480,
+          "y": 310,
+          "width": 450,
+          "height": 200,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 322,
+          "width": 414,
+          "height": 28,
+          "content": "启发自我创作",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        },
+        {
+          "type": "text",
+          "x": 498,
+          "y": 360,
+          "width": 414,
+          "height": 130,
+          "content": "小怪兽的刷牙工具,还提示我们故事里特别的东西能变标题花纹呢。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "page": 10,
+      "part_id": 2,
+      "section": "导入 · 魔法总结",
+      "content_points": "总结字体设计四法宝",
+      "asset_types": "前后对比图 + 总结卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "魔法总结：标题变美四法宝",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 70,
+          "y": 95,
+          "width": 360,
+          "height": 200,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s9-big-city1.png"
+        },
+        {
+          "type": "image",
+          "x": 70,
+          "y": 310,
+          "width": 360,
+          "height": 200,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s9-big-city2.png"
+        },
+        {
+          "type": "image",
+          "x": 480,
+          "y": 110,
+          "width": 4,
+          "height": 80,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 500,
+          "y": 110,
+          "width": 420,
+          "height": 30,
+          "content": "法宝大亮相",
+          "fontSize": 20,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 500,
+          "y": 148,
+          "width": 420,
+          "height": 80,
+          "content": "用卡通图标总结啦,有\"变大小\"\"换颜色\"\"加花纹\"\"摆位置\"四个法宝。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 480,
+          "y": 320,
+          "width": 4,
+          "height": 80,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 500,
+          "y": 320,
+          "width": 420,
+          "height": 30,
+          "content": "选择尝试法宝",
+          "fontSize": 20,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 500,
+          "y": 358,
+          "width": 420,
+          "height": 80,
+          "content": "老师问哪个法宝最想先试,我们都是小小艺术家,快说说想法。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        }
+      ]
+    },
+    {
+      "page": 11,
+      "part_id": 4,
+      "section": "艺术实践 · 第03章 扉页",
+      "content_points": "章节扉页：03 我的标题我设计",
+      "asset_types": "扉页插画 + 章节编号 + 标题",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "image",
+          "x": 0,
+          "y": 0,
+          "width": 960,
+          "height": 540,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p4-s1-rabbit.png",
+          "objectFit": "cover",
+          "objectPosition": "center bottom"
+        },
+        {
+          "type": "text",
+          "x": 380,
+          "y": 60,
+          "width": 200,
+          "height": 120,
+          "content": "03",
+          "fontSize": 96,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "center",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 80,
+          "y": 200,
+          "width": 800,
+          "height": 120,
+          "content": "我的标题我设计",
+          "fontSize": 64,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "center",
+          "color": "#97CFCF"
+        }
+      ]
+    },
+    {
+      "page": 12,
+      "part_id": 4,
+      "section": "艺术实践 · 故事小剧场",
+      "content_points": "观看故事片段并思考标题创意",
+      "asset_types": "故事题图 + 引导卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "故事小剧场：我的故事我做主",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 40,
+          "y": 105,
+          "width": 4,
+          "height": 70,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 105,
+          "width": 400,
+          "height": 28,
+          "content": "精彩故事片段",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 140,
+          "width": 400,
+          "height": 80,
+          "content": "老师播放\"小兔子找胡萝卜\"\"小恐龙学飞翔\"\"雨天的小蘑菇\"3个简短故事片段,可有趣啦!",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 500,
+          "y": 105,
+          "width": 4,
+          "height": 70,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 520,
+          "y": 105,
+          "width": 400,
+          "height": 28,
+          "content": "趣味提问",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 520,
+          "y": 140,
+          "width": 400,
+          "height": 80,
+          "content": "老师问大家最喜欢哪个故事,要是给它设计标题,想突出啥,像小兔子可爱还是小恐龙勇敢。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 60,
+          "y": 260,
+          "width": 400,
+          "height": 270,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p4-s2-carrot.png"
+        },
+        {
+          "type": "image",
+          "x": 500,
+          "y": 260,
+          "width": 400,
+          "height": 270,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p4-s2-dinosaurs.png"
+        }
+      ]
+    },
+    {
+      "page": 13,
+      "part_id": 4,
+      "section": "艺术实践 · 设计小步骤",
+      "content_points": "思考主题→选择法宝→绘制草稿",
+      "asset_types": "前后对比图 + 三步流程卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "设计小步骤：一步一步变漂亮",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 80,
+          "y": 90,
+          "width": 380,
+          "height": 240,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p4-s3-fly1.png"
+        },
+        {
+          "type": "image",
+          "x": 500,
+          "y": 90,
+          "width": 380,
+          "height": 240,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p4-s3-fly2.png"
+        },
+        {
+          "type": "image",
+          "x": 40,
+          "y": 360,
+          "width": 4,
+          "height": 70,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 360,
+          "width": 270,
+          "height": 28,
+          "content": "思考主题",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 395,
+          "width": 270,
+          "height": 130,
+          "content": "先想想故事讲了啥,比如\"小恐龙学飞翔\",主题就是小恐龙学飞这件事。",
+          "fontSize": 12,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 350,
+          "y": 360,
+          "width": 4,
+          "height": 70,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 370,
+          "y": 360,
+          "width": 270,
+          "height": 28,
+          "content": "选择法宝",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 370,
+          "y": 395,
+          "width": 270,
+          "height": 130,
+          "content": "可以选大小、颜色、花纹这些法宝来设计标题,让标题更吸引人。",
+          "fontSize": 12,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 660,
+          "y": 360,
+          "width": 4,
+          "height": 70,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 680,
+          "y": 360,
+          "width": 270,
+          "height": 28,
+          "content": "绘制草稿",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 680,
+          "y": 395,
+          "width": 270,
+          "height": 130,
+          "content": "简单地把标题字体勾勒出来,老师还问标题想让读者第一眼看到啥,像\"飞\"字画成翅膀形状。",
+          "fontSize": 12,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        }
+      ]
+    },
+    {
+      "page": 14,
+      "part_id": 4,
+      "section": "艺术实践 · 师生小示范",
+      "content_points": "老师现场示范设计 + 引导思考",
+      "asset_types": "示范前后对比图 + 引导卡",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "师生小示范：标题变变变",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 30,
+          "y": 95,
+          "width": 440,
+          "height": 290,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p4-s4-rain1.png"
+        },
+        {
+          "type": "text",
+          "x": 40,
+          "y": 400,
+          "width": 440,
+          "height": 28,
+          "content": "教师示范设计",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 40,
+          "y": 435,
+          "width": 440,
+          "height": 80,
+          "content": "老师现场示范《雨天的小蘑菇》标题,\"雨\"字用蓝色水滴笔画,\"蘑菇\"字加圆点花纹。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 490,
+          "y": 95,
+          "width": 440,
+          "height": 290,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p4-s4-rain2.png"
+        },
+        {
+          "type": "text",
+          "x": 500,
+          "y": 400,
+          "width": 440,
+          "height": 28,
+          "content": "引导思考",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 500,
+          "y": 435,
+          "width": 440,
+          "height": 80,
+          "content": "老师问用到了哪个法宝,还启发大家有没有更好想法,如给\"蘑菇\"二字加蘑菇装饰。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        }
+      ]
+    },
+    {
+      "page": 15,
+      "part_id": 4,
+      "section": "艺术实践 · 动手时间",
+      "content_points": "学生独立设计标题",
+      "asset_types": "准备工具卡 + 情境画面",
+      "default_background": "/textbook-assets/G2V2-U4-L5/design/background.png",
+      "default_elements": [
+        {
+          "type": "text",
+          "x": 40,
+          "y": 30,
+          "width": 900,
+          "height": 60,
+          "content": "动手时间：我的创意标题",
+          "fontSize": 36,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#97CFCF"
+        },
+        {
+          "type": "image",
+          "x": 40,
+          "y": 105,
+          "width": 4,
+          "height": 70,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 105,
+          "width": 270,
+          "height": 28,
+          "content": "准备工具",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 60,
+          "y": 140,
+          "width": 270,
+          "height": 100,
+          "content": "大家准备画纸和彩笔,开始设计自己的创意标题啦。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 350,
+          "y": 105,
+          "width": 4,
+          "height": 70,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 370,
+          "y": 105,
+          "width": 270,
+          "height": 28,
+          "content": "教师指导",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 370,
+          "y": 140,
+          "width": 270,
+          "height": 100,
+          "content": "老师巡视指导,还播放轻松音乐,遇到困难可以问老师或和小伙伴商量。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 660,
+          "y": 105,
+          "width": 4,
+          "height": 70,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p2-s2-pink.png"
+        },
+        {
+          "type": "text",
+          "x": 680,
+          "y": 105,
+          "width": 270,
+          "height": 28,
+          "content": "设计要求",
+          "fontSize": 18,
+          "fontWeight": "Bold",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#F4928E"
+        },
+        {
+          "type": "text",
+          "x": 680,
+          "y": 140,
+          "width": 270,
+          "height": 100,
+          "content": "要让标题不仅好看,还要能告诉大家故事讲了什么,发挥自己的创意哟。",
+          "fontSize": 13,
+          "fontWeight": "Normal",
+          "fontFamily": "Albert Sans",
+          "textAlign": "left",
+          "color": "#374151"
+        },
+        {
+          "type": "image",
+          "x": 0,
+          "y": 280,
+          "width": 960,
+          "height": 260,
+          "content": "",
+          "src": "/textbook-assets/G2V2-U4-L5/design/p4-s5-mashroom.png",
+          "objectFit": "cover",
+          "objectPosition": "center bottom"
+        }
+      ]
+    },
+    {
+      "page": 16,
+      "part_id": 3,
+      "section": "新授 · 欣赏大师作品",
+      "content_points": "展示《年》《糟了！我忘了关水龙头！》《臭臭的比尔》等标题范例",
+      "asset_types": "作品高清图、互动故事、动画"
+    },
+    {
+      "page": 17,
+      "part_id": 5,
+      "section": "艺术实践 · 步骤示范",
+      "content_points": "示范视频：构思布局 → 添画轮廓 → 选择颜色",
+      "asset_types": "示范视频"
+    },
+    {
+      "page": 18,
+      "part_id": 6,
+      "section": "作品转化",
+      "content_points": "学生标题草图上传 + 3 种风格转换",
+      "asset_types": "风格示例图"
+    },
+    {
+      "page": 19,
       "part_id": 7,
-      "section": "评价·标题艺术展",
-      "content_points": "模拟展览，学生介绍设计思路，互评优点",
-      "asset_types": "评价句式"
+      "section": "评价 · 标题艺术展",
+      "content_points": "组织学生上台分享设计思路,师生共评",
+      "asset_types": "评价句式提示"
     }
   ],
   "textbook_artworks": [

@@ -274,6 +274,28 @@ function commitEdit() {
       @click.stop
     />
 
+    <!-- Audio.
+         2026-05-29 — Embedded audio players for slides that ship a
+         curated music file (e.g. G2V2-U5-L1《听听画画》Part 4 has two
+         教材音频 the teacher triggers individually). Native
+         `<audio controls>` is used so play/pause/seek work without
+         extra UI; mousedown/click are stopped so dragging the
+         element or selecting it doesn't bubble to slide-level
+         click-to-advance in fullscreen mode. -->
+    <div
+      v-else-if="element.type === 'audio'"
+      class="audio-content"
+      @mousedown.stop
+      @click.stop
+    >
+      <audio
+        :src="element.src"
+        controls
+        preload="metadata"
+        class="audio-player"
+      />
+    </div>
+
     <!-- Text -->
     <div
       v-else
@@ -392,6 +414,24 @@ function commitEdit() {
   object-fit: contain;
   background: #000;
   border-radius: 4px;
+}
+
+/* 2026-05-29 — audio element. Box hosts a centred native player
+   that fills the box width; box itself is transparent so the
+   slide background shows through. */
+.audio-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.audio-player {
+  width: 100%;
+  max-height: 100%;
 }
 
 .text-content {

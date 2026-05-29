@@ -34,8 +34,34 @@ defineProps<{ slide: Slide }>()
           top:    (el.y / CANVAS_H * 100) + '%',
           width:  (el.width  / CANVAS_W * 100) + '%',
           height: (el.height / CANVAS_H * 100) + '%',
+          objectFit:      el.objectFit,
+          objectPosition: el.objectPosition,
         }"
       />
+      <!-- Audio element. 2026-05-29 — Native `<audio controls>` so
+           teachers can play embedded music clips directly in
+           fullscreen teaching mode. `@click.stop` keeps clicks on
+           the player from bubbling to the click-to-advance handler
+           on `.tm-stage`. -->
+      <div
+        v-else-if="el.type === 'audio'"
+        class="st-audio"
+        :style="{
+          left:   (el.x / CANVAS_W * 100) + '%',
+          top:    (el.y / CANVAS_H * 100) + '%',
+          width:  (el.width  / CANVAS_W * 100) + '%',
+          height: (el.height / CANVAS_H * 100) + '%',
+        }"
+        @click.stop
+        @mousedown.stop
+      >
+        <audio
+          :src="el.src"
+          controls
+          preload="metadata"
+          class="st-audio-player"
+        />
+      </div>
       <div
         v-else
         class="st-text"
@@ -106,6 +132,24 @@ defineProps<{ slide: Slide }>()
   width: 30%;
   height: 30%;
   opacity: 0.7;
+}
+
+/* 2026-05-29 — audio element box; box is transparent, native
+   player fills its width. Stays interactive in TeachingMode
+   (the parent `<div>` stops click/mousedown so the slide doesn't
+   advance when the teacher hits play). */
+.st-audio {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  box-sizing: border-box;
+}
+
+.st-audio-player {
+  width: 100%;
+  max-height: 100%;
 }
 
 .st-audio-badge {
