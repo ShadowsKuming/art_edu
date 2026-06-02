@@ -79,26 +79,6 @@ export interface DesignChatMessage {
 }
 
 
-/**
- * 2026-06 — Finalised full-story narration (Part 1 + chosen
- * continuation) uploaded to Cloudflare R2 by the backend
- * `/api/tts/finalize-story` endpoint. The URL is a permanent
- * `pub-…r2.dev` link backed by a content-hashed key, so storing the
- * URL + hash on the artwork state is enough to (a) render a stable
- * Download button on subsequent reloads and (b) detect when the
- * teacher has edited the story or voice since the audio was made
- * (`contentHash` mismatch → "stale" banner; teacher must re-finalise).
- */
-export interface FinalizedAudio {
-  url: string          // permanent public URL on R2
-  contentHash: string          // 32-char hex; matches backend's sha256(voice|text)[:32]
-  voiceId: string          // edge-tts voice id used (e.g. zh-CN-XiaoxiaoNeural)
-  voiceName: string          // human-readable voice name (e.g. 晓晓) — for the UI badge
-  sizeBytes: number
-  finalizedAt: string          // ISO timestamp the finalise call returned
-}
-
-
 /** Persistent story/animation state saved per artwork when the user switches away. */
 export interface SavedArtworkState {
   storyData: StoryData | null
@@ -108,9 +88,6 @@ export interface SavedArtworkState {
   selectedChoiceId: number | null
   generatedContinuations: Record<number, string>
   designChatMessages: DesignChatMessage[]
-  /** 2026-06 — see `FinalizedAudio`. Optional so legacy saved
-   *  projects (pre-2026-06) still hydrate cleanly. */
-  finalizedAudio?: FinalizedAudio | null
 }
 
 export interface Part3Pair {
@@ -146,14 +123,6 @@ export interface Part3Pair {
   designChatMessages: DesignChatMessage[]
   designChatLoading: boolean
   designChatError: string | null
-  /** 2026-06 — last successful R2 upload of the full narration for
-   *  the currently-active artwork. Null until the teacher clicks
-   *  「生成完整朗读」. Cleared when the active artwork changes (the
-   *  saved copy lives on `artworkStates[activeArtworkKey]`). */
-  finalizedAudio: FinalizedAudio | null
-  /** Transient UI state — not persisted to artworkStates. */
-  finalizing: boolean
-  finalizeError: string | null
 }
 
 
@@ -171,7 +140,6 @@ function makePair(id: string): Part3Pair {
     selectedChoiceId: null, generatedContinuations: {},
     continuationLoading: false, continuationError: null, continuationStreamText: '',
     designChatMessages: [], designChatLoading: false, designChatError: null,
-    finalizedAudio: null, finalizing: false, finalizeError: null,
   }
 }
 
@@ -274,12 +242,6 @@ export const usePart3Store = defineStore('part3', () => {
   const designChatMessages = computed(() => activePair.value?.designChatMessages ?? [])
   const designChatLoading = computed(() => activePair.value?.designChatLoading ?? false)
   const designChatError = computed(() => activePair.value?.designChatError ?? null)
-  // 2026-06 — finalised-narration UI bindings. The R2 URL + hash live
-  // on the pair (and travel with artworkStates); `finalizing` /
-  // `finalizeError` are transient. See FinalizedAudio for the schema.
-  const finalizedAudio = computed(() => activePair.value?.finalizedAudio ?? null)
-  const finalizing = computed(() => activePair.value?.finalizing ?? false)
-  const finalizeError = computed(() => activePair.value?.finalizeError ?? null)
   const activeContinuation = computed(() => {
     const pair = activePair.value
     if (!pair) return null
@@ -338,7 +300,6 @@ export const usePart3Store = defineStore('part3', () => {
       selectedChoiceId: pair.selectedChoiceId,
       generatedContinuations: { ...pair.generatedContinuations },
       designChatMessages: pair.designChatMessages.map(m => ({ ...m })),
-      finalizedAudio: pair.finalizedAudio ? { ...pair.finalizedAudio } : null,
     }
   }
 
@@ -356,10 +317,6 @@ export const usePart3Store = defineStore('part3', () => {
     pair.continuationStreamText = ''
     pair.designChatLoading = false
     pair.designChatError = null
-    // Transient finalise state is always reset — only the persisted
-    // FinalizedAudio object travels with artworkStates.
-    pair.finalizing = false
-    pair.finalizeError = null
     const saved = pair.artworkStates[key]
     if (saved) {
       pair.storyData = saved.storyData
@@ -369,7 +326,6 @@ export const usePart3Store = defineStore('part3', () => {
       pair.selectedChoiceId = saved.selectedChoiceId
       pair.generatedContinuations = saved.generatedContinuations
       pair.designChatMessages = saved.designChatMessages ?? []
-      pair.finalizedAudio = saved.finalizedAudio ?? null
     } else {
       pair.storyData = null
       pair.animationVersions = []
@@ -378,7 +334,6 @@ export const usePart3Store = defineStore('part3', () => {
       pair.selectedChoiceId = null
       pair.generatedContinuations = {}
       pair.designChatMessages = []
-      pair.finalizedAudio = null
     }
   }
 
@@ -924,101 +879,6 @@ export const usePart3Store = defineStore('part3', () => {
    * in `generatedContinuations` so Part3 Story Preview keeps showing
    * the freshly revised Part 3 text.
    */
-  /**
-   * 2026-06 — Compute the canonical content hash that the backend
-   * `/api/tts/finalize-story` endpoint uses for its R2 object key.
-   * Must be byte-identical to the backend's `sha256(voice|combined)[:32]`
-   * where `combined = part1.strip() + "\n\n" + part3.strip()`. The
-   * frontend uses this hash to decide whether `finalizedAudio` is still
-   * fresh — when the teacher edits any input the hash changes and the
-   * UI shows the "needs re-finalise" banner.
-   *
-   * Returns "" when either half of the story is empty (no valid hash
-   * possible — the action would 400 anyway).
-   */
-  async function _computeFinalizeHash(
-    voiceId: string,
-    part1: string,
-    part3: string,
-  ): Promise<string> {
-    const p1 = (part1 ?? '').trim()
-    const p3 = (part3 ?? '').trim()
-    if (!p1 || !p3) return ''
-    const combined = `${p1}\n\n${p3}`
-    const canonical = `${voiceId}|${combined}`
-    const buf = new TextEncoder().encode(canonical)
-    const digest = await crypto.subtle.digest('SHA-256', buf)
-    // 32 hex chars (16 bytes) — matches `[:32]` slice on the backend.
-    return Array.from(new Uint8Array(digest).slice(0, 16))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-  }
-
-  /**
-   * 2026-06 — Synthesise the full story (part1 + active part3) as one
-   * MP3 on the backend, upload to public R2, and store the resulting
-   * permanent URL + content hash on the active pair so the Sound
-   * Design panel can render a stable Download button.
-   *
-   * Pre-conditions enforced *before* the network call:
-   *   • An active pair exists with a `storyData` payload.
-   *   • The teacher has picked a branch (so `activeContinuation` is
-   *     non-empty). The panel disables the button otherwise, but we
-   *     re-check here so a stale Vue ref can never trigger a 400.
-   *
-   * The action is idempotent on the server (content-hashed key), so
-   * accidental double-clicks just re-fetch the cached URL in <50 ms.
-   */
-  async function finalizeStoryAudio(
-    voiceId: string,
-    voiceName: string,
-  ): Promise<void> {
-    const pair = activePair.value
-    if (!pair || pair.finalizing) return
-    const part1 = pair.storyData?.part1?.trim() ?? ''
-    const part3 = activeContinuation.value?.trim() ?? ''
-    if (!part1 || !part3) return
-
-    pair.finalizing = true
-    pair.finalizeError = null
-    try {
-      const projectId = useProjectsStore().activeProjectId ?? 'anon'
-      const res = await fetch(`${API_BASE}/api/tts/finalize-story`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_id: projectId,
-          pair_id: pair.id,
-          voice_id: voiceId,
-          part1_text: part1,
-          part3_text: part3,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }))
-        throw new Error(err.detail ?? `Finalise failed (${res.status})`)
-      }
-      const data = await res.json() as {
-        url: string
-        content_hash: string
-        size_bytes: number
-        voice_id: string
-      }
-      pair.finalizedAudio = {
-        url: data.url,
-        contentHash: data.content_hash,
-        voiceId: data.voice_id,
-        voiceName,
-        sizeBytes: data.size_bytes,
-        finalizedAt: new Date().toISOString(),
-      }
-    } catch (e: any) {
-      pair.finalizeError = e?.message ?? 'Finalise failed'
-    } finally {
-      pair.finalizing = false
-    }
-  }
-
   function applyRevisedStory(messageIndex: number) {
     const pair = activePair.value
     if (!pair) return
@@ -1115,12 +975,6 @@ export const usePart3Store = defineStore('part3', () => {
         selectedChoiceId: p.selectedChoiceId,
         generatedContinuations: p.generatedContinuations,
         designChatMessages: p.designChatMessages,
-        // 2026-06 — persist the live finalised-audio pointer so that
-        // reopening the project on another device still sees the R2
-        // download link without forcing a re-finalise. `artworkStates`
-        // also carries a per-artwork copy, but the *active* artwork's
-        // pointer lives directly on the pair (see _restoreArtworkState).
-        finalizedAudio: p.finalizedAudio,
       })),
     }
   }
@@ -1144,7 +998,6 @@ export const usePart3Store = defineStore('part3', () => {
       selectedChoiceId: p.selectedChoiceId ?? null,
       generatedContinuations: p.generatedContinuations ?? {},
       designChatMessages: p.designChatMessages ?? [],
-      finalizedAudio: p.finalizedAudio ?? null,
     }))
     activePairId.value = snap.activePairId ?? null
   }
@@ -1217,9 +1070,6 @@ export const usePart3Store = defineStore('part3', () => {
     storyStreamText, continuationStreamText,
     designChatMessages, designChatLoading, designChatError,
     selectedArtworkId, selectedUploadedId, uploadedArtworks,
-    // 2026-06 — finalised-narration surface
-    finalizedAudio, finalizing, finalizeError,
-    finalizeStoryAudio, _computeFinalizeHash,
     ensurePair, removePair, setArtworkFromUrl,
     addUploadedArtwork, selectUploadedArtwork, removeUploadedArtwork,
     generateStory, generateAnimation, saveChosenVideo, generateContinuation,

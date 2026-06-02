@@ -4,11 +4,6 @@ httpx==0.27.2
 python-dotenv==1.0.1
 pydantic==2.9.2
 edge-tts==7.2.8
-# boto3 — only used as an S3-compatible client for Cloudflare R2
-# (see `backend/r2_client.py`). 1.35.x is the last release that
-# still ships with botocore < 1.36, which avoids the urllib3 v2.x
-# warning spam on Python 3.11 / Render's default container.
-boto3==1.35.99
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 python-jose[cryptography]==3.3.0
