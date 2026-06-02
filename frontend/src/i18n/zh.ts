@@ -393,6 +393,24 @@ export default {
       ttsPaused: '已暂停',
       ttsReady: '就绪',
       ttsLoading: '正在生成语音…',
+      // 2026-06 — replaced by the "Generate final narration" panel
+      // (see `finalize*` keys below). Kept here as a comment marker
+      // so legacy projects opening on stale builds still parse
+      // cleanly until they refresh the bundle.
+      // ttsDownload: '下载',
+
+      // 2026-06 — Full-narration finalisation panel. Synthesises
+      // part1 + chosen part3 as one MP3 on the backend, uploads to
+      // a public Cloudflare R2 bucket, and surfaces a permanent
+      // shareable URL via the Download button below.
+      finalizeTitle: '生成完整朗读',
+      finalizeSubtitle: '将「故事前半段 + 当前分支后半段」合成为一段 MP3，并上传到云端，得到可永久分享的下载链接。',
+      finalizeGenerate: '生成完整朗读',
+      finalizeRegenerate: '重新生成完整朗读',
+      finalizing: '正在生成…',
+      finalizeDownload: '下载完整朗读',
+      finalizeStale: '故事或音色已修改，需要重新生成完整朗读。',
+      finalizeSuccess: '完整朗读已生成，可以下载或分享了。',
       ttsBright: '活泼',
       ttsWarm: '温暖',
       ttsGentle: '温柔',

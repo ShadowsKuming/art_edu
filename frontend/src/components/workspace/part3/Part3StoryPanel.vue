@@ -224,6 +224,14 @@ const ttsLoading       = ref(false)
 const ttsSpeaking      = ref(false)
 const ttsPaused        = ref(false)
 const ttsError         = ref<string | null>(null)
+// 2026-06 — pilot feature: once the backend `edge-tts` path has
+// produced a real MP3 blob (i.e. `ttsObjectUrl` is set), we surface
+// a small "下载朗读" button next to play/pause/stop so teachers can
+// save the narration for offline use (WeChat shares, slide
+// embedding, etc.). The Web-Speech-API fallback synthesises audio
+// inside the OS driver with no in-page handle, so this flag stays
+// false on that path and the button stays hidden.
+const ttsHasBlob       = ref(false)
 
 // Two playback paths: backend MP3 stream (preferred) vs. browser
 // Web Speech API (fallback when the backend returns 403/5xx — which
@@ -311,6 +319,7 @@ function _cleanupAudio() {
   ttsUsingFallback = false
   ttsSpeaking.value = false
   ttsPaused.value   = false
+  ttsHasBlob.value  = false
 }
 
 /**
@@ -415,6 +424,12 @@ async function ttsPlay() {
     }
     const blob    = await res.blob()
     ttsObjectUrl  = URL.createObjectURL(blob)
+    // 2026-06 — per-segment download was retired in favour of the
+    // "Generate final narration" R2 upload below. `ttsHasBlob` no
+    // longer drives any UI but is left in place because its sibling
+    // `_cleanupAudio` still relies on its falsy default to decide
+    // whether to revoke the object URL.
+    ttsHasBlob.value = true
     ttsAudio      = new Audio(ttsObjectUrl)
     ttsAudio.onplay  = () => { ttsSpeaking.value = true;  ttsPaused.value = false }
     ttsAudio.onpause = () => { if (!ttsAudio?.ended) ttsPaused.value = true }
@@ -450,6 +465,122 @@ function ttsPause() {
 
 function ttsStop() {
   _cleanupAudio()
+}
+
+// 2026-06 — Retired per-segment download path.
+//
+// The old `ttsBuildFilename()` / `ttsDownload()` pair triggered a
+// browser-side `<a download>` against the in-memory edge-tts blob,
+// which produced ONE file per (segment × voice) combination —
+// teachers had to download two and remember which voice they used.
+// The replacement, `finalizeFullStory()` below, calls the new
+// `/api/tts/finalize-story` endpoint which uploads ONE stitched
+// MP3 of the entire narration (part1 + chosen continuation) to a
+// public Cloudflare R2 bucket and returns a permanent shareable
+// URL. The per-segment Play/Pause/Stop controls above stay as a
+// preview affordance.
+
+// ── Finalised story narration (R2 upload) ─────────────────────────
+//
+// `finalizedAudio` lives on the active pair so it survives artwork
+// switches and project reloads (see Part3Pair + SavedArtworkState in
+// stores/part3.ts). `finalizedHashLocal` is the content-hash the
+// frontend computes against the *current* story + voice — when it
+// diverges from the saved `finalizedAudio.contentHash` we show a
+// "stale" banner and disable the download until the teacher
+// re-runs `finalizeFullStory()`.
+
+const finalizedHashLocal = ref<string>('')
+
+/** Recompute the canonical hash whenever the story text or voice
+ *  changes. We debounce by simply running it on every reactive tick
+ *  — hashing 200-400 chars of text is cheap (~1 ms on M-series). */
+async function _refreshFinalizedHashLocal() {
+  const voiceId = TTS_VOICES[selectedVoiceIdx.value].id
+  const part1   = store.storyData?.part1 ?? ''
+  const part3   = store.activeContinuation ?? ''
+  finalizedHashLocal.value = await store._computeFinalizeHash(
+    voiceId, part1, part3,
+  )
+}
+watch(
+  () => [
+    store.storyData?.part1,
+    store.activeContinuation,
+    selectedVoiceIdx.value,
+  ],
+  _refreshFinalizedHashLocal,
+  { immediate: true },
+)
+
+/** True when `finalizedAudio` exists AND still matches the live
+ *  story+voice. Drives the green "ready to download" state. */
+const finalizedAudioFresh = computed(() => {
+  const fa = store.finalizedAudio
+  return !!fa
+      && !!finalizedHashLocal.value
+      && fa.contentHash === finalizedHashLocal.value
+})
+
+/** True when `finalizedAudio` exists but its hash diverges from
+ *  the live inputs — story or voice has been edited since the
+ *  upload. Drives the amber "re-finalise" banner. */
+const finalizedAudioStale = computed(() => {
+  const fa = store.finalizedAudio
+  return !!fa
+      && !!finalizedHashLocal.value
+      && fa.contentHash !== finalizedHashLocal.value
+})
+
+/** Disabled state for the finalise button. We require both halves
+ *  of the story to exist (matches the backend's 400 guard) and no
+ *  in-flight finalise call. Note this is independent of `part3NotReady`
+ *  above — that flag specifically gates the per-segment preview
+ *  when the active TTS segment is the empty half. */
+const finalizeDisabled = computed(() => {
+  if (store.finalizing) return true
+  if (!store.storyData?.part1?.trim()) return true
+  if (!store.activeContinuation?.trim()) return true
+  // Already finalised & still fresh → button becomes the "Download"
+  // affordance via the template; nothing to do server-side.
+  return false
+})
+
+/** Human-readable file size for the download chip. */
+function _formatBytes(n: number): string {
+  if (!n) return ''
+  if (n < 1024)        return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+/** Build a teacher-friendly filename for the R2 download.
+ *  Example: 艺芽-完整朗读-晓晓.mp3. We can't set Content-Disposition
+ *  on R2 objects without an extra API hop, so we set it on the
+ *  client-side <a download="…"> attribute instead. */
+function finalizedFilename(): string {
+  const fa = store.finalizedAudio
+  const vName = fa?.voiceName
+    || fa?.voiceId?.split('-').pop()?.replace(/Neural$/, '')
+    || 'voice'
+  const raw = `艺芽-完整朗读-${vName}.mp3`
+  return raw.replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+}
+
+/** Click handler for the green "Generate final narration" button.
+ *  Pulls the currently-selected voice and delegates the network
+ *  call + state update to the Pinia action. */
+async function finalizeFullStory() {
+  const voice = TTS_VOICES[selectedVoiceIdx.value]
+  const voiceName = voice.name
+    || voice.id.split('-').pop()?.replace(/Neural$/, '')
+    || 'voice'
+  await store.finalizeStoryAudio(voice.id, voiceName)
+  if (store.finalizeError) {
+    toastStore.show(store.finalizeError, 'warning')
+  } else if (store.finalizedAudio) {
+    toastStore.show(t('part3.storyPanel.finalizeSuccess'), 'success')
+  }
 }
 
 onUnmounted(_cleanupAudio)
@@ -859,6 +990,11 @@ onUnmounted(_cleanupAudio)
             </svg>
             {{ t('part3.storyPanel.ttsStop') }}
           </button>
+          <!-- 2026-06 — per-segment download retired. The single
+               "Generate final narration" panel below replaces it.
+               Reasoning: teachers wanted ONE permanent shareable
+               URL for the whole story, not two scratch downloads
+               (one per half) they had to stitch themselves. -->
           <span class="sp-tts-status" :class="{ 'sp-tts-status--playing': ttsSpeaking && !ttsPaused }">
             {{ t(ttsStatusKey) }}
           </span>
@@ -866,6 +1002,79 @@ onUnmounted(_cleanupAudio)
 
         <!-- TTS error -->
         <p v-if="ttsError" class="sp-error sp-error--inline">{{ ttsError }}</p>
+
+        <!-- 2026-06 — Finalised full-story narration.
+             Synthesises part1 + chosen part3 as ONE MP3 on the
+             backend, uploads to a public R2 bucket, then surfaces
+             the permanent URL as a Download button. Idempotent on
+             the server (content-hashed key), so re-clicks for the
+             same inputs return the cached URL. -->
+        <div class="sp-finalize">
+          <div class="sp-finalize-header">
+            <span class="sp-finalize-title">{{ t('part3.storyPanel.finalizeTitle') }}</span>
+            <span class="sp-finalize-sub">{{ t('part3.storyPanel.finalizeSubtitle') }}</span>
+          </div>
+
+          <!-- Stale banner: an old finalise exists but the story or
+               voice has been edited since. The audio file on R2 is
+               kept (it's a content-hashed key, so a new finalise
+               creates a new object), but we warn the teacher their
+               saved link is out-of-date. -->
+          <p v-if="finalizedAudioStale" class="sp-finalize-stale">
+            {{ t('part3.storyPanel.finalizeStale') }}
+          </p>
+
+          <div class="sp-finalize-row">
+            <button
+              class="sp-finalize-btn"
+              :disabled="finalizeDisabled"
+              @click="finalizeFullStory"
+            >
+              <div v-if="store.finalizing" class="sp-spinner sp-spinner--small" />
+              <svg v-else viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 5h12v10H4z"/>
+                <path d="M7 9l3 3 3-3"/>
+                <path d="M10 5v7"/>
+              </svg>
+              {{
+                store.finalizing
+                  ? t('part3.storyPanel.finalizing')
+                  : finalizedAudioFresh
+                    ? t('part3.storyPanel.finalizeRegenerate')
+                    : t('part3.storyPanel.finalizeGenerate')
+              }}
+            </button>
+
+            <!-- Download chip: shown only when we have a fresh
+                 (hash-matching) finalised audio object. The hidden
+                 <a download> trick is used so the file lands with a
+                 teacher-friendly Chinese filename even though R2
+                 has no Content-Disposition set on the object. -->
+            <a
+              v-if="finalizedAudioFresh && store.finalizedAudio"
+              class="sp-finalize-download"
+              :href="store.finalizedAudio.url"
+              :download="finalizedFilename()"
+              target="_blank"
+              rel="noopener"
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 3v9"/>
+                <path d="M6.5 8.5L10 12l3.5-3.5"/>
+                <path d="M4 14v2.5A.5.5 0 0 0 4.5 17h11a.5.5 0 0 0 .5-.5V14"/>
+              </svg>
+              <span>{{ t('part3.storyPanel.finalizeDownload') }}</span>
+              <span class="sp-finalize-meta">
+                {{ store.finalizedAudio.voiceName }} ·
+                {{ _formatBytes(store.finalizedAudio.sizeBytes) }}
+              </span>
+            </a>
+          </div>
+
+          <p v-if="store.finalizeError" class="sp-error sp-error--inline">
+            {{ store.finalizeError }}
+          </p>
+        </div>
       </template>
 
       <!-- 2026-05: legacy "AI Sound Suggestions" block removed. The
@@ -1235,6 +1444,112 @@ onUnmounted(_cleanupAudio)
 }
 
 .sp-tts-status--playing { color: #16a34a; font-weight: 600; }
+
+/* ── Finalised full-story narration (2026-06) ─────────────────────
+   The block lives at the bottom of the Sound Design tab. The visual
+   intent is "promoted action": a green-tinted card that visually
+   anchors the per-segment Play/Pause/Stop preview controls above
+   it to the single canonical "Generate full narration" affordance.
+   Once the teacher has produced an audio asset, the action button
+   stays in place (label switches to "Regenerate") and a Download
+   chip slides in beside it. */
+.sp-finalize {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sp-finalize-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sp-finalize-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.sp-finalize-sub {
+  font-size: 11.5px;
+  color: #047857;
+  line-height: 1.5;
+}
+
+.sp-finalize-stale {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+}
+
+.sp-finalize-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.sp-finalize-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: none;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.35);
+}
+
+.sp-finalize-btn svg { width: 14px; height: 14px; }
+.sp-finalize-btn:hover:not(:disabled) { background: #059669; }
+.sp-finalize-btn:disabled {
+  background: #a7f3d0;
+  color: #065f46;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.sp-finalize-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1.5px solid #10b981;
+  background: #ffffff;
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sp-finalize-download:hover { background: #d1fae5; }
+.sp-finalize-download svg { width: 14px; height: 14px; }
+
+.sp-finalize-meta {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-left: 4px;
+}
+
 
 /* Segment picker (Opening vs. Continuation) — same visual language as
    the voice grid but laid out horizontally as two pills. */

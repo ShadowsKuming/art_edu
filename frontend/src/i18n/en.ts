@@ -402,6 +402,21 @@ export default {
       ttsPaused: 'Paused',
       ttsReady: 'Ready',
       ttsLoading: 'Preparing audio…',
+      // 2026-06 — Replaced by the "Generate final narration" panel
+      // (see `finalize*` keys below). The per-segment download
+      // button was retired in favour of one stitched MP3 uploaded
+      // to R2.
+      // ttsDownload: 'Download',
+
+      // 2026-06 — Full-narration finalisation panel.
+      finalizeTitle: 'Final narration',
+      finalizeSubtitle: 'Stitch Part 1 + the chosen Part 3 into a single MP3 and upload it to the cloud for a permanent shareable link.',
+      finalizeGenerate: 'Generate full narration',
+      finalizeRegenerate: 'Regenerate full narration',
+      finalizing: 'Generating…',
+      finalizeDownload: 'Download narration',
+      finalizeStale: 'Story or voice has changed — please regenerate.',
+      finalizeSuccess: 'Full narration ready. You can download or share it now.',
       ttsBright: 'Bright',
       ttsWarm: 'Warm',
       ttsGentle: 'Gentle',
