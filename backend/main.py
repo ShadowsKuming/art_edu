@@ -1837,6 +1837,32 @@ class StyleTransferRequest(BaseModel):
     prompt: str
     # 🆕 LKP wiring — accepted but currently only used for log tagging.
     lesson_id: Optional[str] = None
+    # 2026-06-03 — Seed-stabilisation backstop. The frontend sends a
+    # short human-readable label per style (e.g. "更夸张" /
+    # "背景更丰富" / "更整齐更规律"). We hash it deterministically
+    # into a 31-bit integer and pass it as Doubao Seedream's `seed`
+    # parameter so:
+    #   1. Two runs of the same style on the same lesson land on a
+    #      stable seed → outputs are reproducible turn-to-turn.
+    #   2. The three sibling styles in one lesson land on three
+    #      *different* seeds → even if prompts converge a bit, the
+    #      model can't accidentally pick the exact same latent state.
+    # See KNOWLEDGE_BANK 2026-06-03 entry for the colour-orthogonality
+    # prompt fix this seed is a backstop to. Optional — if the
+    # frontend doesn't send a label (legacy clients), we omit `seed`
+    # and let Doubao pick its own.
+    style_label: Optional[str] = None
+
+
+# Helper. Python's built-in hash() is salted per process so we can't use
+# it. Stable across processes → stable across redeploys → stable user
+# expectations.
+def _stable_seed_from_label(label: str) -> int:
+    import hashlib
+
+    digest = hashlib.sha256(label.encode("utf-8")).digest()
+    # Doubao expects a non-negative 31-bit integer. Mask to 0..2^31-1.
+    return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
 
 
 @app.post("/api/part6/transfer")
@@ -1855,6 +1881,11 @@ async def style_transfer(req: StyleTransferRequest):
         "size": "2048x2048",
         "response_format": "url",
     }
+    if req.style_label:
+        seed = _stable_seed_from_label(req.style_label)
+        payload["seed"] = seed
+        print(f"[part6] seed for style {req.style_label!r}: {seed}", flush=True)
+
 
     async with _ark_client(120.0) as client:
         resp = await client.post(

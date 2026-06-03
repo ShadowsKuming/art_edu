@@ -3293,3 +3293,103 @@ doesn't bubble up to `.tm-stage`'s `@click="next"` handler.
   `audioBg` to `audioBg?: string[]` or, more likely, deprecate it
   in favour of the new `audio` element type with a custom autoplay
   flag.
+
+---
+
+## 2026-06-03 — Part-6 style-transfer: 3 sibling styles came out visually identical
+
+### Problem (pilot feedback on G2V2-U4-L4 《好长好长》)
+The teacher ran Part 6 with the same student sketch through all 3
+preset styles (`更夸张`, `背景更丰富`, `更整齐更规律`) and Doubao
+Seedream returned three images that were nearly indistinguishable in
+palette, texture, and overall mood. Different prompts, same output.
+
+### Root cause
+All 3 lessons' `executor_d_styles[].image_gen_prompt_template_*`
+fields described the *content* difference well (e.g. "拉伸成蜿蜒长形"
+vs "添加叙事背景元素") but shared the same **medium descriptors**
+("彩色蜡笔+水彩") and the same **colour vocabulary** ("饱满 / 鲜亮 /
+明亮") with no concrete palette anchors. Without a hard, mutually
+exclusive constraint on palette + medium + lighting, the model
+defaulted to the same children's-book bright-flat look every time.
+
+### Fix — orthogonalise the 3 sibling prompts on 4 axes
+For every Part-6 lesson (`g2v2-u4-l4`, `g2v2-u4-l5`, `g2v2-u5-l1`) the
+3 styles are now pinned to mutually exclusive
+`(palette family, medium, lighting, image-to-image strength)` tuples,
+and each prompt explicitly **forbids the other two siblings'** palette
+and medium so the model can't drift back to the default:
+
+| Slot | Palette family   | Medium                            | Lighting       | I2I  |
+|------|------------------|-----------------------------------|----------------|------|
+| 1    | Warm Sunset      | Thick crayon impasto              | Golden hour    | 0.80 |
+| 2    | Cool Morning     | Multi-layer watercolour wet-wash  | Soft morning   | 0.65 |
+| 3    | Earth Vintage    | Oil-pastel flat + collage texture | Midday flat    | 0.72 |
+
+(U5-L1 Style 1 uses a warm/cool *beat-alternation* sub-palette to suit
+the rhythm pedagogy, and U5-L1 Style 3 keeps the original Kandinsky
+primary-triad — that was the one style that already produced visually
+distinct output in the pilot. Style 3's forbid-list is now tightened
+so Style 2's watercolour can't leak in.)
+
+Each prompt now also includes:
+- a **【禁止】section** that names the other two siblings' palette
+  family and medium so the model treats them as negative anchors;
+- a fixed **image-to-image strength** so even on the same sketch the
+  three styles preserve / transform different amounts of the input.
+
+### Backstop — deterministic per-style seed
+Even with orthogonal prompts, Doubao Seedream sometimes lands on the
+same latent state when its internal seed defaults align. To prevent
+that we now hash the style's short label (`更夸张` / `背景更丰富` /
+`更整齐更规律`) into a 31-bit integer (SHA-256 → first 4 bytes,
+masked to `0..2^31-1`) and pass it as the `seed` field on
+`POST /api/part6/transfer`:
+
+```
+hash("更夸张")     → seed A   ─┐
+hash("背景更丰富")  → seed B   ─┼─ three different latent starts
+hash("更整齐更规律") → seed C  ─┘
+```
+
+Properties:
+1. **Stable** across processes/redeploys (Python's built-in `hash()`
+   is salted per-process, hence the explicit SHA-256).
+2. **Reproducible** turn-to-turn for the teacher — re-running the
+   same style on the same sketch lands on the same seed.
+3. **Distinct** across the 3 siblings of any lesson, even if a future
+   prompt edit accidentally converges them.
+
+The frontend (`frontend/src/stores/part6.ts → convert()`) now sends
+`style_label: style.label` in every transfer payload; the backend
+(`backend/main.py → StyleTransferRequest / _stable_seed_from_label`)
+hashes it and adds `seed` to the Doubao payload. Legacy clients that
+don't send `style_label` still work — the backend just omits `seed`
+and lets Doubao pick its own (original behaviour).
+
+### Files touched
+- `backend/data/lessons/g2v2-u4-l4.json` — 3 prompts rewritten
+- `backend/data/lessons/g2v2-u4-l5.json` — 3 prompts rewritten
+- `backend/data/lessons/g2v2-u5-l1.json` — 3 prompts rewritten
+- `frontend/src/data/lessons/g2v2-u4-l4.json` ┐
+- `frontend/src/data/lessons/g2v2-u4-l5.json` ┤ frontend mirrors —
+- `frontend/src/data/lessons/g2v2-u5-l1.json` ┘ must stay in sync
+- `backend/main.py` — `StyleTransferRequest.style_label` +
+  `_stable_seed_from_label()` + `seed` in Doubao payload
+- `frontend/src/stores/part6.ts` — `style_label` added to
+  `/api/part6/transfer` request body
+
+### Notes for future maintainers
+- If you add a 4th style slot to any lesson, **don't** pick the same
+  palette family as an existing slot. Re-read the table above and
+  invent a 4th orthogonal family (e.g. "Monochrome Ink" + ink-wash
+  medium + dramatic chiaroscuro) before writing the prompt.
+- The seed hash is computed on the **label** (`style.label` in the
+  frontend = `style_name_zh` in the LKP), not the prompt. That means
+  editing a prompt later doesn't change the seed — intentional, so
+  teachers iterating on prompt wording stay on the same latent and
+  can see prompt-level differences cleanly.
+- If two slots ever end up sharing the same label across the same
+  lesson (shouldn't happen) their seeds will collide. There's a
+  defensive comment to that effect in `_stable_seed_from_label`.
+

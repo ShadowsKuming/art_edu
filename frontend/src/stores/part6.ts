@@ -414,8 +414,18 @@ export const usePart6Store = defineStore('part6', () => {
           image_mime: sketchMime.value,
           prompt: promptToSend,
           lesson_id: lessonId ?? undefined,
+          // 2026-06-03 — send the style's short label (e.g. "更夸张")
+          // so the backend can hash it into a deterministic seed for
+          // Doubao Seedream. This is the colour-orthogonality backstop:
+          // even if two sibling prompts converge a little, three
+          // sibling styles always land on three different seeds so the
+          // model can't accidentally produce three near-identical
+          // images. See KNOWLEDGE_BANK 2026-06-03 + the matching
+          // `style_label` field in backend/main.py StyleTransferRequest.
+          style_label: style.label,
         }),
       })
+
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }))
