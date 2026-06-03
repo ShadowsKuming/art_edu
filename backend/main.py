@@ -189,6 +189,26 @@ VIDEO_MODEL = os.getenv("ARK_VIDEO_MODEL", "doubao-seedance-2-0-260128")
 IMAGE_MODEL = os.getenv("ARK_IMAGE_MODEL", "doubao-seedream-5-0-260128")
 ARK_BASE = "https://ark.cn-beijing.volces.com/api/v3"
 
+# Optional outbound proxy used ONLY for Doubao/Volcengine calls so that
+# Render → China traffic egresses from a fixed IP (the Aliyun ECS proxy).
+# All other outbound (pip during build, R2, OpenAI, etc.) stays direct.
+# Set to e.g. "http://user:pass@a.b.c.d:3128" on Render, leave unset locally.
+CN_PROXY_URL = os.getenv("CN_PROXY_URL", "").strip() or None
+
+
+def _ark_client(timeout: float) -> httpx.AsyncClient:
+    """httpx.AsyncClient pre-configured to route through CN_PROXY_URL when set.
+
+    Use this for every Doubao/Volcengine (ARK) call so the request egresses from
+    the Beijing ECS whitelisted IP. Non-Ark callers should keep using
+    httpx.AsyncClient directly to avoid round-tripping unrelated traffic
+    through the China proxy.
+    """
+    if CN_PROXY_URL:
+        return httpx.AsyncClient(timeout=timeout, proxy=CN_PROXY_URL)
+    return httpx.AsyncClient(timeout=timeout)
+
+
 TTS_VOICES = [
     {"id": "zh-CN-XiaoxiaoNeural", "name": "晓晓", "desc": "温暖"},
     {"id": "zh-CN-XiaoyiNeural", "name": "晓伊", "desc": "活泼"},
@@ -241,7 +261,7 @@ def _lang_suffix(language: str) -> str:
 
 async def _stream_ark(payload: dict) -> AsyncIterator[str]:
     """Pipe Ark streaming SSE response straight to the client."""
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with _ark_client(90.0) as client:
         async with client.stream(
             "POST",
             f"{ARK_BASE}/chat/completions",
@@ -628,7 +648,7 @@ async def generate_story(req: StoryRequest):
     if not ARK_API_KEY:
         raise HTTPException(500, "ARK_API_KEY is not set")
 
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with _ark_client(90.0) as client:
         resp = await client.post(
             f"{ARK_BASE}/chat/completions",
             json=_story_payload(req),
@@ -760,7 +780,7 @@ async def submit_animation(req: AnimationSubmitRequest):
         ],
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with _ark_client(30.0) as client:
         resp = await client.post(
             f"{ARK_BASE}/contents/generations/tasks",
             json=payload,
@@ -779,7 +799,7 @@ async def get_animation_status(task_id: str):
     if not ARK_API_KEY:
         raise HTTPException(500, "ARK_API_KEY is not set")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with _ark_client(30.0) as client:
         resp = await client.get(
             f"{ARK_BASE}/contents/generations/tasks/{task_id}",
             headers=_ark_headers(),
@@ -953,7 +973,7 @@ async def chat(req: ChatRequest):
         "max_tokens": 800,
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with _ark_client(60.0) as client:
         resp = await client.post(
             f"{ARK_BASE}/chat/completions",
             json=payload,
@@ -1118,7 +1138,7 @@ async def continue_story(req: StoryContinueRequest):
     if not ARK_API_KEY:
         raise HTTPException(500, "ARK_API_KEY is not set")
 
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with _ark_client(90.0) as client:
         resp = await client.post(
             f"{ARK_BASE}/chat/completions",
             json=_continue_payload(req),
@@ -1514,7 +1534,7 @@ async def story_chat(req: StoryChatRequest):
         "max_tokens": 2200,
     }
 
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with _ark_client(90.0) as client:
         resp = await client.post(
             f"{ARK_BASE}/chat/completions",
             json=payload,
@@ -1790,7 +1810,7 @@ async def generate_styles(req: StyleGenerateRequest):
         "max_tokens": 1500,
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with _ark_client(60.0) as client:
         resp = await client.post(
             f"{ARK_BASE}/chat/completions", json=payload, headers=_ark_headers()
         )
@@ -1836,7 +1856,7 @@ async def style_transfer(req: StyleTransferRequest):
         "response_format": "url",
     }
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with _ark_client(120.0) as client:
         resp = await client.post(
             f"{ARK_BASE}/images/generations", json=payload, headers=_ark_headers()
         )
@@ -2155,7 +2175,7 @@ async def part6_chat(req: Part6ChatRequest):
         "temperature": 0.7,
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with _ark_client(60.0) as client:
         resp = await client.post(
             f"{ARK_BASE}/chat/completions", json=payload, headers=_ark_headers()
         )
@@ -2322,7 +2342,7 @@ async def part7_comment(req: Part7CommentRequest):
     }
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with _ark_client(60.0) as client:
             resp = await client.post(
                 f"{ARK_BASE}/chat/completions",
                 json=payload,
