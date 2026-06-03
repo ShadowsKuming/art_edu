@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useSlideStore } from '@/stores/slides'
 import { usePart3Store } from '@/stores/part3'
 import { useProjectsStore } from '@/stores/projects'
 import { getLesson } from '@/data/lessons'
 import SlideThumbnail from './SlideThumbnail.vue'
 import { useI18n } from 'vue-i18n'
+
 
 const { t, tm } = useI18n()
 
@@ -80,6 +81,71 @@ function canDelete(slide: { id: string; partId: number }) {
 function selectSlide(id: string) {
   slideStore.selectSlide(id)
 }
+
+// ── Drag & drop reorder (Parts 1/2/4/5 only) ────────────────────
+//
+// 2026-06 — Teachers in the pilot wanted to shuffle slide order
+// inside a Part (e.g. swap the order of two activity slides in
+// Part 4) without recreating them. We use the native HTML5
+// drag-and-drop API rather than a third-party lib to avoid adding
+// runtime weight.
+//
+// Drag is enabled on slide thumbnails for Parts 1/2/4/5. The Part-5
+// video slide (index 0) is intentionally `draggable="false"` and
+// never accepts drops at its position — the store also enforces
+// this server-side via `reorderSlidesInPart`. Part 3's artwork
+// thumbnails and the 7-row Part-list itself stay non-draggable.
+
+const dragFromIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
+
+function onDragStart(e: DragEvent, partIndex: number, slideId: string) {
+  // Disallow dragging the Part-5 video slide (always at index 0).
+  if (slideStore.isPart5VideoSlide(slideId)) {
+    e.preventDefault()
+    return
+  }
+  dragFromIndex.value = partIndex
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    // Setting some data is required for the drag to fire `drop` in
+    // Firefox; the payload itself isn't used (we read dragFromIndex
+    // from local state instead, which survives the cross-frame copy).
+    e.dataTransfer.setData('text/plain', String(partIndex))
+  }
+}
+
+function onDragOver(e: DragEvent, partIndex: number) {
+  if (dragFromIndex.value === null) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dragOverIndex.value = partIndex
+}
+
+function onDragLeave(partIndex: number) {
+  if (dragOverIndex.value === partIndex) dragOverIndex.value = null
+}
+
+function onDrop(e: DragEvent, partIndex: number) {
+  e.preventDefault()
+  const from = dragFromIndex.value
+  dragFromIndex.value = null
+  dragOverIndex.value = null
+  if (from === null || from === partIndex) return
+  slideStore.reorderSlidesInPart(slideStore.activePart, from, partIndex)
+}
+
+function onDragEnd() {
+  dragFromIndex.value = null
+  dragOverIndex.value = null
+}
+
+function isDraggable(slideId: string): boolean {
+  // Part-5 video slide is pinned to index 0; everything else inside
+  // SLIDE_EDITOR_PARTS can be dragged.
+  return !slideStore.isPart5VideoSlide(slideId)
+}
+
 
 // ── Part 3 artwork actions ──────────────────────────────────────
 
@@ -218,15 +284,24 @@ function uploadNewArtwork() {
           class="slides-list"
         >
           <div
-            v-for="slide in activePartSlides"
+            v-for="(slide, idx) in activePartSlides"
             :key="slide.id"
             class="slide-thumb"
             :class="{
               'slide-thumb--active': slideStore.activeSlideId === slide.id,
               'slide-thumb--video': slideStore.isPart5VideoSlide(slide.id),
+              'slide-thumb--dragging': dragFromIndex === idx,
+              'slide-thumb--drop-target': dragOverIndex === idx && dragFromIndex !== null && dragFromIndex !== idx,
             }"
+            :draggable="isDraggable(slide.id)"
             @click="selectSlide(slide.id)"
+            @dragstart="onDragStart($event, idx, slide.id)"
+            @dragover="onDragOver($event, idx)"
+            @dragleave="onDragLeave(idx)"
+            @drop="onDrop($event, idx)"
+            @dragend="onDragEnd"
           >
+
             <!-- Video-slide cover (Part 5 only, first slide): pure
                  play-icon, no slide-elements, no text overlay. -->
             <div
@@ -421,4 +496,25 @@ function uploadNewArtwork() {
 .slide-thumb--video {
   border-color: #B2F4BC;
 }
+
+/* 2026-06 — Drag & drop visual feedback for slide reordering.
+   `.slide-thumb--dragging` is the thumbnail being dragged (kept
+   half-opaque so its origin is still locatable). `.slide-thumb--drop-target`
+   draws a 2px green inset border on whichever thumbnail the
+   pointer is currently hovering over — clear "drop here" cue
+   without shifting layout. */
+.slide-thumb[draggable='true'] { cursor: grab; }
+.slide-thumb[draggable='true']:active { cursor: grabbing; }
+
+.slide-thumb--dragging {
+  opacity: 0.45;
+}
+
+.slide-thumb--drop-target {
+  border-color: #16a34a !important;
+  box-shadow: 0 0 0 2px #7FEC8F !important;
+  transform: translateY(-1px);
+  transition: transform 0.08s ease;
+}
 </style>
+

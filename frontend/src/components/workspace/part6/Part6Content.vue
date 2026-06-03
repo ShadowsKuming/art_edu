@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { usePart6Store } from '@/stores/part6'
+
 // 2026-05-28: `useSlideStore` import retired together with the
 // footer "保存" / "下一部分" buttons — was only used by `saveAndNext()`.
 import { useToastStore } from '@/stores/toast'
@@ -63,7 +64,35 @@ function openFilePicker() {
 // 2026-05-28: `saveAndNext()` retired together with the footer
 // "保存" / "下一部分" buttons. Teachers navigate via the sidebar.
 // `slideStore.navigateToNextPart()` was also removed.
+
+// ── Result image lightbox ──────────────────────────────────────
+//
+// 2026-06 — Pilot feedback: the side-by-side result panels show the
+// converted image at roughly 40% of the viewport width, which is
+// still too small for teachers to inspect detail or for students at
+// the back of the classroom to see clearly. Click either image to
+// expand it to a full-screen lightbox; Esc / click-anywhere closes.
+const lightboxUrl = ref<string | null>(null)
+
+function openLightbox(url: string) {
+  lightboxUrl.value = url
+}
+
+function closeLightbox() {
+  lightboxUrl.value = null
+}
+
+function onLightboxKey(e: KeyboardEvent) {
+  if (e.key === 'Escape' && lightboxUrl.value !== null) {
+    e.stopPropagation()
+    closeLightbox()
+  }
+}
+
+onMounted(() => document.addEventListener('keydown', onLightboxKey, true))
+onUnmounted(() => document.removeEventListener('keydown', onLightboxKey, true))
 </script>
+
 
 <template>
   <section class="p6-content">
@@ -75,7 +104,12 @@ function openFilePicker() {
     <div v-if="store.view === 'result' && store.latestResult" class="p6-result-view">
       <div class="p6-compare">
         <div class="p6-compare-panel p6-compare-panel--original">
-          <img :src="store.latestResult.originalUrl" class="p6-compare-img" />
+          <img
+            :src="store.latestResult.originalUrl"
+            class="p6-compare-img p6-compare-img--clickable"
+            title="点击放大查看 / Click to enlarge"
+            @click="openLightbox(store.latestResult.originalUrl)"
+          />
         </div>
         <div class="p6-arrow">
           <svg viewBox="0 0 48 24" fill="none">
@@ -83,7 +117,12 @@ function openFilePicker() {
           </svg>
         </div>
         <div class="p6-compare-panel p6-compare-panel--result">
-          <img :src="store.latestResult.resultUrl" class="p6-compare-img" />
+          <img
+            :src="store.latestResult.resultUrl"
+            class="p6-compare-img p6-compare-img--clickable"
+            title="点击放大查看 / Click to enlarge"
+            @click="openLightbox(store.latestResult.resultUrl)"
+          />
         </div>
       </div>
       <button class="p6-convert-again-btn" @click="store.convertAgain()">{{ t('part6.convertAgain') }}</button>
@@ -91,6 +130,7 @@ function openFilePicker() {
 
     <!-- ── Steps view ──────────────────────────────────────── -->
     <div v-else class="p6-canvas-area">
+
 
       <!-- Step 1: Upload -->
       <div class="p6-step">
@@ -256,7 +296,35 @@ function openFilePicker() {
          buttons. -->
 
   </section>
+
+  <!-- ── Lightbox overlay (2026-06) ─────────────────────────
+       Full-screen viewer for the result/original images. Mounted
+       via Teleport so it sits outside any scroll containers / zoom
+       transforms (avoids being clipped by `.tm-part-frame` in
+       fullscreen teaching mode). Click backdrop or press Esc to
+       close; the image itself stays inert. -->
+  <Teleport to="body">
+    <div
+      v-if="lightboxUrl"
+      class="p6-lightbox"
+      role="dialog"
+      aria-modal="true"
+      @click.self="closeLightbox"
+    >
+      <img :src="lightboxUrl" class="p6-lightbox-img" />
+      <button
+        class="p6-lightbox-close"
+        title="关闭 / Close (Esc)"
+        @click="closeLightbox"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+  </Teleport>
 </template>
+
 
 <style scoped>
 .p6-content {
@@ -656,6 +724,19 @@ function openFilePicker() {
   display: block;
 }
 
+/* 2026-06 — Clickable result images. Subtle hover lift + zoom-in
+   cursor signals "click for fullscreen view" without distracting
+   from the comparison itself. */
+.p6-compare-img--clickable {
+  cursor: zoom-in;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.p6-compare-img--clickable:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+
 
 .p6-arrow {
   flex-shrink: 0;
@@ -725,3 +806,59 @@ function openFilePicker() {
 }
 .p6-save-btn:hover { transform: translateY(-1px) scale(1.02); }
 </style>
+
+<!-- 2026-06 — Lightbox styles must NOT be scoped because the
+     element is `<Teleport to="body">`'d out of the component's
+     DOM subtree, so scoped attribute selectors won't match it.
+     Class names are deliberately prefixed with `p6-lightbox-`
+     to avoid colliding with global styles. -->
+<style>
+.p6-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  cursor: zoom-out;
+  animation: p6LightboxFadeIn 0.18s ease;
+}
+
+@keyframes p6LightboxFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.p6-lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 12px 64px rgba(0, 0, 0, 0.6);
+  cursor: default;
+}
+
+.p6-lightbox-close {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.p6-lightbox-close:hover {
+  background: rgba(239, 68, 68, 0.55);
+}
+</style>
+

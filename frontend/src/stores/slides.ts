@@ -450,6 +450,55 @@ export const useSlideStore = defineStore('slides', () => {
     }
   }
 
+  /**
+   * 2026-06 — Reorder a slide within its own Part by moving the slide
+   * at `partIndexFrom` to `partIndexTo` (both indexes relative to the
+   * slides belonging to `partId`, not the global slides array).
+   *
+   * Used by the sidebar's HTML5 drag-and-drop to let teachers shuffle
+   * the slide order within Parts 1/2/4/5. Teaching mode's stable sort
+   * by `partId` preserves the relative order of slides within each
+   * part, so reordering here automatically reorders fullscreen play.
+   *
+   * Part 5's video slide is pinned to position 0 — any drop that
+   * would move the video slide away from index 0, or that would
+   * insert another slide before it, is clamped so the video slot
+   * stays first.
+   *
+   * Out-of-range indices are no-ops; the move is checkpointed so undo
+   * restores the previous order. No-op when from === to.
+   */
+  function reorderSlidesInPart(partId: number, partIndexFrom: number, partIndexTo: number) {
+    if (partIndexFrom === partIndexTo) return
+    // Collect the global indexes of slides that belong to this part,
+    // in their current order, so we can translate part-local indices
+    // into the global slides array.
+    const globalIndexes: number[] = []
+    slides.value.forEach((s, i) => { if (s.partId === partId) globalIndexes.push(i) })
+    if (partIndexFrom < 0 || partIndexFrom >= globalIndexes.length) return
+    if (partIndexTo < 0 || partIndexTo >= globalIndexes.length) return
+
+    // Pin the Part-5 video slide to position 0: clamp away any drag
+    // that would unseat it or that would slot another slide before
+    // it.
+    if (partId === 5) {
+      if (partIndexFrom === 0) return            // can't move the video slide
+      if (partIndexTo === 0) partIndexTo = 1     // can't drop before the video slide
+    }
+
+    checkpoint()
+    const fromGlobal = globalIndexes[partIndexFrom]
+    const [moved] = slides.value.splice(fromGlobal, 1)
+    // Recompute target global index after the splice.
+    const remainingGlobalIndexes: number[] = []
+    slides.value.forEach((s, i) => { if (s.partId === partId) remainingGlobalIndexes.push(i) })
+    const toGlobal = partIndexTo >= remainingGlobalIndexes.length
+      ? (remainingGlobalIndexes.length === 0 ? slides.value.length : remainingGlobalIndexes[remainingGlobalIndexes.length - 1] + 1)
+      : remainingGlobalIndexes[partIndexTo]
+    slides.value.splice(toGlobal, 0, moved)
+  }
+
+
   function reset() {
     slides.value = []
     activeSlideId.value = null
@@ -471,8 +520,9 @@ export const useSlideStore = defineStore('slides', () => {
     // 2026-05-28: `navigateToNextPart` removed — see retirement note above.
     navigateToPart,
     part5VideoSlideId, isPart5VideoSlide,
-    removeSlide, getSnapshot, loadSnapshot, reset,
+    removeSlide, reorderSlidesInPart, getSnapshot, loadSnapshot, reset,
     checkpoint, undo, redo,
+
     canUndo: computed(() => past.value.length > 0),
     canRedo: computed(() => future.value.length > 0),
   }

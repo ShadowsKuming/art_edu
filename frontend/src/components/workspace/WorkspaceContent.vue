@@ -256,8 +256,40 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
                 <path d="M9 4v12M6 7v6M3 9v2M12 6v8M15 8v4M18 9v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
             </button>
+
+            <!-- 2026-06 — Undo / Redo icon buttons. Pilot feedback:
+                 the Cmd/Ctrl+Z shortcut existed but most teachers
+                 didn't know about it; surfacing dedicated buttons
+                 next to the upload tools makes the feature
+                 discoverable. Both buttons share the same `.tool-btn`
+                 style as the rest of the pill so they don't visually
+                 break the toolbar grouping. -->
+            <div class="toolbar-sep" aria-hidden="true" />
+            <button
+              class="tool-btn"
+              :disabled="!slideStore.canUndo"
+              :title="t('content.undo')"
+              @click.stop="slideStore.undo()"
+            >
+              <svg viewBox="0 0 20 20" fill="none" class="tool-icon">
+                <path d="M7 7L3 11l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M3 11h9a5 5 0 010 10h-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button
+              class="tool-btn"
+              :disabled="!slideStore.canRedo"
+              :title="t('content.redo')"
+              @click.stop="slideStore.redo()"
+            >
+              <svg viewBox="0 0 20 20" fill="none" class="tool-icon">
+                <path d="M13 7l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M17 11H8a5 5 0 000 10h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
           </div>
         </div>
+
 
         <!-- Image tool dropdown -->
         <div v-if="showImageMenu" class="image-menu" @click.stop>
@@ -530,6 +562,18 @@ const fontWeights = ['Normal', 'Medium', 'Bold']
   width: 18px;
   height: 18px;
 }
+
+/* 2026-06 — Light vertical separator between the upload tools
+   (Tt / image / video / audio) and the undo/redo cluster, so the
+   two groups read as functionally distinct inside the same pill. */
+.toolbar-sep {
+  width: 1px;
+  height: 16px;
+  background: #e5e7eb;
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
 
 /* Properties panel */
 .editor-controls {

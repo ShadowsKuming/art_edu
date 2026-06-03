@@ -331,7 +331,10 @@ export default {
     alignment: 'Alignment',
     textColor: 'Text Color',
     flip: 'Flip',
+    undo: 'Undo (Cmd/Ctrl+Z)',
+    redo: 'Redo (Cmd/Ctrl+Shift+Z)',
     noSelection: 'Click Tt to add text, or select an element to edit.',
+
     noSlide: 'Add a slide to get started.',
     save: 'Save',
     saveNext: 'Next Part',

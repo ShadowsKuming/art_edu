@@ -287,22 +287,43 @@ const partLabel = computed(() => {
    components in fullscreen. These components were designed to fill
    the centre column of the editor (which is wider than 16:9 and has
    its own scrolling), so in teaching mode we give them a larger
-   landscape canvas — 90% of viewport width, capped at 92% of height
-   minus the control bar. The components handle their own internal
-   layout (scroll, padding, dot-pattern background). */
+   landscape canvas.
+
+   2026-06 — Pilot teachers complained the Part 3/5/6/7 content
+   read too small in fullscreen even with the frame at 92vw. The
+   inner components have a lot of fixed-px paddings/gaps/font-sizes
+   tuned for the editor's narrower centre column, so widening the
+   frame alone doesn't scale up the actual cards/canvas inside.
+   Solution: bump the frame to 96vw / 96vh, AND apply a 1.25× CSS
+   `zoom` on the *inner* content so all child px values scale up
+   uniformly. `zoom` is supported in all modern browsers (Chrome,
+   Edge, Safari, and Firefox 126+) and unlike `transform: scale`
+   it also resizes the layout box, so internal scrolling still
+   works correctly when content overflows. */
 .tm-part-frame {
-  width: min(92vw, calc((100vh - 64px) * 1.6));
-  height: min(calc(100vh - 96px), 92vh);
+  width: 96vw;
+  height: calc(100vh - 80px);
   background: #F3F4F4;
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 8px 48px rgba(0, 0, 0, 0.6);
   display: flex;
-  /* Tell child Part*Content sections to fill the frame. Their
-     `.p3-content` / `.p5-content` / `.p6-content` / `.p7` already
-     have `flex: 1` + `display: flex; flex-direction: column;` so
-     this works out of the box. */
 }
+
+/* Scale up the interactive content. We deliberately keep the
+   container itself at 100% (so its border-radius / shadow stay
+   crisp) and zoom only the child component. The `> *:first-child`
+   selector targets the Part3Content / Part5Content / Part6Content /
+   Part7Content root that sits directly inside `<div class="tm-part-frame">`. */
+.tm-part-frame > :first-child {
+  zoom: 1.25;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
 
 
 .tm-empty {

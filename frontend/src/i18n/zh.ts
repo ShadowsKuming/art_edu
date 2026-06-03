@@ -323,7 +323,10 @@ export default {
     alignment: '对齐',
     textColor: '文字颜色',
     flip: '翻转',
+    undo: '撤回（Cmd/Ctrl+Z）',
+    redo: '重做（Cmd/Ctrl+Shift+Z）',
     noSelection: '点击 Tt 添加文字，或选择元素进行编辑。',
+
     noSlide: '添加幻灯片以开始。',
     save: '保存',
     saveNext: '下一部分',
