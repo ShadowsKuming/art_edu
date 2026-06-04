@@ -2372,15 +2372,42 @@ async def part7_comment(req: Part7CommentRequest):
         "max_tokens": 500,
     }
 
+    # 2026-06-04 — Bumped 60 → 120 s after pilot teachers reported
+    # `LLM timeout` on Part 7's Get-a-Critique. Two failure modes
+    # were combining at the 60 s mark:
+    #   1. Render Free dyno cold start (≈50 s on first request after
+    #      idle) — almost the entire 60 s budget was burned before
+    #      we even reached the LLM.
+    #   2. Doubao vision LLM on a 3-5 MB student photo can take
+    #      30-45 s end-to-end (encode → upload → infer → stream).
+    # The frontend now also downsamples uploads on the client (see
+    # part7.ts `_downsampleIfLarge`) so most requests should land
+    # well under 120 s; the longer ceiling here is the safety net
+    # for the cold-start path + the first request after a deploy.
     try:
-        async with _ark_client(60.0) as client:
+        async with _ark_client(120.0) as client:
             resp = await client.post(
                 f"{ARK_BASE}/chat/completions",
                 json=payload,
                 headers=_ark_headers(),
             )
     except httpx.TimeoutException:
-        raise HTTPException(504, "LLM timeout")
+        # User-facing copy stays short; backend prints the full
+        # context so we can correlate against Render request logs.
+        print(
+            f"[part7] LLM timeout after 120s for lesson={req.lesson_id} "
+            f"image_size={len(req.student_work_base64)}B "
+            f"note={'yes' if req.student_note else 'no'}",
+            flush=True,
+        )
+        raise HTTPException(
+            504,
+            "AI 评论生成超时，请稍后重试（如果是第一次使用，服务可能需要预热约 1 分钟）。"
+            if req.language == "zh"
+            else "AI critique timed out. Please retry — the service may need ~1 min "
+                 "to warm up after a period of inactivity.",
+        )
+
 
     if resp.status_code != 200:
         raise HTTPException(resp.status_code, f"Ark API error: {resp.text}")

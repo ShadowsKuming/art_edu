@@ -19,7 +19,55 @@ import { useProjectsStore } from './projects'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
+// ────────────────────────────────────────────────────────────────────
+// 2026-06-04 — student-work downsampler (ported from part3.ts §25.5).
+//
+// Teachers were hitting `LLM timeout` on Part 7 → Get a Critique when
+// the uploaded student photo was a multi-megabyte phone capture. Same
+// root cause as the Part 3 "2000 Symphony" timeout: Doubao Vision
+// receives the entire base64 payload, and a 3-5 MB image pushes the
+// end-to-end round trip past Render's edge proxy ceiling (~100 s) →
+// the browser surfaces a 504 the frontend reports as "LLM timeout".
+//
+// Fix: cap any upload to a long-edge of 1280 px and JPEG quality 0.85
+// **on the client** before sending. The vision model consumes a
+// downsampled tensor anyway, so quality loss for the critique task is
+// imperceptible. Small images (<1.5 MB) pass through untouched.
+// ────────────────────────────────────────────────────────────────────
+const _LLM_MAX_EDGE = 1280
+const _LLM_SIZE_OK_BYTES = 1_500_000  // ~1.5 MB
+
+async function _downsampleIfLarge(dataUrl: string): Promise<string> {
+    const approxBytes = (dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75
+    if (approxBytes < _LLM_SIZE_OK_BYTES) return dataUrl
+    try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const el = new Image()
+            el.onload = () => resolve(el)
+            el.onerror = () => reject(new Error('image decode failed'))
+            el.src = dataUrl
+        })
+        const longEdge = Math.max(img.naturalWidth, img.naturalHeight)
+        const scale = longEdge > _LLM_MAX_EDGE ? _LLM_MAX_EDGE / longEdge : 1
+        const targetW = Math.max(1, Math.round(img.naturalWidth * scale))
+        const targetH = Math.max(1, Math.round(img.naturalHeight * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = targetW
+        canvas.height = targetH
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return dataUrl
+        ctx.drawImage(img, 0, 0, targetW, targetH)
+        return canvas.toDataURL('image/jpeg', 0.85)
+    } catch {
+        // Defensive: if decode/canvas fails (e.g. SVG, CORS-tainted)
+        // we return the original so the upload still works — just
+        // without the size guarantee.
+        return dataUrl
+    }
+}
+
 export interface StudentWork {
+
     id: string
     imageDataUrl: string
     imageBase64: string
@@ -86,13 +134,28 @@ export const usePart7Store = defineStore('part7', () => {
         activePairId.value = id
     }
 
-    function addStudentWork(dataUrl: string) {
+    /**
+     * 2026-06-04 — accepts the raw data URL from the file picker and
+     * routes it through `_downsampleIfLarge` BEFORE building the work
+     * record. This is the single source of truth for the "shrink big
+     * student photos" rule — every later consumer
+     * (`work.imageBase64`, snapshot persistence, the `/api/part7/
+     * comment` request body) sees the already-shrunk payload, so we
+     * don't have to remember to call the helper at each site.
+     *
+     * Returns the new work id so the caller can show a toast or
+     * focus the thumbnail.
+     */
+    async function addStudentWork(dataUrl: string): Promise<string | null> {
         const pair = activePair.value
-        if (!pair) return
-        const work = makeWork(dataUrl)
+        if (!pair) return null
+        const safeUrl = await _downsampleIfLarge(dataUrl)
+        const work = makeWork(safeUrl)
         pair.works.push(work)
         pair.activeWorkIdx = pair.works.length - 1
+        return work.id
     }
+
 
     function removeStudentWork(idx: number) {
         const pair = activePair.value
