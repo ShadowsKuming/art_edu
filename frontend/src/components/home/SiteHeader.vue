@@ -87,33 +87,55 @@ function onAccess() {
 /**
  * Submit handler for the AccessModal.
  *
- * Calls the API login endpoint to authenticate the user and load their
- * projects. Falls back to local-only mode if the API is unavailable
- * (e.g. DATABASE_URL not configured on the server).
+ * Calls the real API login endpoint. The store-level `login()` already
+ * applies a 90 s timeout + one automatic retry (see `stores/user.ts`
+ * for rationale), so by the time we get here the call has genuinely
+ * succeeded or genuinely failed.
+ *
+ * 2026-06-05 — Previously this catch block fell back to a "fake
+ * login" path (`userStore.setUsername(code)` + `router.push(...)`)
+ * any time the network was unreachable, which silently stranded the
+ * teacher in a dashboard with no JWT and therefore no `/api/projects`
+ * results. Several pilot teachers reported "all my lessons are gone"
+ * on classroom devices and the root cause was always this fallback
+ * masking a real network failure.
+ *
+ * The fallback is now removed. We instead surface a precise error
+ * message so the user (and their IT department) can see *why* the
+ * connection failed, and the next visit's bootstrap path
+ * (`App.vue → onMounted`) will automatically retry from scratch
+ * once the network recovers.
  */
 async function onAccessSubmit(code: string) {
   loginError.value = ''
+  const trimmed = (code ?? '').trim()
+  if (!trimmed) {
+    loginError.value = '请输入邀请码'
+    return
+  }
   try {
-    await userStore.login(code || '')
+    await userStore.login(trimmed)
     await projectsStore.loadFromAPI()
     accessOpen.value = false
     router.push('/dashboard')
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
-      // Wrong invite code — show error, keep modal open
-      loginError.value = 'Invalid invitation code. Please check and try again.'
+      loginError.value = '邀请码无效，请检查后重试'
       return
     }
-    // API unreachable (server sleeping, no DB) — fall back to local mode
-    if (code.trim()) {
-      userStore.setUsername(code.trim())
-      accessOpen.value = false
-      router.push('/dashboard')
-    } else {
-      loginError.value = 'Please enter your invitation code.'
+    if (err instanceof ApiError) {
+      loginError.value = `服务器繁忙（${err.status}），请稍候再试。`
+      return
     }
+    // AbortError / TimeoutError / TypeError ("Failed to fetch") all
+    // land here. We show a teacher-friendly message that also gives
+    // their IT team enough to action (the API host).
+    loginError.value =
+      '无法连接服务器，请检查教学网络。若问题持续，请联系学校 IT，' +
+      '确认能否访问 artbloom-api.onrender.com'
   }
 }
+
 </script>
 
 <template>

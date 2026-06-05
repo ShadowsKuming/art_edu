@@ -4,10 +4,12 @@ import { useRouter } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
 import { useSlideStore } from '@/stores/slides'
 import { usePart5Store } from '@/stores/part5'
+import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue'
 import SlideThumbnail from '@/components/workspace/SlideThumbnail.vue'
 import type { Slide } from '@/stores/slides'
+
 
 const router = useRouter()
 const projectsStore = useProjectsStore()
@@ -98,7 +100,49 @@ function confirmDelete() {
 
 function cancelDelete() { confirmDeleteId.value = null }
 
+// ── Manual re-sync from API ──────────────────────────────────────────────────
+//
+// 2026-06-05 — Self-service recovery path for the "My Lessons looks
+// empty" pilot bug. Even with the App.vue self-heal in place, there
+// are edge cases (offline at boot, Render still cold-starting, user
+// clicked Access before the warm-up ping completed) where the local
+// project list ends up stale. Rather than asking the teacher to
+// hard-reload — which often fails in pinned PWA / classroom-launcher
+// contexts — we expose a tiny "Re-sync from server" button right in
+// the toolbar that calls `projectsStore.loadFromAPI()` on demand.
+//
+// The store's `loadFromAPI()` is idempotent: if the request succeeds
+// it merges server-side projects into local state (newest wins), and
+// if it fails it logs but leaves the in-memory list alone. We
+// surface a toast either way so the teacher knows the click worked.
+const toastStore = useToastStore()
+const resyncing = ref(false)
+
+async function resyncFromServer() {
+  if (resyncing.value) return
+  resyncing.value = true
+  try {
+    await projectsStore.loadFromAPI()
+    toastStore.show(
+      locale.value === 'zh' ? '已从云端同步最新课件 ☁' : 'Synced latest lessons from the cloud ☁',
+      'success',
+    )
+  } catch (err) {
+    console.error('[MyLessons] manual resync failed', err)
+    toastStore.show(
+      locale.value === 'zh'
+        ? '同步失败,请检查网络后重试'
+        : 'Sync failed — please check your connection and try again.',
+      'warning',
+    )
+
+  } finally {
+    resyncing.value = false
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
 function formatDate(iso: string) {
   const loc = locale.value === 'zh' ? 'zh-CN' : 'en-US'
   return new Date(iso).toLocaleDateString(loc, { year: 'numeric', month: 'short', day: 'numeric' })
@@ -228,16 +272,43 @@ function statusLabel(status?: string) {
             @click="activeFilter = tab"
           >{{ t(`dashboard.tabs.${tab}`) }}</button>
         </div>
-        <button class="btn-create" @click="openCreate">
-          <svg viewBox="0 0 20 20" fill="none" class="wand-icon">
-            <path d="M4 16L13 4M13 4l2 5M13 4l-5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="15" cy="5" r="1.2" fill="currentColor"/>
-            <circle cx="10" cy="3" r="0.8" fill="currentColor"/>
-            <circle cx="17" cy="9" r="0.8" fill="currentColor"/>
-          </svg>
-          {{ t('dashboard.createLesson') }}
-        </button>
+        <div class="toolbar-actions">
+          <!--
+            "Re-sync from server" — surfaces the projects.loadFromAPI()
+            call to teachers who suspect their lesson list is stale
+            (see the 2026-06-05 pilot incident in the script block
+            and KNOWLEDGE_BANK). Intentionally low-key: small pill
+            button with a circular-arrow icon, sits just left of the
+            primary green "Create" CTA so it's discoverable but never
+            competes with it visually.
+          -->
+          <button
+            type="button"
+            class="btn-resync"
+            :disabled="resyncing"
+            :title="locale === 'zh' ? '从服务器重新同步课件' : 'Re-sync lessons from server'"
+            @click="resyncFromServer"
+          >
+            <svg viewBox="0 0 20 20" fill="none" class="resync-icon" :class="{ 'is-spinning': resyncing }" aria-hidden="true">
+              <path d="M3.5 10a6.5 6.5 0 0 1 11.3-4.4M16.5 10a6.5 6.5 0 0 1-11.3 4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M14 2.5v3.5h-3.5M6 17.5v-3.5h3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            {{ resyncing
+              ? (locale === 'zh' ? '同步中…' : 'Syncing…')
+              : (locale === 'zh' ? '重新同步' : 'Re-sync') }}
+          </button>
+          <button class="btn-create" @click="openCreate">
+            <svg viewBox="0 0 20 20" fill="none" class="wand-icon">
+              <path d="M4 16L13 4M13 4l2 5M13 4l-5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="15" cy="5" r="1.2" fill="currentColor"/>
+              <circle cx="10" cy="3" r="0.8" fill="currentColor"/>
+              <circle cx="17" cy="9" r="0.8" fill="currentColor"/>
+            </svg>
+            {{ t('dashboard.createLesson') }}
+          </button>
+        </div>
       </div>
+
 
       <!-- Empty state -->
       <div v-if="filteredProjects.length === 0" class="empty-state">
@@ -521,6 +592,12 @@ function statusLabel(status?: string) {
 
 .tab-btn:not(.tab-btn--active):hover { background: #e5e7eb; color: #374151; }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .btn-create {
   display: flex;
   align-items: center;
@@ -540,6 +617,42 @@ function statusLabel(status?: string) {
 .btn-create:hover { transform: translateY(-1px); }
 
 .wand-icon { width: 16px; height: 16px; }
+
+/* Re-sync pill — secondary affordance, sits just left of the primary
+   green "Create" CTA. Visually muted (white + border) so the hierarchy
+   on the toolbar stays clear (Create remains the dominant action). */
+.btn-resync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 18px;
+  background: #fff;
+  color: #374151;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn-resync:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #111827;
+}
+.btn-resync:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.resync-icon { width: 16px; height: 16px; }
+.resync-icon.is-spinning { animation: resync-spin 0.9s linear infinite; }
+
+@keyframes resync-spin {
+  to { transform: rotate(360deg); }
+}
+
 
 /* ── Empty state ── */
 .empty-state {

@@ -26,7 +26,37 @@ import { computed, ref } from 'vue'
  * (SiteHeader, MyLessons fall-back, etc.) continue to work without churn.
  */
 import { DEFAULT_AVATAR_INDEX } from '@/data/avatars'
-import { apiPost, apiPatch, getToken, setToken } from '@/api/client'
+import { apiPost, apiPatch, getToken, setToken, ApiError } from '@/api/client'
+
+/**
+ * Login timeout & retry policy.
+ *
+ * 2026-06-05 — Pilot teachers on classroom networks routinely saw
+ * the FIRST `/api/auth/login` request take 40-90 seconds because:
+ *   (a) Render Free dynos cold-start in ~50 s after 15 min idle;
+ *   (b) The China → Render proxy adds 1-3 s round-trip;
+ *   (c) Some school networks throttle HTTPS to non-whitelisted CDNs.
+ *
+ * Previously the call relied on `fetch()`'s default deadline (≈30 s
+ * in iPadOS Safari), threw a generic network error, and `SiteHeader`
+ * caught it as "API unreachable" → silently logged the user in
+ * **without a JWT**. The dashboard then quietly showed an empty
+ * project list because `loadFromAPI()` short-circuits when there's
+ * no token, and the teacher thought "all my lessons are gone".
+ *
+ * Mitigation:
+ *   • LOGIN_TIMEOUT_MS = 90 s — comfortably exceeds Render's worst
+ *     observed cold start so genuine slowness is no longer mistaken
+ *     for a hard failure.
+ *   • One automatic retry after `LOGIN_RETRY_DELAY_MS` — by the
+ *     second attempt the first request has already warmed the dyno
+ *     and 99 % succeed within 1-2 s. We deliberately do NOT retry
+ *     401s (wrong invite code) because retrying won't change the
+ *     answer and would just look broken to the user.
+ */
+const LOGIN_TIMEOUT_MS = 90_000
+const LOGIN_RETRY_DELAY_MS = 2_000
+
 
 const KEY_INVITE = 'artbloom-username' // legacy key, kept for back-compat
 const KEY_DISPLAY = 'artbloom-display-name'
@@ -107,19 +137,48 @@ export const useUserStore = defineStore('user', () => {
     }
 
     /**
-     * Login via API — calls POST /api/auth/login, stores the JWT, and
-     * hydrates user data from the response. Falls back gracefully to
-     * local-only mode if the call fails.
+     * Login via API — POST /api/auth/login with a generous 90 s
+     * timeout and one automatic retry on transient network errors.
+     *
+     * Throws `ApiError(401)` for an invalid invite code (caller
+     * should show "wrong code" UI). Throws any other error (network
+     * / 5xx / timeout) after both attempts fail — caller should
+     * surface a real error message rather than fake a successful
+     * login (which used to be the source of empty-dashboard bugs
+     * on classroom devices; see SiteHeader.onAccessSubmit).
      */
     async function login(code: string): Promise<void> {
-        const result = await apiPost<{
+        type LoginResult = {
             token: string
             user_id: string
             invite_code: string
             display_name: string | null
             bio: string | null
             avatar_index: number
-        }>('/api/auth/login', { invite_code: code })
+        }
+
+        const attempt = (): Promise<LoginResult> =>
+            apiPost<LoginResult>(
+                '/api/auth/login',
+                { invite_code: code },
+                { timeoutMs: LOGIN_TIMEOUT_MS },
+            )
+
+        let result: LoginResult
+        try {
+            result = await attempt()
+        } catch (err) {
+            // Don't retry 401 — the invite code is genuinely wrong
+            // and burning a second attempt would just make the UI
+            // look frozen for another 2-90 s.
+            if (err instanceof ApiError && err.status === 401) throw err
+            // Anything else (network, timeout, 5xx, Render cold
+            // start) — wait a beat and try once more. The first
+            // attempt usually warmed the dyno; the retry typically
+            // completes in 1-2 s.
+            await new Promise((r) => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+            result = await attempt()
+        }
 
         setToken(result.token)
         inviteCode.value = result.invite_code
@@ -135,6 +194,7 @@ export const useUserStore = defineStore('user', () => {
         avatarIndex.value = result.avatar_index
         writeLS(KEY_AVATAR, String(result.avatar_index))
     }
+
 
     /** Wipe everything — useful when implementing real sign-out. */
     function clearAll() {
