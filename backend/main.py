@@ -2465,9 +2465,8 @@ async def text_to_speech(req: TTSRequest):
 # ════════════════════════════════════════════════════════════════════════
 
 from fastapi import Depends
-from sqlalchemy import select, update as sql_update, delete as sql_delete, func as sql_func
+from sqlalchemy import select, update as sql_update, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
-
 
 
 # ── Pydantic request / response schemas ──────────────────────────────────
@@ -2548,107 +2547,10 @@ def _project_out(p: Project) -> dict:
     }
 
 
-# ── Liveness & diagnostics ────────────────────────────────────────────────
-#
-# 2026-06-05 — Added during the BLOOM-2026-A "empty My Lessons" pilot
-# incident. The teacher's classroom iPad showed zero saved lessons
-# even after Clear Site Data + re-entering her invite code. We
-# couldn't physically reach the device to inspect DevTools, so we
-# need server-side primitives that let us answer two questions from
-# our own browser without any user cooperation:
-#
-#   1. "Is the API up and reachable right now?"
-#        → GET /api/health (also used by App.vue as a warm-up ping
-#          so Render's Free dyno is awake by the time the teacher
-#          submits her invite code).
-#
-#   2. "Does user X exist and how many projects do they actually
-#       have on the server?"
-#        → GET /api/diag/{code}
-#
-# Both endpoints are intentionally unauthenticated. /api/health
-# returns nothing sensitive. /api/diag returns only counts (never
-# project content), and it's hardened with the same INVITE_CODES
-# whitelist check we use for login — so the response leaks at most
-# "this code exists and has N projects", which we already grant on
-# the login endpoint by status code anyway.
-
-@app.get("/api/health")
-async def api_health():
-    """
-    Lightweight liveness probe.
-
-    Doesn't touch the DB so it stays cheap even when the Postgres
-    connection pool is saturated. The frontend's App.vue mounts a
-    fire-and-forget call to this on every page load to warm Render's
-    Free dyno before the user clicks "Access".
-    """
-    return {
-        "ok": True,
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "db": db_available(),
-    }
-
-
-@app.get("/api/diag/{code}")
-async def api_diag(code: str):
-    """
-    Diagnostic for support cases — "is user X's data actually on the
-    server, or are they only seeing local-only state?".
-
-    Authentication: none required. We DO validate the code against
-    the same INVITE_CODES whitelist used by /api/auth/login so we
-    can't be probed for arbitrary user counts. The response contains
-    only metadata (existence + project_count + timestamps) — never
-    project content — so even if the endpoint were somehow exposed
-    publicly it wouldn't leak teacher work.
-
-    Typical usage during an incident:
-        curl https://artbloom-api.onrender.com/api/diag/BLOOM-2026-A
-    """
-    if not db_available():
-        return {"ok": False, "reason": "DATABASE_URL not configured"}
-
-    code_upper = (code or "").strip().upper()
-    if not code_upper:
-        raise HTTPException(400, "invite code required")
-    if code_upper not in INVITE_CODES:
-        # Mirror the login endpoint's response shape so a caller
-        # can't distinguish "wrong code" from "user not yet created".
-        return {"ok": False, "reason": "not in whitelist", "code": code_upper}
-
-    async with get_db() as db:
-        result = await db.execute(select(User).where(User.invite_code == code_upper))
-        user = result.scalar_one_or_none()
-        if user is None:
-            # Lifespan should pre-seed every whitelisted code; if we
-            # land here it means the seed failed (eg. DB was newer
-            # than the deploy). Still safe to report.
-            return {
-                "ok": True,
-                "code": code_upper,
-                "user_exists": False,
-                "project_count": 0,
-            }
-        proj_count_row = await db.execute(
-            select(sql_func.count(Project.id)).where(Project.user_id == user.id)
-        )
-        proj_count = proj_count_row.scalar() or 0
-        return {
-            "ok": True,
-            "code": code_upper,
-            "user_exists": True,
-            "user_id": str(user.id),
-            "project_count": int(proj_count),
-            "created_at": user.created_at.isoformat() if user.created_at else None,
-        }
-
-
 # ── Auth ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/auth/login")
 async def login(req: LoginRequest):
-
     """Login with a whitelisted invite code.  One code = one user across all devices."""
     _db_required()
     code = req.invite_code.strip().upper()
