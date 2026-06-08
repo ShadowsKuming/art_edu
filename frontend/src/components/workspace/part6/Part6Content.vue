@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { usePart6Store } from '@/stores/part6'
+
 
 // 2026-05-28: `useSlideStore` import retired together with the
 // footer "保存" / "下一部分" buttons — was only used by `saveAndNext()`.
@@ -76,10 +77,17 @@ const lightboxUrl = ref<string | null>(null)
 
 function openLightbox(url: string) {
   lightboxUrl.value = url
+  // Reset brush UI to a sensible default each time the lightbox opens
+  // so the previous session's brush state doesn't leak into the next
+  // image inspection (which would be jarring — the teacher might
+  // think the toolbar is "stuck on"). Annotations themselves are
+  // cleared by the canvas remount below.
+  brushActive.value = false
 }
 
 function closeLightbox() {
   lightboxUrl.value = null
+  brushActive.value = false
 }
 
 function onLightboxKey(e: KeyboardEvent) {
@@ -91,7 +99,174 @@ function onLightboxKey(e: KeyboardEvent) {
 
 onMounted(() => document.addEventListener('keydown', onLightboxKey, true))
 onUnmounted(() => document.removeEventListener('keydown', onLightboxKey, true))
+
+// ── Lightbox annotation brush (2026-06-08) ─────────────────────
+//
+// Pilot feedback from the U5-L1 dry-run was unambiguous: teachers
+// want to circle the bits of a converted painting they're talking
+// about ("look at the blue strokes here, the rhythm here, …") while
+// it's blown up to projector size. We give them an HTML5 canvas
+// overlay sized to the image's *displayed* dimensions, so coordinates
+// stay correct as the image is letterboxed inside the dark backdrop.
+//
+// Scope per pilot session §29: session-only (drawings cleared on
+// close / image switch / new lightbox open), 3 thicknesses, "clear
+// all" button only (no eraser — simpler model for first roll-out).
+// Colour palette is opinionated: 5 highly-saturated hues that read
+// well against both light AND dark image regions.
+
+type BrushColor = string
+const BRUSH_COLORS: BrushColor[] = [
+  '#EF4444',  // red — primary callout colour
+  '#F59E0B',  // amber
+  '#FACC15',  // yellow — visible against blues
+  '#22C55E',  // green
+  '#3B82F6',  // blue
+  '#FFFFFF',  // white — last resort for dark backgrounds
+]
+const BRUSH_THICKNESSES = [3, 6, 12]  // px @ canvas resolution
+
+const brushActive = ref(false)
+const brushColor = ref<BrushColor>(BRUSH_COLORS[0])
+const brushSize = ref<number>(BRUSH_THICKNESSES[1])  // medium default
+
+// Refs / drawing state — kept outside Vue reactivity for hot-loop
+// efficiency. Vue only needs to know "is the brush toggled on?".
+const lightboxImgEl = ref<HTMLImageElement | null>(null)
+const annotationCanvasEl = ref<HTMLCanvasElement | null>(null)
+let _drawing = false
+let _lastX = 0
+let _lastY = 0
+
+/**
+ * Resize the canvas to match the image's *rendered* dimensions
+ * exactly. Called on image load and on window resize so drawings
+ * keep correct alignment across responsive reflows. The canvas
+ * itself is sized to the image bounding rect (not the natural
+ * resolution) — we draw in CSS pixels with a devicePixelRatio
+ * scale-factor on the underlying pixel buffer for crisp lines on
+ * retina screens.
+ */
+function syncCanvasSize() {
+  const img = lightboxImgEl.value
+  const canvas = annotationCanvasEl.value
+  if (!img || !canvas) return
+  const rect = img.getBoundingClientRect()
+  const dpr = window.devicePixelRatio || 1
+  // Preserve any existing strokes by snapshotting before resize.
+  // For the v1 we don't bother — clearing on resize is acceptable
+  // and avoids the considerable complexity of off-DPR re-blitting.
+  canvas.style.width = `${rect.width}px`
+  canvas.style.height = `${rect.height}px`
+  canvas.width = Math.round(rect.width * dpr)
+  canvas.height = Math.round(rect.height * dpr)
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)  // draw in CSS px
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }
+}
+
+function onLightboxImgLoad() {
+  // Wait one tick so layout has settled (object-fit: contain only
+  // finalises the bounding rect after the image is decoded AND the
+  // flex container has reflowed).
+  nextTick(syncCanvasSize)
+}
+
+function onWindowResize() {
+  if (lightboxUrl.value) syncCanvasSize()
+}
+
+// React to brush toggle: when the teacher turns it ON we ensure
+// canvas is mounted-and-sized; turning OFF doesn't clear strokes
+// (so she can toggle to inspect the image, then back on to keep
+// drawing). The actual canvas element is always mounted while the
+// lightbox is open so we don't lose strokes on toggle.
+watch(brushActive, (on) => {
+  if (on) nextTick(syncCanvasSize)
+})
+
+// Reset annotations whenever the source image changes — same image
+// twice in a row should also clear strokes (a teacher closing &
+// reopening the lightbox expects a blank slate).
+watch(lightboxUrl, () => {
+  const canvas = annotationCanvasEl.value
+  if (canvas) {
+    const ctx = canvas.getContext('2d')
+    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+  }
+})
+
+onMounted(() => window.addEventListener('resize', onWindowResize))
+onUnmounted(() => window.removeEventListener('resize', onWindowResize))
+
+function getPointerPos(e: PointerEvent): [number, number] {
+  const canvas = annotationCanvasEl.value
+  if (!canvas) return [0, 0]
+  const rect = canvas.getBoundingClientRect()
+  return [e.clientX - rect.left, e.clientY - rect.top]
+}
+
+function onCanvasPointerDown(e: PointerEvent) {
+  if (!brushActive.value) return
+  const canvas = annotationCanvasEl.value
+  if (!canvas) return
+  // Capture the pointer so we keep getting move events even if the
+  // cursor strays outside the canvas (preventing broken-line jumps
+  // when the teacher draws towards the image edge).
+  canvas.setPointerCapture(e.pointerId)
+  const [x, y] = getPointerPos(e)
+  _drawing = true
+  _lastX = x
+  _lastY = y
+  // Single tap should leave a dot, not just sit waiting for a move.
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.beginPath()
+  ctx.arc(x, y, brushSize.value / 2, 0, Math.PI * 2)
+  ctx.fillStyle = brushColor.value
+  ctx.fill()
+  e.preventDefault()
+}
+
+function onCanvasPointerMove(e: PointerEvent) {
+  if (!_drawing || !brushActive.value) return
+  const canvas = annotationCanvasEl.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const [x, y] = getPointerPos(e)
+  ctx.strokeStyle = brushColor.value
+  ctx.lineWidth = brushSize.value
+  ctx.beginPath()
+  ctx.moveTo(_lastX, _lastY)
+  ctx.lineTo(x, y)
+  ctx.stroke()
+  _lastX = x
+  _lastY = y
+  e.preventDefault()
+}
+
+function onCanvasPointerUp(e: PointerEvent) {
+  if (!_drawing) return
+  _drawing = false
+  const canvas = annotationCanvasEl.value
+  if (canvas?.hasPointerCapture?.(e.pointerId)) {
+    canvas.releasePointerCapture(e.pointerId)
+  }
+}
+
+function clearAnnotations() {
+  const canvas = annotationCanvasEl.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+}
 </script>
+
 
 
 <template>
@@ -311,7 +486,107 @@ onUnmounted(() => document.removeEventListener('keydown', onLightboxKey, true))
       aria-modal="true"
       @click.self="closeLightbox"
     >
-      <img :src="lightboxUrl" class="p6-lightbox-img" />
+      <!-- 2026-06-08 — Image + canvas live inside a positioned
+           wrapper so the overlay canvas can be `position: absolute`
+           against the *displayed* image bounding box. `object-fit:
+           contain` on the image means the rendered area can be
+           smaller than the wrapper, so we sync the canvas's CSS
+           dimensions in JS after each load. -->
+      <div class="p6-lightbox-stage" @click.self="closeLightbox">
+        <img
+          ref="lightboxImgEl"
+          :src="lightboxUrl"
+          class="p6-lightbox-img"
+          @load="onLightboxImgLoad"
+        />
+        <canvas
+          ref="annotationCanvasEl"
+          class="p6-lightbox-canvas"
+          :class="{ 'p6-lightbox-canvas--active': brushActive }"
+          @pointerdown="onCanvasPointerDown"
+          @pointermove="onCanvasPointerMove"
+          @pointerup="onCanvasPointerUp"
+          @pointercancel="onCanvasPointerUp"
+        />
+      </div>
+
+      <!-- Annotation toolbar — pinned to the bottom of the viewport
+           so it never overlaps the close button (top-right) and is
+           always within thumb-reach on touchscreens. -->
+      <div class="p6-brush-toolbar" @click.stop>
+        <button
+          type="button"
+          class="p6-brush-toggle"
+          :class="{ 'p6-brush-toggle--on': brushActive }"
+          :title="brushActive ? '关闭画笔 / Hide brush' : '打开画笔 / Show brush'"
+          @click="brushActive = !brushActive"
+        >
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <path d="M3 17l3.5-1 9-9-2.5-2.5-9 9L3 17z"
+                  stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 5l2.5 2.5"
+                  stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round"/>
+          </svg>
+          <span>{{ brushActive ? '画笔已开' : '画笔' }}</span>
+        </button>
+
+        <!-- Color + size selectors only surface when the brush is on,
+             otherwise the toolbar stays minimal (just the toggle). -->
+        <template v-if="brushActive">
+          <div class="p6-brush-divider" />
+
+          <div class="p6-brush-colors" role="group" aria-label="颜色">
+            <button
+              v-for="c in BRUSH_COLORS"
+              :key="c"
+              type="button"
+              class="p6-brush-color"
+              :class="{ 'p6-brush-color--active': brushColor === c }"
+              :style="{ background: c }"
+              :aria-label="`Color ${c}`"
+              @click="brushColor = c"
+            />
+          </div>
+
+          <div class="p6-brush-divider" />
+
+          <div class="p6-brush-sizes" role="group" aria-label="粗细">
+            <button
+              v-for="s in BRUSH_THICKNESSES"
+              :key="s"
+              type="button"
+              class="p6-brush-size"
+              :class="{ 'p6-brush-size--active': brushSize === s }"
+              :aria-label="`Size ${s}`"
+              @click="brushSize = s"
+            >
+              <span
+                class="p6-brush-size-dot"
+                :style="{ width: s + 'px', height: s + 'px', background: brushColor }"
+              />
+            </button>
+          </div>
+
+          <div class="p6-brush-divider" />
+
+          <button
+            type="button"
+            class="p6-brush-clear"
+            title="清除全部 / Clear all"
+            @click="clearAnnotations"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 5h10M6 5V3.5A1 1 0 017 2.5h2a1 1 0 011 1V5M4.5 5l.7 8a1 1 0 001 1h3.6a1 1 0 001-1l.7-8"
+                    stroke="currentColor" stroke-width="1.4"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>清除</span>
+          </button>
+        </template>
+      </div>
+
       <button
         class="p6-lightbox-close"
         title="关闭 / Close (Esc)"
@@ -322,6 +597,7 @@ onUnmounted(() => document.removeEventListener('keydown', onLightboxKey, true))
         </svg>
       </button>
     </div>
+
   </Teleport>
 </template>
 
@@ -860,5 +1136,154 @@ onUnmounted(() => document.removeEventListener('keydown', onLightboxKey, true))
 .p6-lightbox-close:hover {
   background: rgba(239, 68, 68, 0.55);
 }
+
+/* 2026-06-08 — Annotation brush styles. Stage wraps the image so the
+   canvas can be absolutely positioned over the *rendered* image
+   bounds (after object-fit: contain), not the entire backdrop. */
+.p6-lightbox-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  cursor: default;
+}
+.p6-lightbox-canvas {
+  position: absolute;
+  /* JS sets exact width/height to match the image bounding rect.
+     pointer-events default to none so the click-outside-image area
+     can still close the lightbox — only flipped on when brush is on. */
+  pointer-events: none;
+  touch-action: none;
+}
+.p6-lightbox-canvas--active {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+/* Toolbar pinned bottom-centre. High z-index so it floats above the
+   image and click events on its children don't bubble up to the
+   backdrop's close handler. */
+.p6-brush-toolbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(20, 20, 22, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  z-index: 10001;
+  font-family: inherit;
+  color: #f9fafb;
+}
+
+.p6-brush-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #f9fafb;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.p6-brush-toggle:hover { background: rgba(255, 255, 255, 0.08); }
+.p6-brush-toggle--on {
+  background: #7FEC8F;
+  border-color: #7FEC8F;
+  color: #14532d;
+}
+.p6-brush-toggle--on:hover { background: #5fd97a; border-color: #5fd97a; }
+
+.p6-brush-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.p6-brush-colors {
+  display: inline-flex;
+  gap: 6px;
+}
+.p6-brush-color {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.15s;
+}
+.p6-brush-color:hover { transform: scale(1.12); }
+.p6-brush-color--active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(127, 236, 143, 0.65);
+}
+
+.p6-brush-sizes {
+  display: inline-flex;
+  gap: 4px;
+}
+.p6-brush-size {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.p6-brush-size:hover { background: rgba(255, 255, 255, 0.12); }
+.p6-brush-size--active {
+  border-color: #7FEC8F;
+  background: rgba(127, 236, 143, 0.18);
+}
+.p6-brush-size-dot {
+  display: inline-block;
+  border-radius: 50%;
+  /* min size so the 3px swatch is still tappable */
+  min-width: 3px;
+  min-height: 3px;
+}
+
+.p6-brush-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255, 90, 90, 0.6);
+  background: transparent;
+  color: #fecaca;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.p6-brush-clear:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  color: #fff;
+}
 </style>
+
 

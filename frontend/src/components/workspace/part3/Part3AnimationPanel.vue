@@ -16,10 +16,13 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePart3Store } from '@/stores/part3'
+import { useToastStore } from '@/stores/toast'
 // Mascot avatar — same asset already in use across the app.
 import botAvatarUrl from '@/assets/images/avatar-artbloom.png'
 
 const { t, tm, rt, locale } = useI18n()
+const toastStore = useToastStore()
+
 
 interface Message {
   role: 'assistant' | 'user'
@@ -68,6 +71,22 @@ function applySuggestion(s: string) {
 async function send() {
   const text = inputText.value.trim()
   if (!text) return
+  // 2026-06-08 — Defense-in-depth: the Part-3 button-row already
+  // soft-gates entering animation mode without a story, but the
+  // panel could still be visible (e.g. if `mode === 'animation'`
+  // was carried over from an earlier session where a story used to
+  // exist). Don't fire a generation request that ignores story
+  // context. Mirror the toast wording used in Part3Content.vue so
+  // teachers see a consistent message.
+  if (!store.storyData) {
+    toastStore.show(
+      locale.value === 'zh'
+        ? '请先生成故事，再来设计动画 ☺'
+        : 'Please generate the story first, then design the animation ☺',
+      'info',
+    )
+    return
+  }
   messages.value.push({ role: 'user', text })
   inputText.value = ''
 
@@ -78,6 +97,7 @@ async function send() {
 
   await store.generateAnimation(text)
 }
+
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
@@ -140,21 +160,39 @@ function onKeydown(e: KeyboardEvent) {
       </div>
     </div>
 
-    <!-- Input -->
+    <!-- Input.
+
+         2026-06-08 — Story-first gate. The runtime `send()` guard
+         already shows a toast if the teacher tries to design an
+         animation before the story exists, but the input still
+         *looked* enabled, which is a UX dead-end: the user types
+         a paragraph, hits send, gets a toast, has to remember what
+         she typed, navigate to the story panel, generate, and come
+         back. Disabling the textarea + swapping the placeholder to
+         "请先生成故事" makes the prerequisite obvious before any
+         typing happens, and keeps the toast as the safety-net for
+         programmatic / Enter-key edge cases. -->
     <div class="ap-input-area">
       <textarea
         v-model="inputText"
         class="ap-input"
-        :placeholder="t('part3.animationPanel.inputPlaceholder')"
+        :placeholder="
+          !store.storyData
+            ? (locale === 'zh'
+                ? '请先在左侧生成故事，再来设计动画 ☺'
+                : 'Generate the story on the left first, then design the animation ☺')
+            : t('part3.animationPanel.inputPlaceholder')
+        "
         rows="3"
-        :disabled="store.remainingAttempts <= 0 || store.animationLoading"
+        :disabled="!store.storyData || store.remainingAttempts <= 0 || store.animationLoading"
         @keydown="onKeydown"
       />
       <button
         class="ap-send-btn"
-        :disabled="!inputText.trim() || store.remainingAttempts <= 0 || store.animationLoading"
+        :disabled="!store.storyData || !inputText.trim() || store.remainingAttempts <= 0 || store.animationLoading"
         @click="send"
       >
+
         <svg viewBox="0 0 20 20" fill="none">
           <path d="M10 15V5M10 5l-4 4M10 5l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>

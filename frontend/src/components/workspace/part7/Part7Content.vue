@@ -8,11 +8,12 @@
  * Requires an LKP-anchored project — without `projectsStore.activeLessonId`
  * the page shows a clear empty state explaining why.
  */
-import { computed, watch, onMounted } from 'vue'
+import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePart7Store } from '@/stores/part7'
 import { useSlideStore } from '@/stores/slides'
 import { useProjectsStore } from '@/stores/projects'
+
 
 const store = usePart7Store()
 const slideStore = useSlideStore()
@@ -44,8 +45,34 @@ watch(
         if (id && slideStore.slides.find((s) => s.id === id)?.partId === 7) {
             store.ensurePair(id)
         }
+        // 2026-06-08 — Switching slides should also stop any
+        // currently-playing TTS. Otherwise the teacher hears a
+        // disembodied voice continuing to read the previous student's
+        // feedback while she's already looking at the next one.
+        store.stopFeedbackTTS()
     },
 )
+
+// 2026-06-08 — Also stop TTS when the teacher switches which student
+// work is active inside the same Part-7 slide. The store policy is
+// "one TTS at a time", but the play button shows per-work state so
+// without this we'd leak audio across selections.
+watch(
+    () => store.activeWork?.id,
+    () => {
+        if (store.currentTtsWorkId && store.currentTtsWorkId !== store.activeWork?.id) {
+            store.stopFeedbackTTS()
+        }
+    },
+)
+
+// 2026-06-08 — Hard stop on unmount so navigating away from Part-7
+// (e.g. via the sidebar back to Part-3) doesn't leave an orphaned
+// HTMLAudioElement reading aloud behind a closed view.
+onBeforeUnmount(() => {
+    store.stopFeedbackTTS()
+})
+
 
 const hasLesson = computed(() => !!projectsStore.activeLessonId)
 const hasWorks = computed(() => (store.activePair?.works.length ?? 0) > 0)
@@ -195,7 +222,66 @@ async function generate() {
                              仍保留，因为它是真正能传达评价覆盖度的信号。
                              `feedbackWordCount` 在 store 中仍计算，
                              以便日后做导出/统计用。 -->
+                        <!-- 2026-06-08 — Voice playback toolbar.
+                             Lives above the feedback text so it
+                             reads as a "play this paragraph" affordance
+                             rather than a free-floating control.
+                             Three button states wired to the store's
+                             tts state machine:
+                                 idle    → ▶ 朗读评语 / Read aloud
+                                 loading → ⏳ 加载中... / Loading…
+                                 playing → ⏸ 暂停 / Pause
+                             Hidden when the feedback is empty (the
+                             article wrapper already does that v-if). -->
+                        <div class="p7-feedback-toolbar">
+                            <button
+                                type="button"
+                                class="p7-tts-btn"
+                                :class="{
+                                  'p7-tts-btn--loading': store.ttsStateFor(store.activeWork.id) === 'loading',
+                                  'p7-tts-btn--playing': store.ttsStateFor(store.activeWork.id) === 'playing',
+                                }"
+                                :disabled="store.ttsStateFor(store.activeWork.id) === 'loading'"
+                                @click="store.playFeedbackTTS(
+                                    store.activeWork.id,
+                                    store.activeWork.feedbackText,
+                                )"
+                            >
+                                <!-- Play (idle) -->
+                                <svg
+                                    v-if="store.ttsStateFor(store.activeWork.id) === 'idle'"
+                                    viewBox="0 0 20 20" fill="none" class="p7-tts-icon"
+                                >
+                                    <path d="M6 4.5L15 10L6 15.5V4.5Z" fill="currentColor"/>
+                                </svg>
+                                <!-- Loading spinner -->
+                                <span
+                                    v-else-if="store.ttsStateFor(store.activeWork.id) === 'loading'"
+                                    class="p7-tts-spinner"
+                                />
+                                <!-- Pause (playing) -->
+                                <svg
+                                    v-else
+                                    viewBox="0 0 20 20" fill="none" class="p7-tts-icon"
+                                >
+                                    <rect x="5" y="4" width="3.5" height="12" rx="1" fill="currentColor"/>
+                                    <rect x="11.5" y="4" width="3.5" height="12" rx="1" fill="currentColor"/>
+                                </svg>
+                                <span class="p7-tts-label">
+                                    <template v-if="store.ttsStateFor(store.activeWork.id) === 'idle'">
+                                        {{ locale === 'zh' ? '朗读评语' : 'Read aloud' }}
+                                    </template>
+                                    <template v-else-if="store.ttsStateFor(store.activeWork.id) === 'loading'">
+                                        {{ locale === 'zh' ? '加载中…' : 'Loading…' }}
+                                    </template>
+                                    <template v-else>
+                                        {{ locale === 'zh' ? '暂停' : 'Pause' }}
+                                    </template>
+                                </span>
+                            </button>
+                        </div>
                         <p class="p7-feedback-body">{{ store.activeWork.feedbackText }}</p>
+
                         <footer v-if="store.activeWork.feedbackDimensions.length">
                             <span class="p7-dim-label">{{ t('part7.dimensionsCovered') }}</span>
                             <span
@@ -405,4 +491,68 @@ async function generate() {
     .p7 { grid-template-columns: 1fr; }
     .p7-left { border-right: none; border-bottom: 1px solid #e5e7eb; max-height: 40vh; }
 }
+
+/* 2026-06-08 — TTS playback toolbar inside the feedback card.
+   Positioned above the feedback body, right-aligned so it doesn't
+   compete with the text for the teacher's reading-flow attention.
+   Pill button with the brand green colour scheme; spinner reuses
+   the same animation as `.p7-* spinners` elsewhere. */
+.p7-feedback-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: -4px 0 -4px;
+}
+.p7-tts-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px 0 10px;
+    border-radius: 999px;
+    border: 1.5px solid #B2F4BC;
+    background: #f0fdf4;
+    color: #14532d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.p7-tts-btn:hover:not(:disabled) {
+    background: #d1fae5;
+    border-color: #7FEC8F;
+}
+.p7-tts-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+.p7-tts-btn:disabled {
+    opacity: 0.7;
+    cursor: progress;
+}
+.p7-tts-btn--playing {
+    background: #7FEC8F;
+    border-color: #7FEC8F;
+    color: #14532d;
+}
+.p7-tts-btn--playing:hover:not(:disabled) {
+    background: #5fd97a;
+    border-color: #5fd97a;
+}
+.p7-tts-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+.p7-tts-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(20, 83, 45, 0.25);
+    border-top-color: #14532d;
+    border-radius: 50%;
+    animation: p7-tts-spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes p7-tts-spin { to { transform: rotate(360deg); } }
+.p7-tts-label { line-height: 1; }
 </style>
+

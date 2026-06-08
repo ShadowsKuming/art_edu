@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { usePart3Store } from '@/stores/part3'
 import { useSlideStore } from '@/stores/slides'
+import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
 
 defineProps<{ mode: 'story' | 'animation' }>()
@@ -9,7 +10,9 @@ const emit = defineEmits<{ 'update:mode': [mode: 'story' | 'animation'] }>()
 
 const store = usePart3Store()
 const slideStore = useSlideStore()
+const toastStore = useToastStore()
 const { t, locale } = useI18n()
+
 
 const selectedVersionIdx = ref<number | null>(null)
 
@@ -47,9 +50,35 @@ async function onStoryClick() {
 }
 
 async function onAnimationClick() {
+  // 2026-06-08 — Soft gate: animation generation only makes sense
+  // once we have a story to ground it in. Previously the button was
+  // hard-`disabled` whenever `!hasStory`, but a disabled button gives
+  // the teacher zero feedback (she clicks, nothing happens, no idea
+  // why). Pilot feedback from BLOOM-2026-B explicitly called this
+  // out as "顺序混乱" because she could *also* tab into the animation
+  // panel before generating a story, get a random animation, then
+  // wonder why it didn't match her story later. We now:
+  //   • leave the button clickable when no story exists,
+  //   • on click, surface a toast explaining the order,
+  //   • do NOT switch mode (would put the teacher on a useless,
+  //     greyed-out animation panel),
+  //   • do NOT consume an animation attempt.
+  // Viewing existing animations (hasAnim === true) is always allowed
+  // even if storyData was somehow cleared — the older animations are
+  // still legitimate artefacts of an earlier story.
+  if (!hasAnim.value && !hasStory.value) {
+    toastStore.show(
+      locale.value === 'zh'
+        ? '请先生成故事，再来设计动画 ☺'
+        : 'Please generate the story first, then design the animation ☺',
+      'info',
+    )
+    return
+  }
   emit('update:mode', 'animation')
   if (!hasAnim.value) await store.generateAnimation()
 }
+
 
 // 2026-05-28: `saveAndNext()` retired together with the footer
 // "保存" / "下一部分" buttons. Teachers now jump between Parts via
@@ -120,10 +149,19 @@ async function onAnimationClick() {
             <span v-else>{{ t('part3.generateStory') }}</span>
           </button>
 
+          <!-- 2026-06-08 — Removed `!hasStory` from the disabled
+               clause so the button stays clickable (handler shows a
+               toast). The `p3-mode-btn--locked` modifier dims the
+               button visually so the gating is still discoverable
+               without surprising the teacher. -->
           <button
             class="p3-mode-btn"
-            :class="{ 'p3-mode-btn--active': mode === 'animation' }"
-            :disabled="!store.imageDataUrl || !hasStory || (!hasAnim && (store.remainingAttempts <= 0 || store.animationLoading))"
+            :class="{
+              'p3-mode-btn--active': mode === 'animation',
+              'p3-mode-btn--locked': !hasAnim && !hasStory && !!store.imageDataUrl,
+            }"
+            :disabled="!store.imageDataUrl || (!hasAnim && (store.remainingAttempts <= 0 || store.animationLoading))"
+            :title="!hasAnim && !hasStory ? (locale === 'zh' ? '请先生成故事，再来设计动画' : 'Generate story first') : ''"
             @click="onAnimationClick"
           >
             <svg viewBox="0 0 20 20" fill="none" class="p3-btn-icon">
@@ -133,7 +171,17 @@ async function onAnimationClick() {
             <span v-if="store.animationLoading">{{ t('part3.generating') }}</span>
             <span v-else-if="hasAnim">{{ t('part3.animation') }}</span>
             <span v-else>{{ t('part3.generateAnimation') }}</span>
+            <!-- Subtle 🔒 hint visible only in the locked state so the
+                 teacher sees there's a precondition before clicking.
+                 SVG lock icon keeps the row visually balanced with
+                 the existing video-frame icon. -->
+            <svg v-if="!hasAnim && !hasStory && !!store.imageDataUrl"
+                 viewBox="0 0 16 16" fill="none" class="p3-btn-lock">
+              <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
           </button>
+
         </div>
 
         <!-- Errors -->
@@ -269,7 +317,32 @@ async function onAnimationClick() {
 .p3-mode-btn:hover:not(:disabled) { border-color: #7FEC8F; }
 .p3-mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .p3-mode-btn--active { background: #7FEC8F; border-color: #7FEC8F; color: #000; }
+
+/* 2026-06-08 — Soft-locked variant for the 「生成动画」button when
+   the story for this artwork hasn't been generated yet. Visually
+   dimmer than a regular enabled button but a touch brighter than
+   a disabled one, with `cursor: help` so the teacher senses there's
+   an explanation if she clicks (which she'll then see in the toast). */
+.p3-mode-btn--locked {
+  opacity: 0.55;
+  cursor: help;
+  border-style: dashed;
+  border-color: #d1d5db;
+  background: #fafafa;
+  color: #6b7280;
+}
+.p3-mode-btn--locked:hover:not(:disabled) {
+  border-color: #fbbf24;
+  background: #fffbeb;
+  opacity: 0.75;
+}
+.p3-btn-lock {
+  width: 13px; height: 13px; margin-left: 2px;
+  color: #9ca3af;
+}
+
 .p3-btn-icon { width: 16px; height: 16px; }
+
 
 .p3-error {
   margin: 0; font-size: 12px; color: #dc2626;

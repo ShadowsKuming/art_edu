@@ -113,9 +113,144 @@ function makeWork(dataUrl: string): StudentWork {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// 2026-06-08 — Feedback voice playback (Task 2 of the §29 batch).
+//
+// We reuse the existing `/api/tts` endpoint (the same one Part-3 uses
+// for narrating the story) so no new backend work is needed. The
+// audio element is module-scoped — at most one feedback plays at a
+// time across the entire app, which is the correct UX (the teacher
+// would never want two TTS streams overlapping).
+//
+// State machine per work:
+//     idle  ──[play btn]──▶ loading ──[blob ready]──▶ playing
+//      ▲                                                  │
+//      └──[pause btn / blob fail / switch work]───────────┘
+//
+// `currentTtsWorkId` tracks which work owns the audio element right
+// now so the UI can render distinct button states for the active
+// vs. inactive feedback cards (e.g. when teacher is multi-tasking
+// across student works).
+// ─────────────────────────────────────────────────────────────────────
+type TtsState = 'idle' | 'loading' | 'playing'
+
+let _audioEl: HTMLAudioElement | null = null
+let _audioObjectUrl: string | null = null
+
+function _releaseAudio() {
+    if (_audioEl) {
+        _audioEl.pause()
+        _audioEl.src = ''
+        _audioEl = null
+    }
+    if (_audioObjectUrl) {
+        URL.revokeObjectURL(_audioObjectUrl)
+        _audioObjectUrl = null
+    }
+}
+
 export const usePart7Store = defineStore('part7', () => {
     const pairs = ref<Part7Pair[]>([])
     const activePairId = ref<string | null>(null)
+
+    // Per-work TTS state. Kept *outside* the StudentWork struct on
+    // purpose so it never gets serialised into the snapshot — TTS
+    // is purely a runtime UI affordance, not part of the saved
+    // lesson. Keyed by `work.id`.
+    const ttsStates = ref<Record<string, TtsState>>({})
+    const currentTtsWorkId = ref<string | null>(null)
+
+    function ttsStateFor(workId: string): TtsState {
+        return ttsStates.value[workId] ?? 'idle'
+    }
+
+    /**
+     * Stop whatever TTS is currently playing and reset its work's
+     * state to 'idle'. Safe to call when nothing is playing.
+     * Called when:
+     *   • teacher clicks pause on the playing work,
+     *   • teacher switches to a different work / re-generates feedback,
+     *   • audio element fires `ended`,
+     *   • project is unloaded.
+     */
+    function stopFeedbackTTS() {
+        if (currentTtsWorkId.value) {
+            ttsStates.value[currentTtsWorkId.value] = 'idle'
+        }
+        currentTtsWorkId.value = null
+        _releaseAudio()
+    }
+
+    /**
+     * Play (or toggle pause) the feedback text for one student work.
+     *
+     * Behaviour:
+     *   • If this work is already 'playing' → pause (back to 'idle').
+     *   • If a *different* work is currently playing → stop it first,
+     *     then start this one (one-at-a-time policy).
+     *   • If this work is 'loading' → no-op (request already in flight).
+     *   • Otherwise → POST /api/tts, build an audio element, play.
+     *
+     * The default voice is `zh-CN-XiaoxiaoNeural` (warm female) which
+     * matches the Part-3 story narrator default; we'll add a voice
+     * picker only if pilot teachers ask for one. EN text falls back to
+     * the same voice — Edge-TTS gracefully handles latin input even
+     * with a CN voice id (read with a CN accent, which is fine for the
+     * occasional EN demo).
+     */
+    async function playFeedbackTTS(
+        workId: string,
+        text: string,
+        voiceId: string = 'zh-CN-XiaoxiaoNeural',
+    ) {
+        const cur = ttsStateFor(workId)
+        if (cur === 'loading') return
+        if (cur === 'playing') {
+            // Toggle pause = stop entirely. We don't preserve playback
+            // position because re-clicking play should restart the
+            // narration from the top — that's what a teacher would
+            // expect after the class has been talking over the
+            // previous line.
+            stopFeedbackTTS()
+            return
+        }
+        // Different work playing? Stop it first.
+        if (currentTtsWorkId.value && currentTtsWorkId.value !== workId) {
+            stopFeedbackTTS()
+        }
+        ttsStates.value[workId] = 'loading'
+        currentTtsWorkId.value = workId
+        try {
+            const res = await fetch(`${API_BASE}/api/tts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, voice_id: voiceId }),
+            })
+            if (!res.ok) throw new Error(`TTS ${res.status}`)
+            const blob = await res.blob()
+            // If the user clicked pause / switched works during the
+            // fetch, the state will have already been reset by
+            // `stopFeedbackTTS()`. Abort instead of starting a stale
+            // playback.
+            if (currentTtsWorkId.value !== workId) {
+                return
+            }
+            _audioObjectUrl = URL.createObjectURL(blob)
+            _audioEl = new Audio(_audioObjectUrl)
+            _audioEl.onended = () => stopFeedbackTTS()
+            _audioEl.onerror = () => stopFeedbackTTS()
+            await _audioEl.play()
+            ttsStates.value[workId] = 'playing'
+        } catch (err) {
+            console.error('[part7] TTS playback failed', err)
+            // Reset cleanly so the button returns to 'idle' and the
+            // teacher can retry. No toast — TTS is a non-essential
+            // affordance; bothering the teacher with an error toast
+            // every time would be louder than the value.
+            stopFeedbackTTS()
+        }
+    }
+
 
     const activePair = computed(
         () => pairs.value.find((p) => p.id === activePairId.value) ?? null,
@@ -279,5 +414,14 @@ export const usePart7Store = defineStore('part7', () => {
         getSnapshot,
         loadSnapshot,
         reset,
+        // 2026-06-08 — TTS playback for AI feedback. `ttsStateFor()` is
+        // exposed (not the raw map) so the template can ask "what state
+        // is this work's button in?" without reaching into the
+        // implementation detail.
+        ttsStateFor,
+        currentTtsWorkId,
+        playFeedbackTTS,
+        stopFeedbackTTS,
     }
+
 })
