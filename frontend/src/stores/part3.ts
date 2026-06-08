@@ -79,6 +79,15 @@ export interface DesignChatMessage {
 }
 
 
+/** Per-artwork "creative assistant" chat turn for the Part-3
+ *  Animation Panel. Kept separate from `DesignChatMessage` (which
+ *  belongs to the Story Panel) because the two surfaces have very
+ *  different lifecycles and message shapes. */
+export interface AnimationChatMessage {
+  role: 'user' | 'assistant'
+  text: string
+}
+
 /** Persistent story/animation state saved per artwork when the user switches away. */
 export interface SavedArtworkState {
   storyData: StoryData | null
@@ -88,7 +97,15 @@ export interface SavedArtworkState {
   selectedChoiceId: number | null
   generatedContinuations: Record<number, string>
   designChatMessages: DesignChatMessage[]
+  /** 2026-06-08 — Per-artwork Animation-Panel chat history. Saved
+   *  so each artwork's "创意助手" conversation stays independent
+   *  (point 1 of the cross-artwork-isolation fix): switching from
+   *  artwork-1 to artwork-2 must NOT leak messages between them.
+   *  Optional for backward-compat with snapshots that pre-date
+   *  this field. */
+  animationChatMessages?: AnimationChatMessage[]
 }
+
 
 export interface Part3Pair {
   id: string   // = slide ID
@@ -123,6 +140,11 @@ export interface Part3Pair {
   designChatMessages: DesignChatMessage[]
   designChatLoading: boolean
   designChatError: string | null
+  /** 2026-06-08 — Per-artwork Animation-Panel chat (right column).
+   *  Same lifecycle as designChatMessages: snapshotted into
+   *  artworkStates on switch, restored on switch-back, so each
+   *  artwork keeps its own 创意助手 conversation history. */
+  animationChatMessages: AnimationChatMessage[]
 }
 
 
@@ -140,8 +162,10 @@ function makePair(id: string): Part3Pair {
     selectedChoiceId: null, generatedContinuations: {},
     continuationLoading: false, continuationError: null, continuationStreamText: '',
     designChatMessages: [], designChatLoading: false, designChatError: null,
+    animationChatMessages: [],
   }
 }
+
 
 /**
  * Fetch an image at `url` (a same-origin or CORS-enabled URL served
@@ -281,10 +305,39 @@ export const usePart3Store = defineStore('part3', () => {
   // Flat computed getters — panels read these unchanged
   const imageDataUrl = computed(() => activePair.value?.imageDataUrl ?? null)
   const storyData = computed(() => activePair.value?.storyData ?? null)
-  const storyLoading = computed(() => activePair.value?.storyLoading ?? false)
+  // 2026-06-08 — `storyLoading` / `animationLoading` are now
+  // derived from the *global lock* + active artwork instead of
+  // the per-pair `pair.storyLoading` flag. This guarantees that
+  // when the teacher switches away from the artwork that's mid-
+  // generation and then comes back, the button still reads
+  // "生成中..." because the lock is still held — even though
+  // `_restoreArtworkState()` doesn't (and shouldn't) restore a
+  // transient loading bit. The owner-pair / owner-artworkKey
+  // match below makes this *artwork-scoped*, not pair-scoped:
+  // switching to a different artwork in the same pair counts as
+  // "not the owner" and the button reads idle (and is disabled
+  // by `busyByOther` in the component layer).
+  const storyLoading = computed(() => {
+    const pair = activePair.value
+    if (!pair) return false
+    return (
+      _genLock.value?.kind === 'story'
+      && _genLock.value?.pairId === pair.id
+      && _genLock.value?.artworkKey === pair.activeArtworkKey
+    )
+  })
   const storyError = computed(() => activePair.value?.storyError ?? null)
   const animationVersions = computed(() => activePair.value?.animationVersions ?? [])
-  const animationLoading = computed(() => activePair.value?.animationLoading ?? false)
+  const animationLoading = computed(() => {
+    const pair = activePair.value
+    if (!pair) return false
+    return (
+      _genLock.value?.kind === 'animation'
+      && _genLock.value?.pairId === pair.id
+      && _genLock.value?.artworkKey === pair.activeArtworkKey
+    )
+  })
+
   const animationError = computed(() => activePair.value?.animationError ?? null)
   const remainingAttempts = computed(() => activePair.value?.remainingAttempts ?? 0)
   const chosenVideoUrl = computed(() => activePair.value?.chosenVideoUrl ?? null)
@@ -296,6 +349,16 @@ export const usePart3Store = defineStore('part3', () => {
   const designChatMessages = computed(() => activePair.value?.designChatMessages ?? [])
   const designChatLoading = computed(() => activePair.value?.designChatLoading ?? false)
   const designChatError = computed(() => activePair.value?.designChatError ?? null)
+
+  // 2026-06-08 — Per-artwork Animation Panel chat messages.
+  // Surfaced as a flat computed so the right-side "创意助手" panel
+  // can read/write through the store rather than holding component-
+  // local state (which used to leak across artwork switches → the
+  // "串台" bug pilot teachers reported).
+  const animationChatMessages = computed(
+    () => activePair.value?.animationChatMessages ?? [],
+  )
+
   const activeContinuation = computed(() => {
     const pair = activePair.value
     if (!pair) return null
@@ -354,17 +417,28 @@ export const usePart3Store = defineStore('part3', () => {
       selectedChoiceId: pair.selectedChoiceId,
       generatedContinuations: { ...pair.generatedContinuations },
       designChatMessages: pair.designChatMessages.map(m => ({ ...m })),
+      // 2026-06-08 — Persist per-artwork Animation Panel chat too, so
+      // switching between artworks keeps each conversation independent.
+      animationChatMessages: pair.animationChatMessages.map(m => ({ ...m })),
     }
   }
 
   /** Restore saved story/animation state for a key, or start fresh if first visit. */
   function _restoreArtworkState(pair: Part3Pair, key: string) {
     pair.activeArtworkKey = key
-    // Always reset transient loading states
-    pair.storyLoading = false
+    // 2026-06-08 — Loading-flag reset removed: the global generation
+    // lock (`_genLock`) is now the single source of truth for
+    // "is this artwork generating?". We no longer zero the per-pair
+    // `*Loading` flags here, because the lock-derived computed
+    // (`myStoryLoading(p, k)` / `myAnimationLoading(p, k)`) already
+    // returns the correct value regardless. Resetting them was the
+    // root cause of the "button shows 生成中… on artwork-1 but then
+    // looks idle when teacher comes back" bug from the pilot.
+    //
+    // Still reset purely-transient streaming text — that's a UI hint
+    // that doesn't carry information once we leave the view.
     pair.storyError = null
     pair.storyStreamText = ''
-    pair.animationLoading = false
     pair.animationError = null
     pair.continuationLoading = false
     pair.continuationError = null
@@ -380,6 +454,7 @@ export const usePart3Store = defineStore('part3', () => {
       pair.selectedChoiceId = saved.selectedChoiceId
       pair.generatedContinuations = saved.generatedContinuations
       pair.designChatMessages = saved.designChatMessages ?? []
+      pair.animationChatMessages = saved.animationChatMessages ?? []
     } else {
       pair.storyData = null
       pair.animationVersions = []
@@ -388,8 +463,10 @@ export const usePart3Store = defineStore('part3', () => {
       pair.selectedChoiceId = null
       pair.generatedContinuations = {}
       pair.designChatMessages = []
+      pair.animationChatMessages = []
     }
   }
+
 
   function addUploadedArtwork(dataUrl: string) {
     const pair = activePair.value
@@ -1080,6 +1157,10 @@ export const usePart3Store = defineStore('part3', () => {
         selectedChoiceId: p.selectedChoiceId,
         generatedContinuations: p.generatedContinuations,
         designChatMessages: p.designChatMessages,
+        // 2026-06-08 — Persist the per-artwork Animation Panel chat
+        // across reload/sync, otherwise the conversation evaporates
+        // every time the teacher reopens the project.
+        animationChatMessages: p.animationChatMessages,
       })),
     }
   }
@@ -1103,9 +1184,14 @@ export const usePart3Store = defineStore('part3', () => {
       selectedChoiceId: p.selectedChoiceId ?? null,
       generatedContinuations: p.generatedContinuations ?? {},
       designChatMessages: p.designChatMessages ?? [],
+      // 2026-06-08 — Restore per-artwork Animation Panel chat too.
+      // Missing in older snapshots → falls back to an empty list so
+      // the panel seeds a fresh greeting on next visit.
+      animationChatMessages: p.animationChatMessages ?? [],
     }))
     activePairId.value = snap.activePairId ?? null
   }
+
 
   /**
    * 2026-05-29 — Teacher-driven manual edits to the generated story.
@@ -1148,6 +1234,51 @@ export const usePart3Store = defineStore('part3', () => {
     }
   }
 
+  // ── Animation Panel chat helpers (2026-06-08) ───────────────────
+  //
+  // The right-side "创意助手" panel used to keep its `messages` array
+  // in component-local state, which meant switching artworks left the
+  // previous artwork's chat visible against the new artwork's image
+  // ("串台"). Move the messages into per-artwork pair state so each
+  // chat history stays attached to the artwork it was authored for.
+  //
+  // Components call `appendAnimationChat()` to add a turn and
+  // `seedAnimationGreeting()` to lazily plant the first assistant
+  // greeting when an artwork's chat list is empty (the panel does
+  // this on first visit so the greeting is locale-aware).
+
+  function appendAnimationChat(role: 'user' | 'assistant', text: string) {
+    const pair = activePair.value
+    if (!pair) return
+    pair.animationChatMessages.push({ role, text })
+  }
+
+  /** Seed the first assistant greeting if and only if the active
+   *  artwork's chat list is empty. No-op otherwise so re-visits don't
+   *  duplicate the greeting. Returns true when a greeting was added. */
+  function seedAnimationGreeting(greetingText: string): boolean {
+    const pair = activePair.value
+    if (!pair) return false
+    if (pair.animationChatMessages.length === 0) {
+      pair.animationChatMessages.push({ role: 'assistant', text: greetingText })
+      return true
+    }
+    return false
+  }
+
+  /** Replace the first assistant message's text (used by locale-flip
+   *  re-rendering of the seeded greeting). No-op if the first message
+   *  isn't an assistant turn (i.e. the teacher has already replied). */
+  function setAnimationGreetingIfFirst(greetingText: string) {
+    const pair = activePair.value
+    if (!pair) return
+    const first = pair.animationChatMessages[0]
+    if (first && first.role === 'assistant') {
+      first.text = greetingText
+    }
+  }
+
+
   /**
    * 2026-05-29 — Wipe Part-3 state back to factory defaults so the
 
@@ -1183,6 +1314,13 @@ export const usePart3Store = defineStore('part3', () => {
     // "some *other* artwork is generating" (disable + tooltip).
     isAnyGenerating, generatingKind,
     generatingOwnerPairId, generatingOwnerArtworkKey,
+    // 2026-06-08 — Per-artwork Animation Panel chat surface.
+    // `animationChatMessages` is a read-only computed of the active
+    // pair's per-artwork message list; the three helpers below are
+    // the only legitimate mutators (component code MUST NOT push
+    // directly to keep the snapshot/restore round-trip clean).
+    animationChatMessages,
+    appendAnimationChat, seedAnimationGreeting, setAnimationGreetingIfFirst,
     ensurePair, removePair, setArtworkFromUrl,
     addUploadedArtwork, selectUploadedArtwork, removeUploadedArtwork,
     generateStory, generateAnimation, saveChosenVideo, generateContinuation,
@@ -1191,5 +1329,6 @@ export const usePart3Store = defineStore('part3', () => {
     getSnapshot, loadSnapshot, reset,
   }
 })
+
 
 

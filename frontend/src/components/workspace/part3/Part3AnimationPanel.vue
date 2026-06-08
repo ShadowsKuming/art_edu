@@ -24,11 +24,6 @@ const { t, tm, rt, locale } = useI18n()
 const toastStore = useToastStore()
 
 
-interface Message {
-  role: 'assistant' | 'user'
-  text: string
-}
-
 const store     = usePart3Store()
 const inputText = ref('')
 
@@ -42,12 +37,25 @@ const suggestions = computed<string[]>(() => {
   return Array.isArray(raw) ? raw.map((entry) => rt(entry as string)) : []
 })
 
-const messages = ref<Message[]>([
-  {
-    role: 'assistant',
-    text: t('part3.animationPanel.greeting'),
+// 2026-06-08 — Messages now live in the store, keyed by the active
+// artwork (`pair.animationChatMessages` → restored on switch). The
+// panel just renders the store's computed list; mutations go through
+// `appendAnimationChat` / `seedAnimationGreeting`. This kills the
+// "串台" bug where switching from artwork-1 to artwork-2 used to show
+// artwork-1's chat against artwork-2's image.
+const messages = computed(() => store.animationChatMessages)
+
+// Seed the first greeting on every artwork switch where the chat is
+// still empty. `seedAnimationGreeting()` is a no-op if non-empty, so
+// repeat visits don't duplicate the greeting. `immediate` makes sure
+// the very first mount (no prior watcher tick yet) also seeds.
+watch(
+  () => store.activePair?.activeArtworkKey,
+  () => {
+    store.seedAnimationGreeting(t('part3.animationPanel.greeting'))
   },
-])
+  { immediate: true },
+)
 
 /**
  * When the locale flips, refresh the *seeded* assistant greeting so
@@ -56,13 +64,9 @@ const messages = ref<Message[]>([
  * remain in whatever language they were generated in.
  */
 watch(locale, () => {
-  if (messages.value.length > 0 && messages.value[0].role === 'assistant') {
-    messages.value[0] = {
-      role: 'assistant',
-      text: t('part3.animationPanel.greeting'),
-    }
-  }
+  store.setAnimationGreetingIfFirst(t('part3.animationPanel.greeting'))
 })
+
 
 function applySuggestion(s: string) {
   inputText.value = s
@@ -100,17 +104,22 @@ async function send() {
     )
     return
   }
-  messages.value.push({ role: 'user', text })
+  // 2026-06-08 — Push through the store (per-artwork list) instead
+  // of a local ref. `appendAnimationChat` no-ops if there's no
+  // active pair, which guards against the rare edge case of the
+  // panel being visible during an artwork-switch race.
+  store.appendAnimationChat('user', text)
 
   inputText.value = ''
 
-  messages.value.push({
-    role: 'assistant',
-    text: t('part3.animationPanel.acknowledge', { prompt: text }),
-  })
+  store.appendAnimationChat(
+    'assistant',
+    t('part3.animationPanel.acknowledge', { prompt: text }),
+  )
 
   await store.generateAnimation(text)
 }
+
 
 
 function onKeydown(e: KeyboardEvent) {

@@ -204,7 +204,23 @@ const busyTooltip = computed(() =>
             <span v-if="store.storyLoading">{{ t('part3.generating') }}</span>
             <span v-else-if="hasStory">{{ t('part3.story') }}</span>
             <span v-else>{{ t('part3.generateStory') }}</span>
+            <!-- 2026-06-08 — Bright-green ✓ once a story exists for
+                 this artwork. Anchored to the right edge of the
+                 button so it reads as a status badge, not part of
+                 the label. Hidden during generation (the spinner
+                 wording already conveys "in flight"). -->
+            <svg
+              v-if="hasStory && !store.storyLoading"
+              viewBox="0 0 16 16" fill="none" class="p3-btn-check"
+              aria-label="已完成 / Done"
+            >
+              <circle cx="8" cy="8" r="7" fill="#22c55e"/>
+              <path d="M4.5 8.2l2.4 2.4L11.5 6"
+                    stroke="#fff" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </button>
+
 
           <!-- 2026-06-08 — Removed `!hasStory` from the disabled
                clause so the button stays clickable (handler shows a
@@ -250,7 +266,21 @@ const busyTooltip = computed(() =>
               <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
               <path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.5"/>
             </svg>
+            <!-- 2026-06-08 — Matching ✓ badge once at least one
+                 animation has been generated. Same shape and colour
+                 as the story-button badge for visual consistency. -->
+            <svg
+              v-if="hasAnim && !store.animationLoading"
+              viewBox="0 0 16 16" fill="none" class="p3-btn-check"
+              aria-label="已完成 / Done"
+            >
+              <circle cx="8" cy="8" r="7" fill="#22c55e"/>
+              <path d="M4.5 8.2l2.4 2.4L11.5 6"
+                    stroke="#fff" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </button>
+
 
         </div>
 
@@ -411,7 +441,19 @@ const busyTooltip = computed(() =>
   color: #9ca3af;
 }
 
+/* 2026-06-08 — Green ✓ status badge appended to "生成故事" /
+   「生成动画」buttons once that artwork has the corresponding
+   artefact. Same dimensions as the lock badge for visual rhythm,
+   and a small inset shadow so it pops on both the white idle
+   background and the active green button background. */
+.p3-btn-check {
+  width: 14px; height: 14px; margin-left: 4px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+}
+
 .p3-btn-icon { width: 16px; height: 16px; }
+
 
 
 .p3-error {
