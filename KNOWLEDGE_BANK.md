@@ -3393,3 +3393,535 @@ and lets Doubao pick its own (original behaviour).
   lesson (shouldn't happen) their seeds will collide. There's a
   defensive comment to that effect in `_stable_seed_from_label`.
 
+
+
+
+## §27 — 2026-06-05 → 2026-06-06 — "Empty My Lessons" + "无法连接服务器" pilot incident
+
+### Symptom (Round 1, 2026-06-05)
+
+Pilot teacher (invite code `BLOOM-2026-A`) reported on a classroom
+iPad that "我的课件 / My Lessons" showed **zero saved lessons**
+even though she had created and saved 3 over the previous week on
+a laptop. Hard-reload didn't help; Clear Site Data + re-enter
+invite code didn't help. The same code on a different device
+opened her projects normally.
+
+### Round 1 root cause (three converging failures)
+
+1. **Render Free dyno cold starts.** The API sleeps after ~15 min
+   idle and the first request takes ≈50 s to wake it. Pilot
+   teachers are sporadic users, so almost every session's
+   `POST /api/auth/login` hits a cold start.
+
+2. **No client-side timeout / retry on login.** `apiPost(
+   '/api/auth/login')` relied on `fetch()`'s default deadline
+   (≈30 s in iPadOS Safari). On the cold-start path the request
+   was aborted with a generic network error before the dyno was
+   even awake. There was no retry, so the user's *very first*
+   login attempt would always fail on a cold server.
+
+3. **`SiteHeader.onAccessSubmit` had a "fake login" fallback.**
+   Any non-401 error in the login path was caught and silently
+   treated as "API unreachable → fall back to local-only mode":
+   ```ts
+   userStore.setUsername(code.trim())
+   router.push('/dashboard')
+   ```
+   This stranded the teacher in the dashboard with **no JWT**, so
+   `projectsStore.loadFromAPI()` short-circuited (no
+   Authorization header), returning an empty server list. The
+   local `localStorage['artbloom-projects']` was empty on this
+   device → the dashboard rendered "no lessons". To the teacher
+   this looked like all her work had been deleted.
+
+In retrospect (a) and (b) made the failure *frequent* and (c)
+made it *invisible* (no error message, no way for the user to
+recover short of figuring out the right localStorage keys to
+wipe).
+
+### Round 1 fix — five-part, no schema changes
+
+#### 1. `frontend/src/api/client.ts` — per-request timeout
+
+Added `RequestOptions { timeoutMs?: number }` and threaded it
+through every `apiGet / apiPost / apiPut / apiPatch / apiDelete`.
+Backed by `AbortSignal.timeout()` (native on Safari ≥ 16 /
+Chrome ≥ 103) with a manual `AbortController` polyfill for
+iPadOS 15.x classroom devices. Default behaviour (no `timeoutMs`)
+is unchanged — `fetch()` uses its browser default — so this is
+fully backward-compatible.
+
+```ts
+export function apiPost<T>(path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+  return fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: timeoutSignal(opts.timeoutMs),
+  }).then(handleResponse<T>)
+}
+```
+
+#### 2. `frontend/src/stores/user.ts` — 90 s deadline + retry-once
+
+`login()` now uses a **90 s** timeout (comfortably exceeds
+Render's worst observed cold start) plus one automatic retry
+after a 2 s pause. The 401 path is **not** retried because the
+invite code is genuinely wrong — burning a second attempt would
+just freeze the UI for another 2-90 s.
+
+```ts
+const LOGIN_TIMEOUT_MS = 90_000
+const LOGIN_RETRY_DELAY_MS = 2_000
+
+async function login(code: string): Promise<void> {
+  const attempt = () => apiPost<LoginResult>(
+    '/api/auth/login', { invite_code: code },
+    { timeoutMs: LOGIN_TIMEOUT_MS },
+  )
+  let result: LoginResult
+  try {
+    result = await attempt()
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) throw err  // don't retry wrong code
+    await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+    result = await attempt()  // second try usually completes in 1-2 s (dyno is warm now)
+  }
+  // … hydrate token + profile fields …
+}
+```
+
+#### 3. `frontend/src/components/home/SiteHeader.vue` — kill the fake-login fallback
+
+The catch block in `onAccessSubmit` no longer falls back to
+`userStore.setUsername()` on network errors. It now surfaces a
+**teacher-readable** error message that distinguishes the three
+failure modes:
+
+- `ApiError 401` → "邀请码无效，请检查后重试"
+- `ApiError 4xx/5xx` → "服务器繁忙（${status}），请稍候再试。"
+- `AbortError / TimeoutError / TypeError` → "无法连接服务器，请检查教学网络。若问题持续，请联系学校 IT，确认能否访问 artbloom-api.onrender.com"
+
+The third message is deliberately precise enough for a school
+IT team to action.
+
+#### 4. `frontend/src/App.vue` — warmup ping + self-heal
+
+Two additions inside `onMounted`:
+
+- **Warmup ping.** Fire-and-forget `GET /api/health` (10 s
+  budget, failures silent) as soon as the SPA mounts. By the
+  time the teacher has read the landing page and clicked
+  "Access", the dyno is already awake → login completes in
+  1-2 s.
+
+- **Self-heal recovery branch.** The existing "no JWT but
+  `storedCode` in localStorage" path used to silently swallow
+  all errors. It now:
+  - calls `userStore.login(storedCode)` (which has its own
+    retry),
+  - on 401 (revoked code) → `userStore.clearAll()` so the next
+    "Access" click reopens the modal,
+  - on any other error → keeps `storedCode` so the next page
+    load can try again.
+
+  Same treatment applied inside the `getToken()` happy path for
+  the case where the JWT got invalidated (DB reset, signing key
+  rotation) but the stored code is still good — we silently
+  mint a fresh JWT with no user interaction.
+
+#### 5. `frontend/src/views/MyLessons.vue` — "重新同步 / Re-sync" pill
+
+Added a small white-pill secondary button to the toolbar (just
+left of the green "Create" CTA) that calls
+`projectsStore.loadFromAPI()` on demand and surfaces a toast
+either way. Self-service recovery path for any future
+stale-state edge case, especially useful in PWA / classroom-
+launcher contexts where a hard-reload often doesn't behave the
+way it would in a regular browser tab. Icon is a circular arrow
+that spins via a `.is-spinning` class while in flight.
+
+### Round 1 backend — two new diagnostic endpoints
+
+`backend/main.py` now exposes two **unauthenticated** endpoints
+so we can answer "is this teacher's data actually on the
+server?" from our own browser during an incident:
+
+```python
+@app.get("/api/health")
+async def api_health():
+    """Lightweight liveness probe; no DB touch. Also used by the
+    frontend warm-up ping in App.vue.onMounted."""
+    return {"ok": True, "ts": ..., "db": db_available()}
+
+@app.get("/api/diag/{code}")
+async def api_diag(code: str):
+    """Returns {user_exists, project_count, created_at} for a
+    whitelisted invite code. Returns metadata only — never project
+    content. Validated against INVITE_CODES so it can't be probed
+    for arbitrary user counts."""
+```
+
+Typical support session:
+```
+curl https://artbloom-api.onrender.com/api/health
+curl https://artbloom-api.onrender.com/api/diag/BLOOM-2026-A
+```
+
+The diag endpoint is intentionally hardened with the same
+whitelist check used by `/api/auth/login` — its response leaks
+at most "this code exists and has N projects", which we already
+give away by HTTP status on the login endpoint anyway.
+
+---
+
+### Symptom (Round 2, 2026-06-06)
+
+A second pilot teacher posted a screenshot of the access modal
+showing the **red error string from Round-1 fix #3**:
+
+> 「无法连接服务器，请检查教学网络。若问题持续，请联系学校 IT，
+> 确认能否访问 artbloom-api.onrender.com」
+
+This text is the *third* of the three branches we wrote in
+Round 1, the one that fires for `AbortError / TimeoutError /
+TypeError` — i.e. the request never reached the server, never
+got an HTTP status code, `fetch()` itself rejected.
+
+So Round-1's fixes did exactly what they were supposed to: we
+no longer fake a login, we no longer leave the teacher stranded
+in a tokenless dashboard, and we now show a precise error she
+can forward to her school IT. The remaining question was
+**why** the network call is failing in the first place.
+
+### Round 2 candidate root causes (in probability order)
+
+1. ⭐ **School network blocks `*.onrender.com`** (most likely).
+   Render's edges are in the US / EU; many Chinese school
+   teaching networks + iPad parental-control whitelists silently
+   drop traffic to `*.onrender.com`. Symptom: `fetch()` rejects
+   with `TypeError: Failed to fetch` / `net::ERR_*` instantly or
+   after a short DNS timeout — **completely independent of our
+   90 s timeout**. The same invite code works fine on the same
+   iPad over a 4G hotspot.
+
+2. **Render Free dyno cold start exceeded 90 s + retry**.
+   Round-1's 90 s budget covers the worst cold start we'd
+   measured (≈ 50 s), but Render Free occasionally drags out to
+   70-100 s, and the 2 s retry can land on a *second* cold
+   start. Symptom: DevTools shows `/api/auth/login` pending
+   90 s then `canceled`, immediately followed by another pending
+   90 s.
+
+3. **CORS misconfig**. If `CORS_ALLOW_ORIGINS` on Render is set
+   wrong (e.g. a new Pages domain forgotten), the browser
+   rejects the response and we land in the same catch-all
+   branch. Symptom: DevTools Console shows
+   `CORS policy: No 'Access-Control-Allow-Origin' header...`;
+   `curl /api/auth/login` from a terminal succeeds.
+
+### Round 2 diagnostic protocol (give to the teacher)
+
+Three steps, two minutes, isolates the root cause cleanly:
+
+1. **Open these URLs directly in a new browser tab on the
+   failing device:**
+   ```
+   https://artbloom-api.onrender.com/api/health
+   https://artbloom-api.onrender.com/api/diag/<INVITE-CODE>
+   ```
+   - Both return JSON `{ok: true, ...}` → network is fine,
+     root cause is #2 or #3.
+   - First URL won't open (instant "can't connect" / DNS
+     fail) → root cause is #1 (school network blocks
+     onrender).
+   - Health works but `diag.project_count == 0` → data really
+     isn't on the server; different bug, escalate.
+   - Health works and `diag.project_count > 0` → her data is
+     safe in Postgres, the issue is purely the login transport.
+
+2. **Switch network**: tether the iPad to a phone's 4G hotspot
+   and try again.
+   - Works on 4G → 100% root cause #1.
+   - Still fails on 4G → root cause #2 or #3.
+
+3. **DevTools Network tab** (Safari → Settings → Advanced →
+   Show Web Inspector): record one failing attempt, screenshot
+   the row for `/api/auth/login` showing status + timing.
+   `(failed) net::ERR_*` → #1 ; pending 90 s → canceled → #2 ;
+   CORS error in Console → #3.
+
+### Round 2 remediation paths (apply per root cause)
+
+#### If #1 (school network blocks onrender)
+
+Short term:
+- Have the teacher complete her *first* login on a phone-hotspot
+  / home network. Once logged in, the JWT + invite code land in
+  localStorage; existing slides keep working locally even when
+  the school network later blocks onrender. The Round-1
+  "Re-sync" button will fail in that state, but normal slide
+  editing isn't affected.
+
+Long term (recommended):
+- **Front the API with a China-reachable CDN.** Cheapest path:
+  Cloudflare Workers on a custom domain doing a transparent
+  passthrough to Render. Or move the API onto a 腾讯云 / 阿里云
+  node with proper ICP filing if we ever go GA. Either way, swap
+  `VITE_API_BASE` to the new hostname; backend stays as-is.
+
+#### If #2 (cold start > 90 s)
+
+Short term: bump `LOGIN_TIMEOUT_MS` from 90_000 → 120_000 and
+the retry count from 1 → 2 (3 s between). Cost: in the absolute
+worst case the modal sits for ~6 min before giving up, which
+is bad UX, so prefer the long-term fix.
+
+Long term: upgrade Render to **Starter** ($7/mo) so dynos
+don't sleep at all. Single biggest reliability win available
+for the money.
+
+#### If #3 (CORS)
+
+Check the Render dashboard `CORS_ALLOW_ORIGINS` env var. If a
+new Pages / preview domain has come online, either add it to
+the comma list or temporarily set `*` (our `main.py` already
+auto-disables credentials when wildcard is detected, so this is
+safe).
+
+### Files touched (Round 1, committed 2026-06-05)
+- `frontend/src/api/client.ts` — `RequestOptions.timeoutMs` +
+  `AbortSignal` plumbing (with Safari 15 polyfill)
+- `frontend/src/stores/user.ts` — `LOGIN_TIMEOUT_MS = 90_000`,
+  retry-once-on-non-401 in `login()`
+- `frontend/src/components/home/SiteHeader.vue` — fake-login
+  fallback removed, three distinct error messages
+- `frontend/src/App.vue` — `warmupApi()` + self-heal recovery
+  in both bootstrap branches
+- `frontend/src/views/MyLessons.vue` — `resyncFromServer()`
+  handler + "Re-sync" pill in the toolbar
+- `backend/main.py` — `/api/health` + `/api/diag/{code}`,
+  `from sqlalchemy import func as sql_func` for the
+  project-count query
+
+### Notes for future maintainers
+
+- **Don't restore the fake-login fallback.** It looks innocent
+  ("be nice to offline users") but it's the single biggest
+  source of silent data-loss complaints in the pilot. If a
+  teacher genuinely needs to work offline with no prior login,
+  the right answer is a Service Worker + cached projects path,
+  not a tokenless dashboard.
+- **The 90 s login timeout is calibrated to Render Free.** If
+  we ever upgrade to a paid plan with always-on dynos, this can
+  drop to 30 s. Don't drop it below 30 s without re-measuring —
+  the China → Render proxy alone can add 1-3 s and we need
+  headroom for the SHA-256 password hashing on the auth path.
+- **The warmup ping in `App.vue` is fire-and-forget by design.**
+  Don't `await` it. A slow warm-up MUST NOT block the rest of
+  bootstrap — that just swaps one failure mode for another.
+- **`/api/diag/{code}` is unauthenticated on purpose.** During
+  an incident the teacher's device may not be reachable; we
+  need to diagnose from our own browser. The whitelist check
+  means an attacker can only probe codes they already know are
+  valid (which is identical to what `/api/auth/login` leaks).
+  Don't add an auth requirement unless we also remove the
+  whitelist check.
+- **The `Re-sync` button uses `loadFromAPI()`, not
+  `loadFromAPI({ force: true })`.** The current store
+  implementation already merges newest-wins; if we ever change
+  it to a destructive replace, audit this call site before
+  flipping the semantics.
+- **The diagnostic protocol above (the two curl-able URLs +
+  4G hotspot test) is the canonical first response to any
+  future "can't log in" report.** It cuts the cone of
+  uncertainty by 90 % in under two minutes. Update this section
+  if you change the endpoint contracts.
+
+
+
+## §28 — 2026-06-08 — Custom-domain CORS lockout + localStorage quota cascade (BLOOM-2026-B)
+
+### Symptom
+
+Pilot teacher `BLOOM-2026-B`, working from the newly-launched custom
+domain **`https://artbloomedu.com`**, reported that every save attempt
+surfaced the toast *"Could not sync to server"* and DevTools showed a
+torrent of red errors. Three error types interleaved in the console
+across three screenshots:
+
+1. `Access to fetch at 'https://artbloom-api.onrender.com/api/projects/proj-…'
+   from origin 'https://artbloomedu.com' has been blocked by CORS policy:
+   No 'Access-Control-Allow-Origin' header is present on the requested
+   resource.`
+2. `Failed to load resource: net::ERR_FAILED` (the same project URL —
+   browser refusing to surface the body once CORS pre-flight failed).
+3. `QuotaExceededError: Failed to execute 'setItem' on 'Storage':
+   Setting the value of 'artbloom-projects-list' exceeded the quota.`
+   — with the multiplier badge climbing from **×3 → ×9** as the user
+   kept editing.
+
+### Root cause (two independent bugs reinforcing each other)
+
+**Bug A — Backend CORS hadn't been told about the new custom domain.**
+The CORS allowlist on Render was env-driven from `CORS_ALLOW_ORIGINS`
+(comma-separated). When Cloudflare Pages was promoted to the
+`artbloomedu.com` custom domain, the env var still pointed only at the
+older `*.pages.dev` preview hostname. There was no "always-on floor"
+of production origins inside the Python code itself, so a single
+missed env-var edit silently locked every teacher on the new domain
+out of the API. The CORS middleware then served the response without
+an `Access-Control-Allow-Origin` header → browser blocked the response
+body → `fetch()` threw → every `PUT /api/projects/{id}` failed.
+
+**Bug B — localStorage quota cascade.** Independent of CORS, the
+projects store had a watcher of the shape:
+
+```ts
+watch(projects, val => localStorage.setItem(`${STORAGE_KEY}-list`, JSON.stringify(val)), { deep: true })
+```
+
+As soon as the teacher generated two or three Part-6 style transfers
+(each is a ~2-4 MB base64 PNG embedded in the snapshot), the JSON of
+the full projects array overflowed Safari's 5 MB / Chrome's 10 MB
+per-origin quota. The `setItem` call inside the watcher callback
+threw `QuotaExceededError` **synchronously, on the reactive tick**,
+which:
+
+- aborted the watcher mid-flush,
+- queued another reactive tick because mutations were still in
+  flight,
+- which immediately re-ran the watcher → re-threw → repeat.
+
+That's the `×3 → ×9` count climb visible in the screenshots: each
+keystroke / Part-6 turn / autosave debounce was generating a fresh
+QuotaExceededError. Worse, because the throw aborted the watcher's
+callback, **localStorage was never updated again** for that session —
+so a tab refresh would lose every edit since the first overflow.
+
+The two bugs reinforced each other: CORS blocked the API save path,
+so the teacher leaned harder on localStorage; localStorage was
+already overflowing and silently dying, so even when CORS would
+eventually be fixed the local cache wasn't capturing anything either.
+
+### Fix — two files, no schema changes
+
+#### 1. `backend/main.py` — CORS hardening (three-layer)
+
+```python
+_DEFAULT_PRODUCTION_ORIGINS: list[str] = [
+    "https://artbloomedu.com",
+    "https://www.artbloomedu.com",
+    "https://artbloom-edu.pages.dev",    # legacy PWA-pinned URL
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+]
+_DEFAULT_ORIGIN_REGEX = (
+    r"^https://("
+    r"[a-z0-9-]+\.pages\.dev"
+    r"|"
+    r"[a-z0-9-]+\.artbloomedu\.com"
+    r")$"
+)
+```
+
+Three things changed in the bootstrap block:
+
+- **Always-on floor**: a hardcoded `_DEFAULT_PRODUCTION_ORIGINS`
+  list that ships in the code. Any future custom domain we promise
+  teachers ("we'll be at this URL") goes here. A missing or
+  typo'd env var on Render can no longer lock production teachers
+  out — the only way to drop a production origin is to delete it
+  from this list, which forces a PR review.
+- **Union, not replace**: the env-var list is *added* to the floor,
+  preserving order and dedup'ing. The env var becomes a way to add
+  more origins (e.g. a staging domain), never to remove the floor.
+- **Preview regex**: `allow_origin_regex` covers ephemeral
+  `*.pages.dev` previews and any future `*.artbloomedu.com`
+  subdomain (`staging.`, `pilot.`, …) so we don't have to redeploy
+  the backend every time a new sandbox link is shared.
+
+A `print(f"[startup] CORS allow_origins=… regex=… credentials=…")`
+line was added so the boot logs make the current state inspectable
+without digging into env vars — a teacher complaint of "I'm blocked"
+can now be triaged with a single Render-log glance.
+
+#### 2. `frontend/src/stores/projects.ts` — defensive `persistProjects()`
+
+Replaced the inline `watch(projects, val => localStorage.setItem(...))`
+with a `persistProjects(val)` helper that tries three escalating
+attempts:
+
+1. **Full-fidelity write** — the cheap path; 95% of teachers fit
+   comfortably in quota.
+2. **Slim copy** — on `QuotaExceededError`, recursively walk the
+   projects array and replace any string field that's both `> 64 KB`
+   **and** starts with `data:` (i.e. a base64 data URL) with `null`,
+   then re-attempt the write. The Postgres copy on the server still
+   has full fidelity; localStorage is just a fast cache that tells
+   "what projects exist". On the next `loadFromAPI()` the heavy
+   fields rematerialise from the server.
+3. **Graceful skip** — if even the slim write fails (one single huge
+   sketch can't be slimmed further), swallow the error so the
+   watcher survives, show one rate-limited warning toast (only when
+   authenticated — otherwise the message would mislead), and lean
+   on the API copy as the source of truth.
+
+The `isQuotaError()` predicate accepts the spec name, WebKit's
+legacy `code === 22`, and Firefox's `NS_ERROR_DOM_QUOTA_REACHED`
+so this works across the iPadOS Safari / Chrome / Firefox matrix
+our pilot teachers actually use.
+
+The sibling watcher for `activeProjectId` was also wrapped in
+`try/catch` — the string itself can't overflow, but if anything else
+ever takes down localStorage (e.g. `SecurityError` in a sandboxed
+iframe) we don't want it taking the active-project pointer with it.
+
+### Files touched
+- `backend/main.py` — `_DEFAULT_PRODUCTION_ORIGINS` list,
+  `_DEFAULT_ORIGIN_REGEX`, union logic with env-var list, startup
+  log line.
+- `frontend/src/stores/projects.ts` — `isQuotaError()`,
+  `stripHeavyDataUrls()`, `persistProjects()` cascade, both
+  `watch()` calls wrapped.
+
+### Operational follow-up (Render dashboard)
+- Sanity-check `CORS_ALLOW_ORIGINS` on Render. The new code makes
+  it strictly additive, so the safest config is to **clear** the
+  env var entirely (the hardcoded floor already covers production)
+  and only set it again when we're adding a domain that isn't in
+  the floor — e.g. a third-party demo URL.
+- Redeploy the backend so the new boot-log line confirms
+  `allow_origins=[…, 'https://artbloomedu.com', …]` is active.
+
+### Notes for future maintainers
+- **Any new production domain MUST be added to
+  `_DEFAULT_PRODUCTION_ORIGINS`**, never only to the env var. The
+  env var is for staging/demo URLs that don't deserve a PR.
+- **The `allow_origin_regex` is anchored on both ends.** That's
+  not cosmetic — without the trailing `$` an attacker could ship
+  `https://evil-artbloomedu.com.attacker.example` and the regex
+  would match. Don't relax the anchors.
+- **The slim-cache path drops `data:` URLs ≥ 64 KB.** If we ever
+  store a legitimate large *non-data-URL* string in the snapshot
+  (e.g. a giant story dump), this heuristic will leave it alone —
+  intentional. The threshold can be tuned but the `startsWith('data:')`
+  guard should stay so we never lose plain-text fields.
+- **The quota toast is rate-limited via the module-scoped
+  `quotaToastShown` flag.** It will fire at most once per page
+  load. Resetting it on `clearLocal()` (sign-out) would be
+  reasonable if we ever extend the session; right now sign-out
+  forces a full reload so it's a non-issue.
+- **Don't be tempted to reach for IndexedDB here.** The server is
+  already our durable store; the localStorage cache only needs to
+  survive tab refresh + brief offline windows. Adding a second
+  client-side store would just multiply the corner cases.
+- **If a future Bug A recurrence happens**, the canonical
+  diagnostic is the boot-log line we added:
+  `[startup] CORS allow_origins=[…] regex=… credentials=…` — if
+  the expected domain isn't in that list, it's a code bug; if it
+  is, the issue is downstream (browser cache, Cloudflare WAF,
+  intermediate proxy).

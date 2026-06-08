@@ -114,28 +114,94 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ArtBloom API", lifespan=lifespan)
 
 # CORS — origins are env-driven so production can be locked down later.
-# Default keeps the local Vite dev ports working. In production we set
-# CORS_ALLOW_ORIGINS to "*" (dev pilot) or a comma-separated list of
-# Pages / custom domains.
+#
+# 2026-06-08 incident — pilot teacher (invite `BLOOM-2026-B`) couldn't
+# save lessons; every `PUT /api/projects/{id}` came back as a CORS
+# pre-flight failure with `No 'Access-Control-Allow-Origin' header is
+# present on the requested resource`. Root cause: the new custom
+# domain `https://artbloomedu.com` had been wired into Cloudflare
+# Pages but the `CORS_ALLOW_ORIGINS` env var on Render still pointed
+# only at the old Pages preview hostname.
+#
+# Fix is layered:
+#   1. `_DEFAULT_PRODUCTION_ORIGINS` — a hardcoded floor of origins we
+#      *always* allow regardless of env-var state. Any future custom
+#      domain we promise teachers ("we'll be at this URL") goes here
+#      so a missing/typo'd env var can never lock them out again.
+#   2. The env-var list is *added* to (unioned with) that floor, not
+#      replacing it. The only way to drop a production origin is to
+#      delete it from the code below — which forces a PR review.
+#   3. `allow_origin_regex` covers ephemeral preview domains
+#      (`*.pages.dev`, `*.artbloomedu.com` subdomains we may add later
+#      such as `staging.`, `pilot.`) so we don't have to redeploy the
+#      backend every time a new sandbox link is shared.
+_DEFAULT_PRODUCTION_ORIGINS: list[str] = [
+    # Primary custom domain (Cloudflare Pages, 2026-06).
+    "https://artbloomedu.com",
+    "https://www.artbloomedu.com",
+    # Legacy Pages hostname — kept because some teachers have it
+    # pinned to their iPad home screen as a PWA shortcut.
+    "https://artbloom-edu.pages.dev",
+    # Local Vite dev ports (5173 default + 5174 fallback when 5173
+    # is held by a previous instance).
+    "http://localhost:5173",
+    "http://localhost:5174",
+    # `127.0.0.1` aliases (different origin from `localhost` per spec)
+    # so devs using either spelling work without surprise CORS errors.
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+]
+
+# Match preview / future-staging subdomains. Anchored on both ends so
+# `evil-artbloomedu.com.attacker.example` can't slip through.
+_DEFAULT_ORIGIN_REGEX = (
+    r"^https://("
+    r"[a-z0-9-]+\.pages\.dev"
+    r"|"
+    r"[a-z0-9-]+\.artbloomedu\.com"
+    r")$"
+)
+
 _cors_env = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
 if _cors_env == "*":
+    # Dev / pilot escape hatch — wildcards everything (incl. origins
+    # we'd never legitimately allow). When set, `allow_credentials`
+    # MUST be False per Starlette / spec, so we drop it.
     _cors_origins: list[str] = ["*"]
-elif _cors_env:
-    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    _cors_origin_regex: str | None = None
+    _cors_credentials = False
 else:
-    _cors_origins = ["http://localhost:5173", "http://localhost:5174"]
+    _env_origins = (
+        [o.strip() for o in _cors_env.split(",") if o.strip()]
+        if _cors_env
+        else []
+    )
+    # Union, preserving order and dropping duplicates. The defaults
+    # come first so they remain the visible "floor" in any logs.
+    _seen: set[str] = set()
+    _cors_origins = []
+    for origin in [*_DEFAULT_PRODUCTION_ORIGINS, *_env_origins]:
+        if origin not in _seen:
+            _seen.add(origin)
+            _cors_origins.append(origin)
+    _cors_origin_regex = _DEFAULT_ORIGIN_REGEX
+    _cors_credentials = True
 
-# `allow_credentials=True` is incompatible with the "*" wildcard in
-# Starlette/FastAPI, so we flip credentials off when wildcarding.
-_cors_credentials = _cors_origins != ["*"]
+print(
+    f"[startup] CORS allow_origins={_cors_origins} "
+    f"regex={_cors_origin_regex!r} credentials={_cors_credentials}",
+    flush=True,
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Textbook asset mount.
 #   • Dev: the same physical files used by the frontend are served at

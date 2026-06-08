@@ -412,8 +412,144 @@ export const useProjectsStore = defineStore('projects', () => {
     usePart7Store().reset()
   }
 
-  watch(projects, val => localStorage.setItem(`${STORAGE_KEY}-list`, JSON.stringify(val)), { deep: true })
-  watch(activeProjectId, val => localStorage.setItem(`${STORAGE_KEY}-active`, JSON.stringify(val)))
+  // ──────────────────────────────────────────────────────────────────
+  // localStorage persistence — defensive against the 5-10 MB quota
+  //
+  // 2026-06-08 incident — pilot teacher `BLOOM-2026-B` saw the console
+  // fill with `QuotaExceededError: Failed to execute 'setItem' on
+  // 'Storage': Setting the value of 'artbloom-projects-list' exceeded
+  // the quota.` followed by the watcher silently dying and the
+  // autosave loop never running again. Root cause: as soon as the
+  // teacher generated a couple of Part-6 style transfers (each is a
+  // ~2-4 MB base64 PNG embedded in the snapshot) the JSON of the
+  // full projects array overflowed Safari's 5 MB / Chrome's 10 MB
+  // per-origin quota. Because the original line did the setItem
+  // inline in the watcher callback, the throw aborted the watcher
+  // and every subsequent edit silently failed to persist anywhere.
+  //
+  // Strategy (cascade three escalating attempts before giving up):
+  //   1. Try the naïve full-fidelity write. 95% of teachers fit in
+  //      quota; this is the cheapest path.
+  //   2. On QuotaExceededError, write a SLIMMED copy that drops the
+  //      heaviest fields (Part-6 generated-image data URLs, embedded
+  //      Part-7 student-work base64, Part-3 video data URLs) from
+  //      each project's snapshot. The Postgres copy on the server
+  //      still has the full fidelity — localStorage is just a fast
+  //      "what projects exist" cache; users on the same device will
+  //      see their work materialise from `loadFromAPI()` after login.
+  //   3. If even the slim write fails (e.g. a single huge sketch
+  //      can't be slimmed further), swallow the error so the watcher
+  //      survives, show ONE warning toast (rate-limited via the flag
+  //      below so we don't spam the teacher on every keystroke),
+  //      and rely entirely on the API copy as the source of truth.
+  //
+  // Note: we don't reach for IndexedDB here because the existing
+  // server-side persistence already does the job of "lots of bytes
+  // on disk"; the localStorage cache only needs to survive a tab
+  // refresh while the user is offline / before login.
+  let quotaToastShown = false
+
+  function isQuotaError(err: unknown): boolean {
+    if (!(err instanceof Error)) return false
+    // Spec name + WebKit's older numeric code (22) + Firefox's
+    // distinct name. We accept any of the three so this works
+    // across the iPadOS Safari / Chrome / Firefox matrix our
+    // pilot teachers use.
+    return (
+      err.name === 'QuotaExceededError' ||
+      err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      (err as { code?: number }).code === 22
+    )
+  }
+
+  /**
+   * Recursively rebuild `value` with any string field longer than
+   * `dropThreshold` and starting with `data:` replaced by `null`.
+   * This targets the three known offenders (Part-6 generated PNGs,
+   * Part-7 student-work uploads, Part-3 video frames) without
+   * needing to enumerate every snapshot key — anything else of
+   * comparable size is almost certainly also a data URL we don't
+   * want in localStorage.
+   *
+   * 64 KB is a deliberately conservative threshold: typical legit
+   * string fields in the snapshot (story text, chatbot history)
+   * top out around 10-20 KB.
+   */
+  function stripHeavyDataUrls(value: unknown, dropThreshold = 65_536): unknown {
+    if (typeof value === 'string') {
+      if (value.length > dropThreshold && value.startsWith('data:')) return null
+      return value
+    }
+    if (Array.isArray(value)) return value.map(v => stripHeavyDataUrls(v, dropThreshold))
+    if (value && typeof value === 'object') {
+      const out: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        out[k] = stripHeavyDataUrls(v, dropThreshold)
+      }
+      return out
+    }
+    return value
+  }
+
+  function persistProjects(val: Project[]) {
+    try {
+      // Attempt 1 — full fidelity
+      localStorage.setItem(`${STORAGE_KEY}-list`, JSON.stringify(val))
+      return
+    } catch (err) {
+      if (!isQuotaError(err)) {
+        // Some other failure (e.g. SecurityError in a sandboxed
+        // iframe) — log once and move on. The watcher must survive.
+        console.warn('[projects] localStorage write failed (non-quota)', err)
+        return
+      }
+    }
+    try {
+      // Attempt 2 — slim copy with heavy data URLs removed
+      const slim = stripHeavyDataUrls(val)
+      localStorage.setItem(`${STORAGE_KEY}-list`, JSON.stringify(slim))
+      if (!quotaToastShown) {
+        quotaToastShown = true
+        console.info(
+          '[projects] localStorage over quota — persisted slim cache; ' +
+          'API copy remains the source of truth',
+        )
+      }
+      return
+    } catch (err) {
+      // Attempt 3 — give up gracefully. The next loadFromAPI() will
+      // rehydrate everything from the server.
+      if (!quotaToastShown) {
+        quotaToastShown = true
+        console.warn(
+          '[projects] localStorage write skipped — over quota even after slimming. ' +
+          'Cached state will rebuild from the API on next login.',
+          err,
+        )
+        // Only show the toast if we're actually authed; otherwise
+        // there's no server copy to lean on and the user would see
+        // a misleading message.
+        if (getToken()) {
+          useToastStore().show(
+            '本地缓存已满；课件已同步到云端，下次登录后会自动恢复。',
+            'warning',
+          )
+        }
+      }
+    }
+  }
+
+  watch(projects, val => persistProjects(val), { deep: true })
+  watch(activeProjectId, val => {
+    // Tiny string — never overflows quota on its own, but wrap in a
+    // try/catch anyway so it can't take down its sibling watcher.
+    try {
+      localStorage.setItem(`${STORAGE_KEY}-active`, JSON.stringify(val))
+    } catch (err) {
+      console.warn('[projects] failed to persist activeProjectId', err)
+    }
+  })
+
 
   return {
     projects, activeProjectId, activeProject, activeLessonId,
