@@ -220,9 +220,63 @@ export const usePart3Store = defineStore('part3', () => {
   const pairs = ref<Part3Pair[]>([])
   const activePairId = ref<string | null>(null)
 
+  // ── Global generation lock (2026-06-08) ────────────────────────
+  //
+  // Pilot teachers ran into "顺序混乱" when they kicked off a story
+  // for 《桃花源1》, then mid-stream clicked 《桃花源2》's thumbnail
+  // and pressed "生成故事" again — the in-flight SSE from artwork-1
+  // then wrote its parsed JSON into artwork-2's slot and artwork-1
+  // appeared to silently abort. The per-pair `pair.storyLoading`
+  // flag couldn't prevent this because it's RESET to false by
+  // `setActiveArtwork()` (line 310-318), so the cross-artwork
+  // button looked active again.
+  //
+  // Fix: a *global* lock that lives at the store level (independent
+  // of which pair / artwork is currently shown). `generateStory()`
+  // and `generateAnimation()` set it on entry and release it in
+  // their finally clauses (animation: in `_pollAnimation` when the
+  // final state lands). The UI uses `isAnyGenerating` to disable
+  // every "生成故事" / "生成动画" button on every artwork in every
+  // pair while the lock is held.
+  //
+  // We deliberately keep the per-pair `*Loading` flags too — they
+  // still drive spinner/wording on the *originating* button. The
+  // global lock is a strict superset: `isAnyGenerating === true`
+  // whenever any per-pair loading flag is true, plus a small
+  // post-switch grace window where the per-pair flag was wiped but
+  // the network request is still in-flight.
+  const _genLock = ref<null | {
+    kind: 'story' | 'animation'
+    pairId: string
+    artworkKey: string | null
+  }>(null)
+
+  const isAnyGenerating = computed(() => _genLock.value !== null)
+  const generatingKind = computed(() => _genLock.value?.kind ?? null)
+  const generatingOwnerPairId = computed(() => _genLock.value?.pairId ?? null)
+  const generatingOwnerArtworkKey = computed(
+    () => _genLock.value?.artworkKey ?? null,
+  )
+
+  /** Helper: claim the lock if free, otherwise return false. */
+  function _acquireGenLock(
+    kind: 'story' | 'animation',
+    pairId: string,
+    artworkKey: string | null,
+  ): boolean {
+    if (_genLock.value !== null) return false
+    _genLock.value = { kind, pairId, artworkKey }
+    return true
+  }
+
+  function _releaseGenLock() {
+    _genLock.value = null
+  }
+
   const activePair = computed(() =>
     pairs.value.find(p => p.id === activePairId.value) ?? null
   )
+
 
   // Flat computed getters — panels read these unchanged
   const imageDataUrl = computed(() => activePair.value?.imageDataUrl ?? null)
@@ -467,10 +521,22 @@ export const usePart3Store = defineStore('part3', () => {
   async function generateStory(language = 'en') {
     const pair = activePair.value
     if (!pair?.imageDataUrl) return
-    if (!await _ensureBase64(pair)) return
+    // 2026-06-08 — Global single-generation policy. Refuse to start
+    // a second story/animation while one is already in flight (even
+    // for a different artwork in a different pair). The UI already
+    // disables every "生成故事/动画" button while the lock is held;
+    // this guard is defense-in-depth for keyboard / programmatic
+    // re-entries. Silent return here — the calling component is
+    // expected to have already shown the "请先等待…" toast.
+    if (!_acquireGenLock('story', pair.id, pair.activeArtworkKey)) return
+    if (!await _ensureBase64(pair)) {
+      _releaseGenLock()
+      return
+    }
     pair.storyLoading = true
     pair.storyError = null
     pair.storyStreamText = ''
+
 
     const lessonId = useProjectsStore().activeLessonId
 
@@ -533,10 +599,15 @@ export const usePart3Store = defineStore('part3', () => {
     } finally {
       pair.storyLoading = false
       pair.storyStreamText = ''
+      // 2026-06-08 — Always release the global lock at the end of
+      // generateStory, even on error / parse failure. The matching
+      // acquire is at the top; one-acquire-one-release invariant.
+      _releaseGenLock()
     }
   }
 
   async function generateContinuation(choiceId: number, language = 'en') {
+
     const pair = activePair.value
     if (!pair?.storyData || !pair.imageDataUrl) return
 
@@ -593,10 +664,25 @@ export const usePart3Store = defineStore('part3', () => {
   async function generateAnimation(customPrompt = '') {
     const pair = activePair.value
     if (!pair?.imageDataUrl || pair.remainingAttempts <= 0) return
-    if (!await _ensureBase64(pair)) return
+    // 2026-06-08 — Claim the global generation lock before reserving
+    // an attempt (`remainingAttempts--`) so a refused start doesn't
+    // burn one of the teacher's 3 video budget. The lock is released
+    // in (a) the catch below on submit failure, or (b) `_pollAnimation`
+    // when the task lands on `succeeded` / `failed` / poll timeout —
+    // i.e. exactly the places that already flip `animationLoading`
+    // back to false. The Doubao video pipeline can take 30-60 s, so
+    // holding the lock through polling is intentional: it keeps the
+    // teacher from queueing a second video that would compete for
+    // the same backend slot.
+    if (!_acquireGenLock('animation', pair.id, pair.activeArtworkKey)) return
+    if (!await _ensureBase64(pair)) {
+      _releaseGenLock()
+      return
+    }
     pair.animationLoading = true
     pair.animationError = null
     pair.remainingAttempts--
+
 
     const lessonId = useProjectsStore().activeLessonId
 
@@ -624,6 +710,11 @@ export const usePart3Store = defineStore('part3', () => {
     } catch (e: any) {
       pair.animationError = e.message
       pair.animationLoading = false
+      // 2026-06-08 — Submit failed before the task entered the
+      // polling phase, so the lock must be released here. The
+      // success-path release lives in `_pollAnimation` (one of the
+      // three terminal branches: succeeded / failed / timeout).
+      _releaseGenLock()
     }
   }
 
@@ -633,10 +724,17 @@ export const usePart3Store = defineStore('part3', () => {
 
     const tick = async () => {
       const pair = pairs.value.find(p => p.id === pairId)
-      if (!pair) return
+      if (!pair) {
+        // The owning pair was deleted while we were polling.
+        // Release the lock so the UI doesn't stay stuck.
+        _releaseGenLock()
+        return
+      }
       if (attempts >= MAX) {
         pair.animationVersions[index].status = 'failed'
         pair.animationLoading = false
+        // 2026-06-08 — Poll timeout is a terminal state; clear lock.
+        _releaseGenLock()
         return
       }
       attempts++
@@ -647,10 +745,16 @@ export const usePart3Store = defineStore('part3', () => {
           pair.animationVersions[index].videoUrl = data.video_url
           pair.animationVersions[index].status = 'done'
           pair.animationLoading = false
+          // 2026-06-08 — Successful generation; release lock so the
+          // teacher can start another story/animation immediately.
+          _releaseGenLock()
         } else if (data.status === 'failed') {
           pair.animationVersions[index].status = 'failed'
           pair.animationError = data.error ?? 'Generation failed'
           pair.animationLoading = false
+          // 2026-06-08 — Backend declared failure; release lock so
+          // the teacher isn't stuck behind a dead task.
+          _releaseGenLock()
         } else {
           setTimeout(tick, 3000)
         }
@@ -660,6 +764,7 @@ export const usePart3Store = defineStore('part3', () => {
     }
     setTimeout(tick, 3000)
   }
+
 
   // ── Local fast-path classifiers ───────────────────────────────────
   //
@@ -1070,6 +1175,14 @@ export const usePart3Store = defineStore('part3', () => {
     storyStreamText, continuationStreamText,
     designChatMessages, designChatLoading, designChatError,
     selectedArtworkId, selectedUploadedId, uploadedArtworks,
+    // 2026-06-08 — Global generation lock state (read-only to UI).
+    // Consumers in Part3Content / Part3AnimationPanel use
+    // `isAnyGenerating` to gate every "生成故事/动画" button. The
+    // owner-pair / owner-artwork getters let the UI distinguish
+    // "this artwork's own button is loading" (spinner OK) from
+    // "some *other* artwork is generating" (disable + tooltip).
+    isAnyGenerating, generatingKind,
+    generatingOwnerPairId, generatingOwnerArtworkKey,
     ensurePair, removePair, setArtworkFromUrl,
     addUploadedArtwork, selectUploadedArtwork, removeUploadedArtwork,
     generateStory, generateAnimation, saveChosenVideo, generateContinuation,
@@ -1078,4 +1191,5 @@ export const usePart3Store = defineStore('part3', () => {
     getSnapshot, loadSnapshot, reset,
   }
 })
+
 

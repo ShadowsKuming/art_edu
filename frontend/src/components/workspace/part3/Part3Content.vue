@@ -45,11 +45,27 @@ function selectVersion(i: number) {
 }
 
 async function onStoryClick() {
+  // 2026-06-08 — Global single-generation gate. If another artwork
+  // is currently generating (story or animation, anywhere in any
+  // pair), don't start a new one — show a toast and bail. Switching
+  // to "story" view (without firing generation) IS allowed: the
+  // teacher should still be able to *read* the existing story while
+  // a different artwork is mid-generation.
+  if (store.isAnyGenerating && !hasStory.value) {
+    toastStore.show(
+      locale.value === 'zh'
+        ? '请先等待完成当前生成内容'
+        : 'Please wait for the current generation to finish',
+      'info',
+    )
+    return
+  }
   emit('update:mode', 'story')
   if (!hasStory.value) await store.generateStory(locale.value)
 }
 
 async function onAnimationClick() {
+
   // 2026-06-08 — Soft gate: animation generation only makes sense
   // once we have a story to ground it in. Previously the button was
   // hard-`disabled` whenever `!hasStory`, but a disabled button gives
@@ -75,9 +91,41 @@ async function onAnimationClick() {
     )
     return
   }
+  // 2026-06-08 — Global single-generation gate, same shape as
+  // `onStoryClick`. Allow the teacher to switch INTO animation view
+  // when an animation already exists (so she can keep watching it),
+  // but block any *new* generation while the lock is held by some
+  // other artwork or pair.
+  if (store.isAnyGenerating && !hasAnim.value) {
+    toastStore.show(
+      locale.value === 'zh'
+        ? '请先等待完成当前生成内容'
+        : 'Please wait for the current generation to finish',
+      'info',
+    )
+    return
+  }
   emit('update:mode', 'animation')
   if (!hasAnim.value) await store.generateAnimation()
 }
+
+// 2026-06-08 — Tooltip / disabled-aware helpers reused by both
+// "生成故事" and "生成动画" buttons. A button is "busy-locked" when
+// the global generation lock is held by something OTHER than this
+// artwork's currently-running task (otherwise its OWN per-pair
+// loading flag handles the disabled state).
+const isOwnedByThisArtwork = computed(
+  () => store.generatingOwnerPairId === store.activePairId,
+)
+const busyByOther = computed(
+  () => store.isAnyGenerating && !isOwnedByThisArtwork.value,
+)
+const busyTooltip = computed(() =>
+  locale.value === 'zh'
+    ? '请先等待完成当前生成内容'
+    : 'Please wait for the current generation to finish',
+)
+
 
 
 // 2026-05-28: `saveAndNext()` retired together with the footer
@@ -137,10 +185,19 @@ async function onAnimationClick() {
         <div class="p3-action-row">
           <button
             class="p3-mode-btn"
-            :class="{ 'p3-mode-btn--active': mode === 'story' }"
-            :disabled="!store.imageDataUrl || store.storyLoading"
+            :class="{
+              'p3-mode-btn--active': mode === 'story',
+              'p3-mode-btn--locked': busyByOther && !hasStory,
+            }"
+            :disabled="
+              !store.imageDataUrl
+              || store.storyLoading
+              || (busyByOther && !hasStory)
+            "
+            :title="busyByOther && !hasStory ? busyTooltip : ''"
             @click="onStoryClick"
           >
+
             <svg viewBox="0 0 20 20" fill="none" class="p3-btn-icon">
               <path d="M4 5h12M4 8h8M4 11h10M4 14h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
@@ -158,12 +215,25 @@ async function onAnimationClick() {
             class="p3-mode-btn"
             :class="{
               'p3-mode-btn--active': mode === 'animation',
-              'p3-mode-btn--locked': !hasAnim && !hasStory && !!store.imageDataUrl,
+              'p3-mode-btn--locked':
+                (!hasAnim && !hasStory && !!store.imageDataUrl)
+                || (busyByOther && !hasAnim),
             }"
-            :disabled="!store.imageDataUrl || (!hasAnim && (store.remainingAttempts <= 0 || store.animationLoading))"
-            :title="!hasAnim && !hasStory ? (locale === 'zh' ? '请先生成故事，再来设计动画' : 'Generate story first') : ''"
+            :disabled="
+              !store.imageDataUrl
+              || (!hasAnim && (store.remainingAttempts <= 0 || store.animationLoading))
+              || (busyByOther && !hasAnim)
+            "
+            :title="
+              busyByOther && !hasAnim
+                ? busyTooltip
+                : (!hasAnim && !hasStory
+                    ? (locale === 'zh' ? '请先生成故事，再来设计动画' : 'Generate story first')
+                    : '')
+            "
             @click="onAnimationClick"
           >
+
             <svg viewBox="0 0 20 20" fill="none" class="p3-btn-icon">
               <rect x="2" y="5" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
               <path d="M14 8l4-2v8l-4-2V8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>

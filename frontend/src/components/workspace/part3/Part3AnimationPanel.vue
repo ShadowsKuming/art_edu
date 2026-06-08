@@ -87,7 +87,21 @@ async function send() {
     )
     return
   }
+  // 2026-06-08 — Honour the global single-generation lock here too.
+  // The Animation Panel's "send" button drives `generateAnimation()`
+  // (with a custom prompt), so it MUST refuse while any other
+  // artwork is mid-generation, same as the top-row "生成动画" button.
+  if (store.isAnyGenerating) {
+    toastStore.show(
+      locale.value === 'zh'
+        ? '请先等待完成当前生成内容'
+        : 'Please wait for the current generation to finish',
+      'info',
+    )
+    return
+  }
   messages.value.push({ role: 'user', text })
+
   inputText.value = ''
 
   messages.value.push({
