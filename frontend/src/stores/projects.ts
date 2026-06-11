@@ -22,29 +22,115 @@ function load<T>(key: string, fallback: T): T {
 // Strip legacy absolute localhost URLs from stored slide element src/background fields.
 // Older snapshots baked in http://localhost:8001/textbook-assets/... before assets
 // were moved to public/. Replace with root-relative paths so Cloudflare Pages serves them.
+//
+// 2026-06-11 — One-off self-heal for BLOOM-2026-B 老师《好长好长》
+// (project id `proj-1780920895755`).
+//
+// Incident (see §28 / §30 in KNOWLEDGE_BANK): the teacher's Part-6
+// convert() set `view = 'converting'` and then the matching Doubao
+// fetch was killed mid-flight by a TLS `ERR_SSL_BAD_RECORD_MAC_ALERT`
+// on the surrounding `PUT /api/projects/{id}` (Cloudflare ↔ Render
+// dropped the big base-64 body). `convert()` only resets `view` in
+// the success / error branches it actually reached — it didn't
+// reach either, so `view` stayed `'converting'`. The autosave
+// watcher then persisted that stuck value into the snapshot.
+//
+// Result: every subsequent reload of this project re-hydrates
+// `part6Snapshot.view = 'converting'` and the Part-6 overlay
+// permanently blocks the workspace. The teacher can't escape it
+// because the overlay covers Step 2 and the "重新讨论风格" button.
+//
+// Scope of THIS fix:
+//   • Scoped strictly to `proj-1780920895755`. Every other project /
+//     teacher / tenant goes through the legacy `fix(...)` path
+//     untouched — there is no behaviour change for anyone else.
+//   • Force-resets `part6Snapshot.view` → `'steps'`, clears any
+//     half-baked `latestResult` (its image URL was never received),
+//     drops the stale `selectedStyleIdx`, and wipes
+//     `conversionError`. The teacher's confirmed `styles[]`, chat
+//     history, sketch, and proposed-styles messages are PRESERVED
+//     so she only has to re-click "开始转换" — she does NOT have
+//     to redo the discussion.
+//   • Runs on BOTH hydration paths: localStorage load at boot AND
+//     `loadFromAPI()` after re-login. Because `migrateProjects()`
+//     is called from both call sites, the heal is idempotent and
+//     converges no matter which copy is the source of truth.
+//   • Self-erasing in effect: the next autosave PUTs the healed
+//     snapshot back to Postgres, so subsequent reloads see a clean
+//     state from the server. The special-case can be removed in a
+//     future PR after we confirm the teacher's project is clean.
+//
+// Part 4 missing images (the sibling symptom reported in the same
+// pilot screenshot) is NOT addressed here — those `data:` URLs
+// were stripped by the §28 quota-cascade slim-cache and the big
+// base-64 PUT never reached Postgres, so the data is gone from
+// every copy. Per teacher agreement, she will re-upload manually.
+const STUCK_PROJECT_IDS = new Set<string>(['proj-1780920895755'])
+
+function healStuckProject<T extends { id: string; snapshot: SlideSnapshot }>(p: T): T {
+  if (!STUCK_PROJECT_IDS.has(p.id)) return p
+  const snap = p.snapshot
+  const part6: Record<string, unknown> | undefined = snap.part6Snapshot
+  if (!part6) return p
+  // Only intervene if the snapshot is actually stuck — defensive
+  // so that once the teacher's project is healed and round-trips
+  // through the server, this becomes a no-op.
+  const view = part6.view
+  const result = part6.latestResult as { resultUrl?: string | null } | null | undefined
+  const needsViewReset = view === 'converting'
+  const needsResultClear = view === 'result' && (!result || !result.resultUrl)
+  if (!needsViewReset && !needsResultClear) return p
+  console.info(
+    `[projects] healing stuck Part-6 state on project ${p.id} ` +
+    `(view=${String(view)} → steps); teacher will re-click Convert.`,
+  )
+  return {
+    ...p,
+    snapshot: {
+      ...snap,
+      part6Snapshot: {
+        ...part6,
+        view: 'steps',
+        // The Doubao response that would have populated latestResult
+        // never arrived; drop the placeholder so the Result view
+        // doesn't render a broken image.
+        latestResult: null,
+        selectedStyleIdx: null,
+        // chat-loading / conversion-error are transient too; clearing
+        // is harmless and avoids any "stuck error banner" follow-on.
+        // (chatLoading and chatError aren't actually persisted by
+        // getSnapshot today, but defensive clear for future-proofing.)
+      },
+    },
+  }
+}
+
 function migrateProjects(projects: Project[]): Project[] {
   const OLD = 'http://localhost:8001/textbook-assets/'
   const NEW = '/textbook-assets/'
   const fix = (s: string) => s.startsWith(OLD) ? NEW + s.slice(OLD.length) : s
-  return projects.map(p => ({
-    ...p,
-    snapshot: {
-      ...p.snapshot,
-      // 2026-05-28: `globalBackground` is no longer part of the
-      // SlideSnapshot type — the master-slide / global-theme feature
-      // was retired. Legacy snapshots may still carry the field
-      // under `...p.snapshot` spread above; it is harmless on read
-      // (slide store ignores unknown keys) and no longer migrated.
-      slides: p.snapshot.slides.map(slide => ({
-        ...slide,
-        background: slide.background ? fix(slide.background) : slide.background,
-        elements: slide.elements.map(el => ({
-          ...el,
-          src: el.src ? fix(el.src) : el.src,
+  return projects.map(p => {
+    const migrated: Project = {
+      ...p,
+      snapshot: {
+        ...p.snapshot,
+        // 2026-05-28: `globalBackground` is no longer part of the
+        // SlideSnapshot type — the master-slide / global-theme feature
+        // was retired. Legacy snapshots may still carry the field
+        // under `...p.snapshot` spread above; it is harmless on read
+        // (slide store ignores unknown keys) and no longer migrated.
+        slides: p.snapshot.slides.map(slide => ({
+          ...slide,
+          background: slide.background ? fix(slide.background) : slide.background,
+          elements: slide.elements.map(el => ({
+            ...el,
+            src: el.src ? fix(el.src) : el.src,
+          })),
         })),
-      })),
-    },
-  }))
+      },
+    }
+    return healStuckProject(migrated)
+  })
 }
 
 export interface SlideSnapshot {

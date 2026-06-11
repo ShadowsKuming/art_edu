@@ -122,17 +122,38 @@ function makeWork(dataUrl: string): StudentWork {
 // time across the entire app, which is the correct UX (the teacher
 // would never want two TTS streams overlapping).
 //
-// State machine per work:
-//     idle  ──[play btn]──▶ loading ──[blob ready]──▶ playing
-//      ▲                                                  │
-//      └──[pause btn / blob fail / switch work]───────────┘
+// 2026-06-11 — True pause / resume.
 //
-// `currentTtsWorkId` tracks which work owns the audio element right
-// now so the UI can render distinct button states for the active
-// vs. inactive feedback cards (e.g. when teacher is multi-tasking
-// across student works).
+// Pre-2026-06-11 the 「暂停」 button was a misnomer: it actually
+// destroyed the audio element and revoked the object URL, so the
+// "继续" press re-fetched the entire TTS blob and started narration
+// from t=0. Pilot teachers (BLOOM-2026-B etc.) complained — a
+// classroom interruption ("please open your sketchbooks") would
+// erase 30 seconds of progress on a 200-word critique.
+//
+// New state machine per work:
+//     idle  ──[play]──▶ loading ──[blob ready]──▶ playing
+//      ▲                                              │ │
+//      │                                       [pause]│ │[ended/error]
+//      │                                              ▼ │
+//      │                                            paused
+//      │                                              │
+//      │                                          [resume play]
+//      │                                              │
+//      │                                              ▼ → playing
+//      │
+//      └──[stop: switch work / slide / unmount]
+//
+//   • A `paused` state preserves `_audioEl.currentTime` so resume
+//     picks up the same syllable the teacher left off on.
+//   • The audio element is kept alive (and the object URL is NOT
+//     revoked) for the entire idle-to-end run of one TTS request.
+//   • Only the "external stop" path (`stopFeedbackTTS`) tears the
+//     audio element down — that's what fires when the teacher
+//     navigates away, switches the active work, or the audio
+//     completes naturally.
 // ─────────────────────────────────────────────────────────────────────
-type TtsState = 'idle' | 'loading' | 'playing'
+type TtsState = 'idle' | 'loading' | 'playing' | 'paused'
 
 let _audioEl: HTMLAudioElement | null = null
 let _audioObjectUrl: string | null = null
@@ -148,6 +169,7 @@ function _releaseAudio() {
         _audioObjectUrl = null
     }
 }
+
 
 export const usePart7Store = defineStore('part7', () => {
     const pairs = ref<Part7Pair[]>([])
@@ -182,14 +204,20 @@ export const usePart7Store = defineStore('part7', () => {
     }
 
     /**
-     * Play (or toggle pause) the feedback text for one student work.
+     * Toggle the feedback voice for one student work.
      *
-     * Behaviour:
-     *   • If this work is already 'playing' → pause (back to 'idle').
-     *   • If a *different* work is currently playing → stop it first,
-     *     then start this one (one-at-a-time policy).
-     *   • If this work is 'loading' → no-op (request already in flight).
-     *   • Otherwise → POST /api/tts, build an audio element, play.
+     * 2026-06-11 — True pause / resume:
+     *   • idle             → fetch + load + start playback
+     *   • loading          → no-op (request already in flight)
+     *   • playing          → `_audioEl.pause()`, state ➜ 'paused'
+     *                        (preserves currentTime — does NOT release)
+     *   • paused           → `_audioEl.play()`, state ➜ 'playing'
+     *                        (resumes from the exact same syllable)
+     *   • a *different* work is currently active (playing or paused)
+     *     → full `stopFeedbackTTS()` of the other work first
+     *       (one-at-a-time policy; switching also tears down the old
+     *       audio element so we don't leak object URLs across tracks),
+     *       then start this one from scratch.
      *
      * The default voice is `zh-CN-XiaoxiaoNeural` (warm female) which
      * matches the Part-3 story narrator default; we'll add a voice
@@ -205,16 +233,34 @@ export const usePart7Store = defineStore('part7', () => {
     ) {
         const cur = ttsStateFor(workId)
         if (cur === 'loading') return
+
+        // ── Pause: keep the audio element alive so we can resume ───
         if (cur === 'playing') {
-            // Toggle pause = stop entirely. We don't preserve playback
-            // position because re-clicking play should restart the
-            // narration from the top — that's what a teacher would
-            // expect after the class has been talking over the
-            // previous line.
-            stopFeedbackTTS()
+            if (_audioEl) {
+                try { _audioEl.pause() } catch { /* benign */ }
+            }
+            ttsStates.value[workId] = 'paused'
             return
         }
-        // Different work playing? Stop it first.
+
+        // ── Resume: same audio element, same currentTime ───────────
+        if (cur === 'paused' && currentTtsWorkId.value === workId && _audioEl) {
+            try {
+                await _audioEl.play()
+                ttsStates.value[workId] = 'playing'
+            } catch (err) {
+                // Browsers occasionally reject `play()` after a long
+                // pause (e.g. autoplay-policy timing) — fall back to
+                // a hard reset so the teacher can retry from the top.
+                console.error('[part7] TTS resume failed', err)
+                stopFeedbackTTS()
+            }
+            return
+        }
+
+        // ── Fresh fetch + start ────────────────────────────────────
+        // Different work was playing/paused? Tear it down first so we
+        // don't leak the audio element / object URL across tracks.
         if (currentTtsWorkId.value && currentTtsWorkId.value !== workId) {
             stopFeedbackTTS()
         }
@@ -228,10 +274,11 @@ export const usePart7Store = defineStore('part7', () => {
             })
             if (!res.ok) throw new Error(`TTS ${res.status}`)
             const blob = await res.blob()
-            // If the user clicked pause / switched works during the
-            // fetch, the state will have already been reset by
+            // If the user paused / switched works during the fetch,
+            // the state will have already been reset by
             // `stopFeedbackTTS()`. Abort instead of starting a stale
-            // playback.
+            // playback. (A `paused` state with no audio yet shouldn't
+            // happen — the only path to `paused` is from `playing`.)
             if (currentTtsWorkId.value !== workId) {
                 return
             }
@@ -250,6 +297,7 @@ export const usePart7Store = defineStore('part7', () => {
             stopFeedbackTTS()
         }
     }
+
 
 
     const activePair = computed(

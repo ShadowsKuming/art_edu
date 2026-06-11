@@ -3925,3 +3925,927 @@ iframe) we don't want it taking the active-project pointer with it.
   the expected domain isn't in that list, it's a code bug; if it
   is, the issue is downstream (browser cache, Cloudflare WAF,
   intermediate proxy).
+
+
+## §29 — 2026-06-08 — G2V2-U5-L1《听听画画》deck + Part-7 voice playback + Part-6 lightbox brush + Part-3 story-first gate
+
+### Context
+
+Same pilot session as §28. Once the platform-level wedges (CORS,
+localStorage) were resolved, the next batch of items teachers raised
+during the dry-run were all *in-product* polish:
+
+1. **U5-L1 deck** — we had U4-L4 and U4-L5 pre-baked but U5-L1 was
+   still empty. The teacher couldn't preview《听听画画》so the
+   lesson stayed unteachable. U5-L1 is also the first lesson that
+   ships **mp3 audio assets** for the classroom playback exercise,
+   so the slide schema needs an `audio` element type usable in the
+   canvas.
+2. **Part-7 — voice playback for AI feedback** — teachers reading
+   the 200-word AI critique aloud to grade-2 students were getting
+   hoarse. They asked for a "🔊 read aloud" button so the platform
+   could narrate it.
+3. **Part-6 — lightbox annotation brush** — when the converted
+   sketch is blown up to projector size, the teacher wants to point
+   out specific brush strokes / colour patches ("look at how the
+   blue here echoes the blue there"). She was literally tapping
+   the projector glass with her finger. We need an HTML5 canvas
+   overlay inside the existing lightbox with brush + clear button.
+4. **Part-3 — story-first gate** — pilot teacher BLOOM-2026-B
+   complained the panel ordering was "顺序混乱" because she could
+   tab into the animation chat panel before generating a story,
+   spend a paragraph describing the animation she wanted, hit
+   send, and the model would invent an unrelated story for it.
+   The intended flow is story → animation, but nothing in the UI
+   enforced that.
+
+### What we did
+
+#### 1. U5-L1 pre-baked deck
+
+- Added the lesson seed in `frontend/src/data/lessons/g2v2-u5-l1.json`
+  (mirroring the seed contract documented in §25). Two artworks:
+  `art01-2000jiaoxiang.jpg` (《2000交响》) and
+  `art02-kandinsky-composition8.jpg` (Kandinsky's Composition 8),
+  plus the two mp3 sound files now living under
+  `frontend/public/textbook-assets/G2V2-U5-L1/music/`.
+- The deck includes 1-3 slides per part following the
+  desktop-预制课件 reference, all with `background.png` background
+  and Chinese-only copy (no header text per the pilot brief).
+- Slides referencing the mp3s use a **new `audio` slide-element
+  type** added to the slide schema. See §26 for the full canvas
+  element type list; `audio` is just `{ src: string, label?: string }`
+  rendered as a small pill button with native `<audio controls>`
+  underneath, scoped to the canvas — *not* a global player. The
+  slide stores an array of audio elements so the U5-L1《听听画画》
+  Part-4 canvas (the classroom playback exercise) can carry both
+  songs side-by-side.
+- The Part-4 description was tightened from "老师准备了 3 首音乐"
+  → "老师准备了 2 首音乐". The original "3 首" reflected the
+  template; we only have 2 actual mp3 files for this lesson. The
+  teacher can still upload additional mp3s at runtime through the
+  existing "add audio" affordance under each canvas.
+
+**Files touched:**
+- `frontend/src/data/lessons/g2v2-u5-l1.json` (new seed).
+- `backend/data/lessons/g2v2-u5-l1.json` (matching backend copy —
+  see §25 for the dual-write requirement; keep them in sync).
+- `frontend/src/data/lessons/index.ts` — added the U5-L1 import so
+  the lesson selection modal lists it.
+
+#### 2. Part-7 — read-aloud TTS button
+
+- Added a state-machine pill button **above** each feedback body in
+  `frontend/src/components/workspace/part7/Part7Content.vue`. Three
+  visual states:
+    - `idle` → ▶ 朗读评语 / Read aloud
+    - `loading` → spinner ⏳ 加载中…
+    - `playing` → ⏸ 暂停
+- Wired to existing helpers in `frontend/src/stores/part7.ts`
+  (`playFeedbackTTS`, `stopFeedbackTTS`, `ttsStateFor(workId)`,
+  `currentTtsWorkId`). The store already proxies to the backend
+  `/api/tts` edge-tts endpoint that was added in §21, so this is
+  purely a UI surface — *no new endpoints*.
+- **Auto-stop cleanup invariants** (these matter — without them a
+  stale audio element keeps reading aloud invisibly):
+    - On `slideStore.activeSlideId` change → `stopFeedbackTTS()`.
+    - On `store.activeWork.id` change (teacher switches student
+      thumbnail inside the same Part-7 slide) → `stopFeedbackTTS()`
+      if `currentTtsWorkId` doesn't match the new active work.
+    - On Part-7 component unmount (e.g. teacher navigates back to
+      Part-3 via the sidebar) → `stopFeedbackTTS()`.
+
+#### 3. Part-6 — lightbox annotation brush
+
+- The lightbox in
+  `frontend/src/components/workspace/part6/Part6Content.vue`
+  already letterboxed the image inside a dark overlay (added back
+  in §27 for projector clarity). We layered an HTML5 `<canvas>`
+  *over the rendered image bounding rect*, not over the whole
+  backdrop — so coordinates stay correct as the image is
+  letterboxed.
+- Toolbar (pinned bottom-centre, fixed position, z-index 10001):
+    - 🖌 brush toggle (on/off)
+    - 6 colour swatches: red `#EF4444`, amber `#F59E0B`, yellow
+      `#FACC15` (chosen because it stays visible against
+      Kandinsky-style blue patches), green `#22C55E`, blue
+      `#3B82F6`, white `#FFFFFF` (last-resort against dark
+      regions).
+    - 3 thicknesses: 3 / 6 / 12 px. Rendered as a coloured dot of
+      the corresponding size — teachers don't read "S/M/L", they
+      look at the size of the swatch.
+    - 🗑 Clear button (red-tinted to read as destructive). Only
+      "clear all" was implemented — no undo, no eraser. See
+      "Notes for future maintainers" below.
+- **Pointer-capture pattern** in `onCanvasPointerDown` —
+  `canvas.setPointerCapture(e.pointerId)`. Without this, when the
+  teacher draws past the edge of the image (which happens often
+  in letterboxed images), the move events stop arriving and the
+  stroke breaks into a "jump". Pointer capture forwards them
+  through until pointer-up.
+- **DPR-aware sizing** — `syncCanvasSize()` runs on image-load
+  and on window-resize. The canvas's CSS dimensions track the
+  image's rendered (post-`object-fit: contain`) bounding rect;
+  the underlying pixel buffer is scaled by `window.devicePixelRatio`
+  so retina screens get crisp lines. `ctx.setTransform(dpr, 0, 0, dpr, 0, 0)`
+  lets us keep drawing in CSS pixels.
+- **Clear-on-close** — strokes are session-only by design.
+  They're wiped on (a) lightbox close, (b) image-switch (the
+  watcher on `lightboxUrl` clears the canvas), and (c)
+  brush-toggle does NOT clear (a teacher wants to toggle to
+  inspect, then back on to keep drawing). The "clear all" button
+  is the explicit destroy action.
+- **Lightbox styles are unscoped** (`<style>` not
+  `<style scoped>`) because the lightbox is `<Teleport to="body">`-
+  mounted; scoped attribute selectors don't match the teleported
+  subtree. Brush styles are appended in the same unscoped block.
+
+#### 4. Part-3 — story-first gate
+
+- `Part3Content.vue` already had a soft-gate at the mode-toggle
+  button row (clickable but `onAnimationClick` shows a toast and
+  bails when `!hasStory && !hasAnim`). The new addition is
+  **defense-in-depth at the chat-panel input** in
+  `Part3AnimationPanel.vue`:
+    - Textarea `:disabled` when `!store.storyData`.
+    - Placeholder swaps to "请先在左侧生成故事，再来设计动画 ☺"
+      (or the English equivalent) so the prerequisite is visible
+      before any typing.
+    - Send button also disabled.
+    - The `send()` runtime guard still shows the existing toast
+      as a safety net for keyboard / programmatic edge cases.
+- This is purely an affordance-clarity change — the underlying
+  generation guard was already in place; the input just *looked*
+  enabled, which was the UX dead-end teachers were complaining
+  about.
+
+### Files touched
+
+- `frontend/src/data/lessons/g2v2-u5-l1.json` + matching
+  `backend/data/lessons/g2v2-u5-l1.json` (new lesson seed).
+- `frontend/src/data/lessons/index.ts` — register U5-L1.
+- `frontend/public/textbook-assets/G2V2-U5-L1/` — image + mp3
+  assets, plus the design-folder reference layouts.
+- `frontend/src/components/workspace/part7/Part7Content.vue` —
+  TTS pill button + state-aware icon swap + auto-stop watchers +
+  brand pill styles.
+- `frontend/src/components/workspace/part6/Part6Content.vue` —
+  brush state refs, pointer event handlers, toolbar template
+  fragment, unscoped CSS for `.p6-lightbox-stage` /
+  `.p6-lightbox-canvas` / `.p6-brush-toolbar` and friends.
+- `frontend/src/components/workspace/part3/Part3AnimationPanel.vue`
+  — input `:disabled` + placeholder swap.
+
+### Notes for future maintainers
+
+- **U5-L1 deck — keep the dual-write invariant.** The seed exists
+  in both `frontend/src/data/lessons/g2v2-u5-l1.json` and
+  `backend/data/lessons/g2v2-u5-l1.json`. The backend copy is the
+  source for first-time project hydration (it's what
+  `/api/lessons/<id>` returns); the frontend copy is for the
+  client-side selection modal. Drift between them = teacher sees
+  a lesson card that crashes on click. The
+  `frontend/scripts/sync-lessons.js` helper is the canonical way
+  to copy. See §25.
+- **The `audio` slide element is not a "global player".**
+  Multiple audio elements on one slide are independent `<audio>`
+  tags. If we later add cross-slide playback ("one bgm continues
+  across slides"), that's a different feature and would need its
+  own store ref — don't conflate it with this element type.
+- **Part-7 TTS auto-stops are essential.** All three watchers
+  (slide-change, work-change, unmount) must fire
+  `stopFeedbackTTS()` or audio leaks across views. The store's
+  `currentTtsWorkId` ref is the single source of truth for "who
+  owns the active audio" — if you ever need a fourth scenario,
+  gate it on a match against that ref rather than on the
+  per-work `ttsState`.
+- **Part-6 brush — no eraser by design.** Pilot session §29 said
+  "give me a way to clear and start over"; that's the Clear All
+  button. Adding a per-stroke eraser would force us to keep a
+  display-list of strokes (so the eraser knows what to remove),
+  which we explicitly didn't want for v1. If a teacher asks
+  again, the trade-off is undoable.
+- **Part-6 brush — pointer capture, NOT mousemove on document.**
+  Some other parts of the app use
+  `document.addEventListener('mousemove', …)` for similar drag
+  tracking. *Don't* do that here — the lightbox is a
+  `<Teleport to="body">` modal and global listeners would fire on
+  every overlay element. `pointercapture` keeps the events
+  scoped to the canvas element.
+- **The brush 6-colour palette is opinionated.** Yellow + white
+  exist specifically so teachers can annotate against
+  bright/dark backgrounds respectively. If you ever shrink the
+  palette, keep at least one high-contrast colour for each
+  background luminance band.
+- **Part-3 story-first gate — keep both layers.** The
+  Part3Content.vue button-row gate is the *visible* signal
+  (greyed-out animation tab + tooltip); the Part3AnimationPanel
+  input-disabled is the *escape-hatch* gate for the case where
+  the teacher's already in animation mode from a previous
+  session. Removing either one re-opens the "顺序混乱" complaint.
+
+
+## §30 — 2026-06-08 → 2026-06-09 — Part-3 global single-generation lock + per-artwork creative-assistant chat + ✓ completion badges + "生成中..." persistence
+
+### Context
+
+Pilot session §29 surfaced two distinct cross-artwork bugs in
+Part 3 that the §29 story-first gate alone didn't solve:
+
+1. **Cross-artwork generation race.** Teacher clicks 「生成故事」
+   on 《桃花源1》 (artwork A1 in pair P1) → fetch starts. While
+   the SSE is still streaming, she clicks 《桃花源2》's thumbnail
+   (A2 in the same pair P1). The `setActiveArtwork` flow runs
+   `_saveArtworkState` for A1 and `_restoreArtworkState` for A2,
+   and in the process **resets `pair.storyLoading = false`** —
+   because the loading flag is per-pair and was being treated as
+   transient.
+   - The in-flight SSE was still alive and still writing to
+     `pair.storyData`, but `pair.storyData` was now A2's slot.
+     The final parsed JSON landed in A2 — silently corrupting
+     it — and A1's story disappeared.
+   - The 「生成故事」button on A2 now *looked* idle (since
+     `storyLoading=false` on the pair), so the teacher could
+     click it and start a second generation that competed with
+     the first.
+2. **Creative-assistant chat 串台.** The right-side Part-3
+   "创意助手" panel (`Part3AnimationPanel.vue`) kept its
+   `messages` array in component-local state. When the teacher
+   switched from A1 to A2, the component didn't remount, so A1's
+   chat history stayed on screen against A2's image — confusing
+   teachers who thought their suggestions were being applied to
+   the wrong piece.
+
+The pilot teacher also asked for:
+
+3. A **clear "已完成生成" affordance** — once a story or
+   animation exists for an artwork, she wanted a visual badge so
+   she could scan the artwork thumbnails and immediately see
+   which were done. Up to now the only signal was "the button
+   label changes from `生成故事` → `故事`", which she didn't
+   notice.
+4. **"生成中..."** must survive an artwork switch. If she clicks
+   `生成故事` on A1, then taps A2's thumbnail to look at it
+   while she waits, then taps back to A1, **the A1 button must
+   still read `生成中…`** until the SSE actually completes.
+   Today (per bug 1 above) it reset to idle on switch.
+
+### What we did
+
+This is a single conceptually-unified change with four
+user-facing deliverables. The core idea is to move all "is this
+artwork generating?" state out of per-pair transient flags and
+into a **store-level global lock**, with the per-artwork chat
+history similarly promoted to per-artwork pair state.
+
+#### 1. Store-level global generation lock (`frontend/src/stores/part3.ts`)
+
+```ts
+const _genLock = ref<null | {
+  kind: 'story' | 'animation'
+  pairId: string
+  artworkKey: string | null
+}>(null)
+```
+
+- **Acquisition** at the top of `generateStory()` and
+  `generateAnimation()` via
+  `_acquireGenLock(kind, pairId, artworkKey)`, which returns
+  `false` if the lock is held — generation refuses silently in
+  that case (the UI layer already showed a toast).
+- **Release** in:
+    - `generateStory`'s `finally` (covers success + every error
+      branch).
+    - `generateAnimation`'s catch (covers submit-time failure).
+    - `_pollAnimation`'s four terminal branches: `succeeded`,
+      `failed`, poll-timeout, and pair-deleted-mid-poll. The
+      lock-release happens **adjacent to** the existing
+      `animationLoading = false` assignment so the two cleanups
+      stay in lock-step.
+- **Exposed read-only computeds** for the UI:
+    - `isAnyGenerating` — boolean
+    - `generatingKind` — `'story' | 'animation' | null`
+    - `generatingOwnerPairId` / `generatingOwnerArtworkKey` —
+      so the UI can distinguish "*this artwork's own task* is
+      running, show 生成中…" from "*some other artwork* is
+      running, show busy-locked tooltip".
+
+#### 2. Lock-derived `storyLoading` / `animationLoading`
+
+The flat computed getters were **rewritten** to derive from the
+global lock plus the active artwork, instead of reading
+`pair.storyLoading`:
+
+```ts
+const storyLoading = computed(() => {
+  const pair = activePair.value
+  if (!pair) return false
+  return (
+    _genLock.value?.kind === 'story'
+    && _genLock.value?.pairId === pair.id
+    && _genLock.value?.artworkKey === pair.activeArtworkKey
+  )
+})
+```
+
+The corresponding `_restoreArtworkState()` reset of
+`pair.storyLoading` **was removed** — it's now derived state, no
+need to zero it. The per-pair `pair.storyLoading` field still
+exists for backward-compat with code that writes to it inside the
+generate functions, but the computed ignores it.
+
+This is what makes **"生成中…" survive an artwork switch** —
+switching to A2 doesn't change `_genLock.value` at all, so A2's
+button reads idle (because the lock's `artworkKey !== A2`), and
+when the teacher comes back to A1 the lock still matches and
+storyLoading flips back to true.
+
+#### 3. Per-artwork creative-assistant chat
+
+- Added `AnimationChatMessage[]` to the `SavedArtworkState`
+  interface (the per-artwork snapshot bag) and to `Part3Pair`
+  (the active-view mirror, matching the existing
+  `designChatMessages` lifecycle).
+- `_saveArtworkState` / `_restoreArtworkState` now copy
+  `animationChatMessages` in/out of the slot.
+- `getSnapshot` / `loadSnapshot` round-trip the field too (with
+  a `?? []` fallback so older saved projects still load).
+- Three new store helpers:
+    - `appendAnimationChat(role, text)` — the canonical mutator
+      called by the panel's `send()`.
+    - `seedAnimationGreeting(greetingText)` — lazy first-visit
+      greeting; no-op if the chat already has content.
+    - `setAnimationGreetingIfFirst(greetingText)` — locale-flip
+      helper that only touches the first message if it's still
+      the seeded assistant turn.
+- `Part3AnimationPanel.vue` now reads messages via
+  `store.animationChatMessages` (a computed of the active pair's
+  list) and writes via the helpers. A `watch` on
+  `activePair.activeArtworkKey` re-seeds the greeting on artwork
+  switch when the new artwork's chat is empty.
+
+This kills the "串台" bug — each artwork's chat lives in its own
+`pair.animationChatMessages` slot, and the active-view mirror is
+swapped atomically by `_restoreArtworkState`.
+
+#### 4. Green ✓ completion badges
+
+- Small filled `#22c55e` SVG circle with a white tick path is
+  appended **inside** the 「生成故事」 and 「生成动画」 buttons,
+  visible only when `hasStory && !storyLoading` /
+  `hasAnim && !animationLoading` respectively.
+- Same dimensions as the existing 🔒 lock badge so the button
+  row stays visually balanced.
+- Hidden during regeneration so the spinner-wording remains the
+  primary "in flight" signal.
+
+#### 5. Cross-artwork button gating
+
+The pre-existing `busyByOther` computed in `Part3Content.vue`
+was based on `pairId`-only comparison, which meant **same-pair
+different-artwork** was incorrectly allowed. With the
+lock-derived `storyLoading` / `animationLoading` above, the
+button-disabled logic now works correctly: the owning artwork's
+button shows 生成中… (own loading flag true), every other
+artwork's button shows the busy-locked dashed-border +
+cursor:help + tooltip "请先等待完成当前生成内容".
+
+### Files touched
+
+- `frontend/src/stores/part3.ts` — `_genLock` ref, accessors
+  (`isAnyGenerating`, `generatingKind`, `generatingOwnerPairId`,
+  `generatingOwnerArtworkKey`), `_acquireGenLock`/`_releaseGenLock`,
+  acquire/release in `generateStory` / `generateAnimation` /
+  `_pollAnimation`, lock-derived `storyLoading` /
+  `animationLoading`, `AnimationChatMessage` type +
+  `SavedArtworkState`/`Part3Pair` fields, `makePair` init,
+  `_saveArtworkState` / `_restoreArtworkState` / `getSnapshot` /
+  `loadSnapshot` updates, three chat helpers, store return
+  exposure.
+- `frontend/src/components/workspace/part3/Part3Content.vue` —
+  `onStoryClick` / `onAnimationClick` toast guards,
+  `busyByOther` / `busyTooltip` computeds, button `:class` /
+  `:disabled` / `:title` updates, green ✓ SVG fragments +
+  `.p3-btn-check` CSS.
+- `frontend/src/components/workspace/part3/Part3AnimationPanel.vue`
+  — removed local `messages` ref, replaced with store-backed
+  computed; `appendAnimationChat` calls in `send()`;
+  locale-flip watcher via `setAnimationGreetingIfFirst`;
+  first-visit seed via `watch(activeArtworkKey, …)` with
+  `immediate: true`.
+
+### Notes for future maintainers
+
+- **One acquire = one release, always.** Every code path
+  through `generateStory` / `generateAnimation` /
+  `_pollAnimation` either acquires-and-releases or doesn't
+  acquire at all. The release sites are clustered next to where
+  the per-pair `*Loading = false` is set — keep them adjacent.
+  If you ever add a new terminal branch (e.g. a "user cancelled"
+  path), the release **must** be there too or the lock will
+  leak and `isAnyGenerating` will stay stuck true forever
+  (manifests as: every button on every artwork is greyed out
+  with the busy tooltip, and a page reload is the only escape).
+- **The per-pair `pair.storyLoading` / `pair.animationLoading`
+  flags are now write-only legacy fields.** The computed getters
+  ignore them; only the generate functions still flip them, and
+  only because the old code did. Don't add new reads. If you
+  add new mutators that need to signal "this artwork is
+  generating", *go through `_acquireGenLock` instead*.
+- **The lock comparison uses `artworkKey`, not `pairId` alone.**
+  Two artworks in the same pair (e.g. 桃花源1 and 桃花源2 of
+  pair P1) are *different artwork keys*. Without the artworkKey
+  comparison, both would share the same loading flag — the
+  original bug.
+- **`animationChatMessages` snapshot round-trip is back-compat
+  safe.** Old saved projects without the field get `?? []` on
+  load, which means the first visit to that artwork will trigger
+  the greeting seed naturally. Don't add migrations; the lazy
+  seed handles it.
+- **Don't push directly to `pair.animationChatMessages` from
+  components.** Use `appendAnimationChat()`. The store helper
+  guarantees we touch the *active* pair (handles the
+  no-active-pair edge case), and centralising the mutation makes
+  any future audit/log/persistence hook (analytics, autosave
+  coalescing, etc.) one place to add.
+- **The ✓ badge is hidden during regeneration on purpose.** If
+  the teacher hits "regenerate" on an artwork that already had
+  a story, we don't want the badge to flicker on/off — the
+  spinner wording is the primary in-flight signal, so the badge
+  yields to it. If you ever change the spinner-wording
+  approach, revisit this CSS.
+- **The lock holds through Doubao animation polling (30-60 s).**
+  This is intentional — it prevents the teacher from queueing a
+  second video that would compete for the same backend slot.
+  The tradeoff is a long busy-tooltip state for animation
+  generation; the toast wording was crafted to make that wait
+  OK ("请先等待完成当前生成内容").
+
+### Operational follow-up
+
+- No backend changes; this is all client-state architecture.
+- `npx vue-tsc --noEmit` exits clean.
+- Smoke-tested all four scenarios manually:
+  1. Generate story on 桃花源1, click 桃花源2 thumbnail
+     mid-stream → 桃花源2's buttons show busy-locked dashed
+     border with tooltip; click back to 桃花源1 → button still
+     reads 生成中… ✓
+  2. Type into 桃花源1's creative-assistant chat, switch to
+     桃花源2 → chat panel shows fresh greeting; switch back →
+     桃花源1's history is intact ✓
+  3. Complete a story → ✓ badge appears on 「生成故事」 button;
+     stays through page reload (via snapshot round-trip) ✓
+  4. Cross-pair: 桃花源1 (pair P1) story generating →
+     《小真的长头发》 (pair P2) buttons also show busy-locked ✓
+
+
+## §31 — 2026-06-11 — One-off self-heal for BLOOM-2026-B 《好长好长》 stuck-on-converting + Part-4 image loss (single-project surgical fix)
+
+### Symptom
+
+Pilot teacher `BLOOM-2026-B` opened her in-progress 《好长好长》
+project (id `proj-1780920895755`) the morning after the §28 / §29
+session and reported two issues, both visible in the same DevTools
+screenshot:
+
+1. **Part 6 — 风格转化卡住.** The 「转换中…」 modal overlay
+   covered the entire Part-6 canvas and never went away, even on
+   page reload or tab restart. The teacher could see the chat
+   panel responding normally to "为我推荐这节课的风格转换方案"
+   (3 styles came back), but the overlay was z-indexed above the
+   Step-2 card and the「重新讨论风格」escape hatch, so she had no
+   way to interact with the workspace.
+2. **Part 4 — 课堂实践老师自己加的图片不显示.** The teacher had
+   inserted her own photos into a Part-4 slide via the file
+   picker; on reload the images were gone (broken-image
+   placeholder).
+
+Screenshot console error chain:
+
+```
+POST /api/auth/login       → 401   (re-login failed, no token)
+[projects] localStorage over quota — persisted slim cache
+PUT  /api/projects/proj-… → net::ERR_SSL_BAD_RECORD_MAC_ALERT
+[projects] saveCurrentProject API failed: TypeError: Failed to fetch
+```
+
+### Root cause (one event chain, two symptoms)
+
+The two symptoms are the **same incident** seen from two angles —
+the §28 quota-cascade + a transient TLS error reinforced each
+other so neither localStorage nor the API copy had a clean version
+of the data.
+
+**Part 6 stuck.** `part6Store.convert()` sets
+`view.value = 'converting'` *before* the Doubao fetch. The
+surrounding `PUT /api/projects/{id}` carrying the multi-MB base-64
+sketch body was killed mid-flight by a TLS
+`ERR_SSL_BAD_RECORD_MAC_ALERT` (Cloudflare ↔ Render dropped the
+connection — symptomatic of huge request bodies hitting an
+intermediate proxy quirk). The Doubao request was also collateral
+damage of the same network blip. Neither the `view = 'result'`
+success branch nor the `view = 'steps'` catch branch ran, so the
+store stayed in `view: 'converting'` indefinitely. The autosave
+watcher then captured that stuck value into `part6Snapshot.view`
+and pushed it into both localStorage and (eventually) Postgres.
+Every subsequent reload → `loadSnapshot()` → `view.value = snap.view`
+→ overlay back on screen. Permanently.
+
+**Part 4 images.** `FileReader.readAsDataURL()` stored the
+inserted images as `data:image/...` strings on
+`slide.elements[i].src`, several MB each. §28's
+`stripHeavyDataUrls()` walks the snapshot at slim-cache time and
+nulls any `data:` string > 64 KB — that includes Part-4 slide
+elements, not just the Part-6 / Part-7 cases the comment lists.
+§28 was correct to do this *given the assumption that the server
+holds the canonical copy*. In this incident the assumption broke:
+the same TLS error that killed the Part-6 PUT had been killing
+*every* large PUT (auth was also failing 401 on top, so even the
+recovery path `loadFromAPI()` early-returned for lack of a token).
+End state: localStorage had `src: null`, Postgres had whatever
+state it had before the teacher's image-insertion session — i.e.
+no images. Data permanently lost.
+
+### Fix — single-project surgical self-heal (no global behaviour change)
+
+Per teacher agreement (she's OK re-clicking Convert in Part 6 and
+re-uploading the Part-4 images), the scope of this PR is
+intentionally narrow:
+
+- We do **not** ship a global fix for the persisted-`view` bug,
+  the data-URL stripping policy, or the auth-401 path. Those are
+  follow-up items (see §32-plan stub below).
+- We **do** ship a tiny `STUCK_PROJECT_IDS` set + `healStuckProject()`
+  helper in `frontend/src/stores/projects.ts`, hooked into the
+  existing `migrateProjects()` function so it runs on **both**
+  hydration paths (localStorage boot AND `loadFromAPI()` post-login).
+- The helper only ever touches project id `proj-1780920895755`.
+  Every other project / teacher / tenant flows through the
+  unchanged legacy `fix(...)` path.
+- For the matched project:
+    - If `part6Snapshot.view === 'converting'` → force to `'steps'`,
+      clear `latestResult`, clear `selectedStyleIdx`.
+    - If `part6Snapshot.view === 'result'` but `latestResult.resultUrl`
+      is null/missing (the §28 slim-cache could have already nulled
+      out a previous result), also reset to `'steps'`.
+    - Otherwise no-op — important because once the teacher re-runs
+      a successful Convert and the snapshot round-trips through
+      the server, the heal becomes inert and the special-case
+      stays passive.
+- Confirmed `styles[]`, chat history, sketch base-64, proposed-style
+  messages, and `confirmedMessageId` are preserved — the teacher
+  does NOT have to redo the discussion-and-confirm flow, only
+  re-click the green Convert button on a pig.
+
+### Effect
+
+- Teacher logs out → logs back in (also resolves the 401 by
+  forcing a fresh auth round-trip).
+- App boots, `migrateProjects()` runs over the (slim) localStorage
+  copy, sees project id `proj-1780920895755`, heals
+  `part6Snapshot.view` → `'steps'`. Overlay disappears.
+- `loadFromAPI()` then pulls Postgres copy, also runs through
+  `migrateProjects()`, also healed. No conflict.
+- Autosave watcher fires within the next reactive tick, PUT to
+  server includes `view: 'steps'`. Postgres copy is now clean.
+- Teacher selects a pig + clicks 「开始转换」 → fresh `convert()`
+  call → new Doubao image. Working session resumes.
+- Part-4 images are still missing (the data is gone everywhere
+  per the comment in `healStuckProject`); teacher manually
+  re-uploads them.
+
+### Files touched
+
+- `frontend/src/stores/projects.ts` — `STUCK_PROJECT_IDS` constant,
+  `healStuckProject()` helper, integrated into the existing
+  `migrateProjects()` flow.
+
+### Notes for future maintainers
+
+- **This entry is an artefact of `proj-1780920895755`'s bad day, not a
+  pattern to reuse.** If a second teacher hits the same stuck-on-
+  converting state, the right move is the global fix (§32 plan
+  below), not adding more project IDs to this set. A second
+  occurrence is the signal that the global change is overdue.
+- **Removing the special case.** Once the teacher confirms her
+  project works (Part 6 converts, save round-trips successfully)
+  the entry in `STUCK_PROJECT_IDS` can be deleted. The helper is
+  designed to be a no-op against a healthy project so leaving it
+  in place is also fine; deletion is purely cosmetic. There is no
+  scheduled-deletion mechanism — this is a "manual cleanup, low
+  priority" item.
+- **Why this lives in `migrateProjects()` and not as a one-off
+  Pinia plugin / boot effect.** `migrateProjects()` is the only
+  function called from *both* the localStorage hydrate path
+  (`const projects = ref(migrateProjects(load(...)))`) AND the
+  API hydrate path (`projects.value = migrateProjects(mapped)`).
+  Putting the heal anywhere else (e.g. `setActiveProject()`)
+  would either miss one path or require duplicate calls. The
+  function's name is now a slight misnomer (it does more than
+  URL migration) but the trade-off is a single integration point.
+- **The heal preserves `messages[]` and `confirmedMessageId`** so
+  the teacher's "已确认 ✓" set of three styles survives. If a
+  future heal scenario needs to reset deeper into Part-6 state,
+  follow the same conservative-default pattern — start by
+  resetting *only* transient UI state (`view`, `latestResult`,
+  `selectedStyleIdx`) and only widen if the symptom requires it.
+- **Part-4 images cannot be recovered.** The §28 slim-cache
+  replaced them with `null` in localStorage, and the matching
+  large-body PUT failed with TLS errors that mean Postgres never
+  saw them. Anyone reading this in the future investigating a
+  similar "where did the images go" report: check the user's
+  PUT history in Render logs around the time of the §28
+  quota-toast. Absence of a successful PUT carrying the image
+  bytes = the only copy was the slim-nulled localStorage = data
+  gone. Don't promise a recovery you can't deliver.
+
+### Operational follow-up
+
+- Confirm with BLOOM-2026-B by 2026-06-12 EOD that:
+  1. Logout / re-login cleared the overlay.
+  2. She was able to click Convert and get a fresh result image.
+  3. She has re-uploaded the Part-4 images and they survive a
+     reload (means the underlying PUTs are succeeding now —
+     transient TLS issue, not a structural Cloudflare/Render
+     problem).
+- If (3) fails on a second reload, that's the signal to escalate
+  to the §32 global fix immediately — it means base-64 image
+  bodies are still being killed by the proxy chain and we need
+  to ship the "upload Part-4 images to R2 instead of inlining
+  base-64" change before another teacher hits the same wall.
+
+### §32 (planned, NOT in this PR) — global hardening
+
+For when a second occurrence forces the broader fix:
+
+1. **`part6Snapshot.view` should not be persisted.** Either
+   exclude it from `getSnapshot()` or coerce it to `'steps'` on
+   write. The Result-view image URL is also worth nuking on
+   write since the same TLS class of error can leave it stale.
+2. **`convert()` needs an `AbortController` + 90-120 s timeout
+   wrapping the Doubao fetch**, with a `finally` block that
+   guarantees `view = 'steps'` on every path. Toast on timeout
+   ("网络异常，已退回，请重试") so the teacher knows it failed.
+3. **`stripHeavyDataUrls()` should treat slide-element image
+   `src` as protected**: those are teacher-authored assets with
+   no recovery path other than re-upload. Other heavy data-URL
+   strings (Part-6 results, Part-7 student work) have natural
+   regenerate / re-upload paths and stay strippable.
+4. **Better: Part-4 image inserts should upload to R2 via
+   `/api/uploads/r2`** (the script in `frontend/scripts/sync-r2-assets.js`
+   already proves the path) and the slide element should store
+   the resulting URL, not base-64. This eliminates the root
+   cause of the giant-PUT failures.
+5. **Auth `/api/auth/login` 401** needs its own investigation —
+   could be `PILOT_CODES` env var drift on Render, or a stale
+   refresh-token path on the client. Out of scope for §31 / §32
+   but track in the same incident review.
+
+
+## §32 — 2026-06-11 — Part-7 true pause/resume + feedback-text annotation brush (global)
+
+Two pilot-feedback items landed in the same PR — they're independent
+features that both touch the Part-7 feedback card, so it was natural
+to ship them together.
+
+### 32.1 — True pause / resume on the AI-feedback TTS
+
+#### Symptom
+
+The Part-7 「朗读评语」 pill, introduced in §29.2, presented a
+playing-state「暂停」label that was a misnomer. Pressing it
+released the audio element AND revoked the blob object URL; a
+follow-up press did NOT resume — it kicked off a *fresh* `POST
+/api/tts` and started narration from `t=0`. Pilot teachers
+complained: any classroom interruption ("please open your
+sketchbooks") erased 20-40 s of progress through a 200-word
+critique, and they had to listen all over from the beginning
+(plus pay the 3-5 s edge-TTS latency).
+
+#### Root cause
+
+In `frontend/src/stores/part7.ts` the `playFeedbackTTS` state
+machine had three states (`idle | loading | playing`). The
+`playing → press = pause` transition called `stopFeedbackTTS()`
+which is the "tear it all down" path:
+
+```ts
+function _releaseAudio() {
+  if (_audioEl) {
+    _audioEl.pause()
+    _audioEl.src = ''      // ← this is the kicker
+    _audioEl = null
+  }
+  if (_audioObjectUrl) {
+    URL.revokeObjectURL(_audioObjectUrl)
+    _audioObjectUrl = null
+  }
+}
+```
+
+Setting `src = ''` discards the media element's buffered audio AND
+its `currentTime` cursor. The `_audioObjectUrl` revoke means the
+blob URL can't be reattached either. So a re-press has no choice
+but to fetch a fresh blob and start over.
+
+#### Fix
+
+Added a fourth state `'paused'` and split the transitions:
+
+```ts
+type TtsState = 'idle' | 'loading' | 'playing' | 'paused'
+
+//   idle  ──[play]──▶ loading ──[blob ready]──▶ playing
+//    ▲                                              │  │
+//    │                                      [pause] │  │ [ended/error]
+//    │                                              ▼  │
+//    │                                            paused
+//    │                                              │
+//    │                                       [resume play]
+//    │                                              │
+//    │                                              ▼ → playing
+//    │
+//    └──[stop: switch work / slide / unmount]
+```
+
+Behaviour changes in `playFeedbackTTS()`:
+
+- `playing` press → `_audioEl.pause()` only (don't release).
+  State → `'paused'`. `currentTime` is preserved.
+- `paused`  press → `_audioEl.play()`. State → `'playing'`. Audio
+  resumes from the exact same syllable.
+- Switching to a different work / leaving the slide / unmounting
+  still calls `stopFeedbackTTS()` which tears down. That path is
+  the only way the audio element is destroyed — same single
+  ownership invariant as before.
+- The `ended` / `error` event handlers still call
+  `stopFeedbackTTS()`, so finishing playback naturally still
+  releases (otherwise the next "play" would resume from the very
+  end of a completed track — a bad UX, and a memory leak).
+
+UI changes in `frontend/src/components/workspace/part7/Part7Content.vue`:
+
+- New `--paused` CSS modifier on the pill — same idle pill colour
+  scheme (so it reads as "click me to continue") but kept
+  distinguishable from `--playing` (which uses the saturated
+  brand-green fill).
+- Play-arrow icon is rendered for **both** `idle` and `paused`.
+  The teacher visually sees "press to start narration" in both
+  cases; the difference is internal (idle = fetch + start vs.
+  paused = resume).
+- Label swaps between locales:
+    - idle → 朗读评语 / Read aloud
+    - loading → 加载中… / Loading…
+    - playing → 暂停 / Pause
+    - paused → 继续 / Resume
+
+#### Why this isn't a global TTS refactor
+
+Part-3 has its own TTS story-narration code path in
+`Part3StoryPanel.vue` + `stores/part3.ts` (different state shape,
+different segment picker UX from §21.4) — it does NOT share the
+audio element with Part-7. We intentionally did NOT touch Part 3
+in this PR because:
+
+1. The pilot feedback was Part-7-specific.
+2. Part-3 narrates story segments (part1 / part3) where a teacher
+   typically wants to "play again from the top" between class
+   reads — pause/resume is less valuable.
+3. Touching both call sites in one PR multiplies the regression
+   surface in a feature (TTS) that's hard to write automated
+   tests against.
+
+If the same pause/resume request comes in for Part 3, port the
+state-machine pattern from `part7.ts` and keep the modifications
+local — don't refactor a shared helper without good reason. The
+overlap is ~30 LOC.
+
+### 32.2 — Annotation brush over the AI-feedback text
+
+Teachers wanted, on the projector during share-and-feedback, to
+circle the specific phrases of the AI critique they want to talk
+about ("look here — *imagination* — and here — *colour-mixing*")
+— the same affordance §29.3 added for Part-6 generated images.
+
+#### Implementation
+
+Ported the §29.3 brush state machine wholesale from
+`Part6Content.vue` into `Part7Content.vue` with one Part-7-specific
+twist: the brush canvas overlays **text** (`<p class="p7-feedback-body">`),
+not an image. So:
+
+- Body `<p>` is wrapped in a `.p7-feedback-body-wrap` (`position:
+  relative`).
+- A `<canvas class="p7-annotation-canvas">` sits absolutely-positioned
+  inside the wrap, sized in JS via `syncCanvasSize()` to match the
+  body's `getBoundingClientRect()` — including the body height,
+  which changes as feedback text grows / shrinks across regenerates.
+- Canvas `pointer-events` is gated by `brushActive`. **When brush
+  is off**, `pointer-events: none` and the text below is selectable
+  / copyable as before. **When on**, `pointer-events: auto` and the
+  canvas captures clicks for drawing. This is the critical
+  difference vs Part-6 (where the underlying image isn't
+  selectable, so the canvas just owns clicks all the time).
+
+Shared design choices with §29.3:
+
+- 6-colour palette (red / amber / yellow / green / blue / white)
+  with intentional bright + dark high-contrast anchors.
+- 3 thicknesses (3 / 6 / 12 px) shown as coloured dots in the
+  picker.
+- `setPointerCapture` on pointerdown so strokes survive when the
+  teacher draws past the box edge.
+- DPR-aware sizing (`ctx.setTransform(dpr, 0, 0, dpr, 0, 0)`) for
+  crisp lines on retina projector screens.
+- Session-only — no persistence to snapshot. Cleared on
+  (a) regenerate feedback (text changed = old strokes invalid),
+  (b) switch active work, (c) leave Part-7 view, (d) explicit
+  Clear button.
+
+Toolbar layout: the brush controls share the existing
+`.p7-feedback-toolbar` row above the body, with a flex-grow
+spacer that pushes the TTS pill to the right. On narrow widths
+the row wraps gracefully (`flex-wrap: wrap`); the spacer's
+`min-width: 8px` makes sure neither group collapses to zero. The
+toolbar's brush controls are conditionally rendered: only the
+toggle pill is always present; the palette / sizes / clear
+buttons appear only when `brushActive` is true so the inactive
+toolbar stays compact.
+
+#### Cleanup invariants
+
+Identical to §29.3's:
+
+- `watch(brushActive)` → `nextTick(syncCanvasSize)` when toggling on.
+- `watch(activeWork?.feedbackText)` → clear + re-sync (text
+  re-flow invalidates strokes).
+- `watch(activeWork?.id)` → clear + force `brushActive = false`
+  (different work = different annotations; toggling off avoids
+  a stale enabled brush against the wrong text).
+- `window.addEventListener('resize', onWindowResize)` registered
+  in `onMounted`, removed in `onBeforeUnmount`.
+
+### Files touched
+
+- `frontend/src/stores/part7.ts` — `TtsState` widened to include
+  `'paused'`, new transition branches in `playFeedbackTTS()`,
+  `_audioEl` is kept alive across pause/resume.
+- `frontend/src/components/workspace/part7/Part7Content.vue` —
+  brush state refs + handlers + watchers + canvas overlay,
+  toolbar template extended, paused-state styling on the TTS
+  pill, mount/unmount resize listener.
+
+### Notes for future maintainers
+
+- **`_audioEl` is module-scoped, single-instance.** Don't promote
+  it to a `Map<workId, HTMLAudioElement>` "to allow simultaneous
+  playback per work". Pilot UX is one-at-a-time across works AND
+  parts. Adding parallel audio elements means we'd also have to
+  decide what happens when the user clicks the Part-3 narrator
+  while Part-7 is paused — the answer is "stop Part 7 first",
+  which is exactly what the current single-instance design gives
+  us for free.
+- **`stopFeedbackTTS` is THE teardown path.** Every code path
+  that needs the audio element to actually go away calls it. The
+  `'paused'` branch in `playFeedbackTTS` deliberately does NOT.
+  If you add a new place where the audio should be released
+  (e.g. a future "logout" button), call `stopFeedbackTTS()` — do
+  NOT just set `ttsStates.value[workId] = 'paused'` and assume
+  garbage collection will handle the rest. The blob URL leak
+  alone is enough to be a problem.
+- **Audio `paused` is preserved across artwork switches?** No —
+  switching artwork triggers `stopFeedbackTTS()` per §29.2's
+  watcher (which we kept). If a teacher is paused on work A and
+  taps work B, the paused audio is destroyed. If they tap back
+  to A, they have to re-fetch and play from the top. We
+  considered preserving paused state across switches but it
+  would require a `Map<workId, { audioEl, objectUrl, currentTime }>`
+  scratchpad and we judged the complexity / risk of
+  audio-element leak not worth the UX win.
+- **The brush canvas overlays text, not an image.** That makes
+  the `pointer-events: none / auto` toggle load-bearing — without
+  it the canvas would block all text selection even when brush
+  is off, which is unacceptable for "I want to copy the AI
+  critique into my notes" workflows. If you ever need the canvas
+  to also intercept hovers (e.g. tooltip on stroke), be careful
+  that the `pointer-events: none` path still leaves the text
+  selectable.
+- **Annotations are NOT persisted.** A future "save annotated
+  feedback as PNG" export would need to (a) call
+  `canvas.toBlob()` on the annotation layer, (b) `html2canvas`
+  the underlying text (the text isn't drawn on the canvas — it's
+  HTML), (c) composite. Out of scope here; if the export ever
+  comes up, this is the design path.
+- **Don't promote the brush state into a shared composable yet.**
+  We now have nearly-identical brush code in three places:
+  Part-6 lightbox (`Part6Content.vue`), Part-7 feedback card
+  (`Part7Content.vue`), and a candidate Part-3 future use. The
+  natural refactor is a `useAnnotationBrush({ targetRef })`
+  composable, but the per-call-site quirks (gating on image-load
+  vs feedback-text-change, lightbox teleport vs in-flow body,
+  pointer-events scoping) make the composable's API surface
+  uncomfortable. Wait for a third call site to actually land
+  before extracting — premature factoring will probably block
+  one of the existing call sites' specifics.
+
+
