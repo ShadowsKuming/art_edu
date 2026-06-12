@@ -5172,3 +5172,111 @@ operationally noisy. Recommend a parallel ticket to redeploy the
 backend / clear the CORS env var so the heal can propagate to
 the canonical store.
 
+---
+
+## §34 — Part-3 animation_brief authoring rule for book-cover / illustration artworks (2026-06-12)
+
+### Context
+
+`BLOOM-2026-B` 老师反馈：在 `g2v2-u4-l5`《吸引人的标题》/
+"An Eye-Catching Title" 这节课的 Part 3「故事动画」里，三幅
+绘本封面（《年》《糟了！我忘了关水龙头！》《臭臭的比尔》）
+生成的动画**几乎只是镜头缓慢推近 (camera push-in)**，封面里
+的鞭炮、水龙头、小狗比尔等故事主体本身没有动起来，与老师
+对"让封面活起来"的期待不符。
+
+### Root cause — prompt pathology, not infrastructure
+
+Doubao Seedance 收到的最终 prompt 由
+`backend/main.py:_build_animation_prompt()` 拼接（§7 / §13），
+其中**最优先且字面影响最大**的部分就是 LKP 中每个 artwork 的
+`animation_brief_en`。原 brief 同时踩了 5 个雷：
+
+1. **第一句即 "Camera slowly pushes in toward …"**。视频模型
+   对 prompt 首句最敏感，被首句锚定为"主动作 = 镜头推近"。
+2. **动作描述全用弱化副词**：tiny / small / slightly / gently /
+   faint / slowly。模型字面化执行 → 几乎不动。
+3. **Art01 还显式写了 "firecrackers ... hold their positions"**，
+   等于命令主体保持静止。
+4. **三幅都把焦点放在"标题字体"上**（letterform edges quiver /
+   droplets seep from the character edges），而封面里"字"占像
+   素小、又同时被要求"保留笔画/拼贴肌理"，模型只好放弃细微
+   变形，转而用 zoom 来"显得有动作"。
+5. `_build_animation_prompt()` 尾部固定句 "Preserve the original
+   artwork's style, colour palette, **and composition**" 进一步
+   暗示"构图不变"。构图不变 + 主体保持位置 = 只能动相机。
+
+### Authoring rule (apply to every `animation_brief_*` going forward)
+
+For artwork classes where the visual is **a single illustrated
+scene** (picture-book cover, narrative illustration, single
+character portrait), the brief must be authored against these
+five rules:
+
+1. **First clause is the subject in a STRONG, QUANTIFIED verb**.
+   `ignite ... every 1–2 seconds`, `5–8 flies clearly orbit ...
+   along figure-eight paths`, `continuously gushes`. The first
+   thing the model reads is what the model spends its motion
+   budget on.
+2. **Banish weakening adverbs** — no `tiny`, `small`,
+   `slightly`, `gently`, `faint`, `slowly` modifying the
+   primary subject's action. Reserve `gently` / `slowly`
+   strictly for the camera at the END of the brief.
+3. **Never tell the subject to "hold its position"**. If the
+   subject must stay anchored for art-direction reasons, just
+   omit the instruction — the model will already preserve the
+   subject because of the input image. Don't double-down.
+4. **Camera motion is a TAIL clause**, prefixed with
+   `"While this action is happening (or shortly after), the
+   camera may slowly push in toward …"`. This explicitly
+   subordinates camera to subject-motion and lets the model
+   know zoom is optional flavour, not the main event.
+5. **Don't put motion onto the title letterform alone**.
+   Letterforms occupy too few pixels and are simultaneously
+   constrained by `Preserve the … line work / texture`.
+   Put motion onto the **story elements around the title**
+   (firecrackers, water stream, the dog, flies). The
+   letterform can ride along passively.
+
+### What we did NOT change (and why)
+
+- **`_build_animation_prompt()` 的尾句仍保留 "and composition"**.
+  原计划是去掉 `composition` 字以"解锁构图自由度"，但实测
+  发现只要把镜头动作降级到 brief 尾部、把主体强动词放在
+  首句，模型就会自然让物体在画面里运动；同时保留
+  `composition` 还能避免模型把整张图重打散。**少改一处后端
+  代码 = 影响面更小**。
+- **`animation_default_mood` 不变**。mood 字符串仅在 brief
+  缺失时作为兜底（§7），与 brief 同时出现时不读取（见
+  `backend/main.py:799-808`）。
+
+### Files touched
+
+- `backend/data/lessons/g2v2-u4-l5.json` — 3 个 artwork 的
+  `animation_brief_zh` + `animation_brief_en` 共 6 个字段
+  全部重写，遵循上面 5 条规则。
+- `frontend/src/data/lessons/g2v2-u4-l5.json` — 同步镜像。
+  两份必须保持字段级一致（§6 / §17 / §28），由
+  `frontend/scripts/sync-lessons.js` 在 build 时校验。
+
+### Verification
+
+- `python3 -c "import json; json.load(open(...))"` 双份 JSON
+  合法。
+- 老师可在 `/lesson/g2v2-u4-l5` Part 3 任选一幅 artwork →
+  生成动画 → 应当看到鞭炮爆开 / 水柱喷出 / 苍蝇绕飞，
+  zoom-in 作为辅助而非唯一动作。
+
+### Notes for future curriculum authors
+
+- 这套规则**只针对"故事插画 / 封面"类 artwork**。对于
+  G2V2-U5-L1 那种"音乐对位 → 抽象色块运动"（Kandinsky
+  Composition 8）之类抽象作品，brief 反而可以以镜头摇移为
+  主动作，因为画面里本就没有具象主体。
+- 当一节课的 artwork 既有具象封面又有抽象作品（混合编排）
+  时，必须**逐 artwork** 应用规则，不要把同一份"通用 brief
+  模板"套用到全部 3 幅图——这是这次踩的根本性教训。
+- 后续如果同类反馈再次出现（如 G2V2-U4-L4 桃花源等），优先
+  对照本节五条规则逐句审 brief，再考虑动 `_build_animation_prompt()`
+  的尾句 / `mood` 兜底。
+
