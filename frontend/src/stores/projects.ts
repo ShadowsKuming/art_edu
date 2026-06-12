@@ -235,6 +235,130 @@ function healMismatchedPart3Stories<T extends { snapshot: SlideSnapshot; meta?: 
   return changed ? { ...p, snapshot: { ...p.snapshot, part3Snapshot: part3 } } : p
 }
 
+// 2026-06-12 (afternoon) — One-off self-heal for BLOOM-2026-A
+// 《吸引人的标题》(`g2v2-u4-l5`) Part-3 generated animations.
+//
+// Context. We just shipped §34: rewrote the three book-cover
+// artwork briefs in g2v2-u4-l5 to fix the "only camera push-in,
+// no subject motion" complaint (KB §34). The teacher who raised
+// the bug — `BLOOM-2026-A` — already has stale animations in her
+// project that were generated from the OLD briefs. She wants
+// those animations cleared so she can regenerate against the new
+// briefs, but she explicitly wants to KEEP everything else: the
+// other slides, the Part-3 story text (`storyData` +
+// `generatedContinuations`), the design-chat history, and the
+// animation creative-assistant chat. Only the rendered video
+// versions + chosen-video pointer go away.
+//
+// Scope. Strictly:
+//   • invite code (from localStorage) === 'BLOOM-2026-A'
+//   • project `meta.lessonId` === 'g2v2-u4-l5'
+//
+// Everyone else / every other lesson is left alone. The heal is
+// idempotent — once the animationVersions arrays are empty, every
+// subsequent call is a no-op, so the heal can stay in the codebase
+// safely while she finishes regenerating; the next PR sweep can
+// remove it.
+//
+// Why localStorage instead of useUserStore(). `migrateProjects()`
+// runs at module-init time, BEFORE Pinia is wired up
+// (`const projects = ref(migrateProjects(load(...)))` below). At
+// that point `useUserStore()` would throw "no active Pinia". The
+// user store mirrors the invite code into `localStorage['artbloom-username']`
+// (see `frontend/src/stores/user.ts` KEY_INVITE), so reading the
+// raw key here gives us the same value without an init-order
+// dependency. The same heal also runs from the post-login
+// `loadFromAPI()` path (where Pinia IS up), and the localStorage
+// key is set by `setInviteCode()` before `loadFromAPI()` fires,
+// so both call sites converge on the same scope.
+const TARGET_INVITE_FOR_ANIMATION_HEAL = 'BLOOM-2026-A'
+const TARGET_LESSON_FOR_ANIMATION_HEAL = 'g2v2-u4-l5'
+
+function _readInviteCodeFromLS(): string {
+  try {
+    if (typeof localStorage === 'undefined') return ''
+    return (localStorage.getItem('artbloom-username') ?? '').trim()
+  } catch {
+    return ''
+  }
+}
+
+function _clearAnimationFieldsOnly(slot: Record<string, unknown>) {
+  // Wipe the rendered-animation surface ONLY. Leave story / chat /
+  // selectedChoiceId / continuations intact.
+  slot.animationVersions = []
+  slot.chosenVideoUrl = null
+  // Defensive: clear any transient loading/error state the
+  // snapshot might have caught mid-flight from the previous
+  // generation pass. Snapshot writers don't always serialize
+  // these but if they ever did, leaving stale values in would
+  // make the next visit display a wrong "生成中..." or red error
+  // banner against an empty version list.
+  slot.animationLoading = false
+  slot.animationError = null
+  // remainingAttempts is the §17 anti-spam cap (3 per Doubao
+  // task). Reset to 3 so the teacher gets a fresh budget for the
+  // regenerate-against-new-prompts pass — otherwise a project
+  // that previously burned all 3 attempts would silently block
+  // the regenerate button.
+  slot.remainingAttempts = 3
+}
+
+function healPart3AnimationsForLesson<T extends { snapshot: SlideSnapshot; meta?: ProjectMeta }>(p: T): T {
+  const lessonId = p.meta?.lessonId
+  if (lessonId !== TARGET_LESSON_FOR_ANIMATION_HEAL) return p
+  const invite = _readInviteCodeFromLS()
+  if (invite !== TARGET_INVITE_FOR_ANIMATION_HEAL) return p
+
+  const part3 = p.snapshot.part3Snapshot
+  if (!part3 || !Array.isArray(part3.pairs)) return p
+
+  let changed = false
+  for (const pair of part3.pairs as Array<Record<string, unknown>>) {
+    // 1. Flat mirror on the pair itself (used by the active view).
+    const flatVersions = (pair.animationVersions as unknown[]) ?? []
+    if (flatVersions.length > 0 || pair.chosenVideoUrl) {
+      _clearAnimationFieldsOnly(pair)
+      changed = true
+    } else {
+      // Even if flat is already empty, reset remainingAttempts so
+      // re-applying the heal can lift an exhausted-attempts state.
+      if ((pair.remainingAttempts as number | undefined) !== 3) {
+        pair.remainingAttempts = 3
+        changed = true
+      }
+    }
+
+    // 2. Every per-artwork slot. The §33 architecture stores a
+    //    snapshot of each artwork's state under
+    //    `pair.artworkStates[artworkKey]` so non-active artworks
+    //    are also reachable; clearing only the flat would let
+    //    `_restoreArtworkState()` re-project a stale animation
+    //    back onto the active view on the next visit.
+    const artworkStates = pair.artworkStates as Record<string, Record<string, unknown>> | undefined
+    if (artworkStates && typeof artworkStates === 'object') {
+      for (const slot of Object.values(artworkStates)) {
+        const slotVersions = (slot.animationVersions as unknown[]) ?? []
+        if (slotVersions.length > 0 || slot.chosenVideoUrl) {
+          _clearAnimationFieldsOnly(slot)
+          changed = true
+        } else if ((slot.remainingAttempts as number | undefined) !== 3) {
+          slot.remainingAttempts = 3
+          changed = true
+        }
+      }
+    }
+  }
+
+  if (!changed) return p
+  console.info(
+    `[projects] cleared Part-3 generated animations on project ${(p as Record<string, unknown>).id} ` +
+    `(invite=${invite}, lesson=${lessonId}) per §34 prompt-rewrite follow-up. ` +
+    `Story, chat history, slides, and other Parts are untouched.`,
+  )
+  return { ...p, snapshot: { ...p.snapshot, part3Snapshot: part3 } }
+}
+
 function healStuckProject<T extends { id: string; snapshot: SlideSnapshot }>(p: T): T {
 
   if (!STUCK_PROJECT_IDS.has(p.id)) return p
@@ -305,7 +429,11 @@ function migrateProjects(projects: Project[]): Project[] {
     // Idempotent; no-op for projects whose lesson_id isn't in the
     // keyword-rules table AND whose Part-3 snapshot is internally
     // consistent. See comment block above `healMismatchedPart3Stories`.
-    return healMismatchedPart3Stories(afterPart6)
+    const afterPart3 = healMismatchedPart3Stories(afterPart6)
+    // 2026-06-12 (afternoon) — One-off animation wipe for
+    // BLOOM-2026-A's g2v2-u4-l5 after §34's brief rewrite.
+    // Idempotent; no-op for everyone else and every other lesson.
+    return healPart3AnimationsForLesson(afterPart3)
   })
 }
 

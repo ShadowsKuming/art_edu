@@ -5280,3 +5280,39 @@ five rules:
   对照本节五条规则逐句审 brief，再考虑动 `_build_animation_prompt()`
   的尾句 / `mood` 兜底。
 
+### One-off animation wipe for BLOOM-2026-A (same day, 2026-06-12 afternoon)
+
+修完 brief 后，老师 `BLOOM-2026-A` 在《吸引人的标题》项目里
+已经按 OLD brief 跑出来的 3 个动画版本仍然挂在 Part-3 上，
+需要清掉以便用 NEW brief 重新生成。她明确要求**只删动画
+版本**，保留：
+- 其他 Part 的全部幻灯片；
+- Part-3 的 `storyData` + `generatedContinuations`（故事正文 + 三条分支）；
+- `designChatMessages`（故事讨论历史）；
+- `animationChatMessages`（动画创意助手历史）。
+
+实现位于 `frontend/src/stores/projects.ts`：
+- `TARGET_INVITE_FOR_ANIMATION_HEAL = 'BLOOM-2026-A'`
+- `TARGET_LESSON_FOR_ANIMATION_HEAL = 'g2v2-u4-l5'`
+- `healPart3AnimationsForLesson()` 同时清理 `pair.animationVersions` /
+  `pair.chosenVideoUrl` 的平面镜像，**和**每个 `pair.artworkStates[k]`
+  槽里的同名字段；并把 `remainingAttempts` 重置回 3（§17 的速率
+  限制），否则之前烧光 3 次的项目重新生成按钮会一直灰着。
+
+挂在 `migrateProjects()` 链最后，跟 §31 / §33 的 heal 同样**幂等**：
+- 老师重新登录 → 平面 + 槽里的 animation 全部清空 → 故事页右侧
+  动画版本列表恢复为空 → 「生成动画」按钮重新可点。
+- 故事 / 聊天 / 课件其他部分原样保留。
+- 一旦下次 autosave 把清理后的快照 PUT 回 Postgres，本地+服务器
+  两份都干净，后续每次 hydrate 都是 no-op。
+
+Scope guard 用 `localStorage.getItem('artbloom-username')` 而不是
+`useUserStore()`，因为 `migrateProjects()` 在 module-init 阶段被
+调用（`const projects = ref(migrateProjects(load(...)))`），那时 Pinia
+还没初始化。`user.ts` 在 `setInviteCode()` 里同步写入这个 LS key，
+所以两条 hydration 路径（boot + post-login `loadFromAPI()`）拿到的
+邀请码是一致的。
+
+可在「BLOOM-2026-A 老师完成重新生成动画」之后的下一轮 PR sweep 中
+删掉这 ~70 行（保留 KB 这一段历史记录）。
+
