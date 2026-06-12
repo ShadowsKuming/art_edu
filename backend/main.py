@@ -589,62 +589,6 @@ def _design_rationale_spec(language: str) -> str:
 输出位置:designRationale 字段(故事主 JSON 的一部分)，保持现有 JSON schema 不变。各段之间用 \\n\\n 分隔(JSON 字符串里写成 \\n\\n)。"""
 
 
-def _build_story_lesson_context_uploaded(seed) -> str:
-    """
-    2026-06-12 — Generic `[本课信息]` block for the "teacher uploaded
-    her own work" path on a multi-artwork lesson.
-
-    Same lesson-level pedagogy as the curated path (unit big idea,
-    learning task, three-tier objectives, teaching focus / difficulty,
-    key art concepts, assessment criteria) so the story still grounds
-    in the actual lesson. We deliberately OMIT the `[本画作]` block —
-    the model would otherwise see a specific named artwork's
-    visual_description / teacher_guide_notes / story_hint and write a
-    story about THAT painting instead of what the teacher actually
-    uploaded. See KB §33 for the BLOOM-2026-A / -D incident.
-
-    A short `[本画作]` placeholder explicitly tells the model: "this is
-    a teacher-uploaded work, describe what you literally see; don't
-    name any specific masterpiece from the textbook." Without that
-    line the model still drifts into describing one of the textbook
-    artworks because the lesson-level context primes it for that
-    domain.
-    """
-    lines = ["\n\n[本课信息 / Lesson context]"]
-    lines.append(f"课程: 《{seed.lesson_title_zh}》")
-    if seed.unit_big_idea_zh:
-        lines.append(f"单元大概念: {seed.unit_big_idea_zh}")
-    if seed.learning_task_zh:
-        lines.append(f"学习任务: {seed.learning_task_zh}")
-    objs = seed.learning_objectives or {}
-    if objs:
-        lines.append("[学习目标]")
-        if objs.get("know"):
-            lines.append(f"- 知道: {objs['know']}")
-        if objs.get("understand"):
-            lines.append(f"- 理解: {objs['understand']}")
-        if objs.get("do"):
-            lines.append(f"- 能做: {objs['do']}")
-    if seed.teaching_focus_zh:
-        lines.append(f"[教学重点] {seed.teaching_focus_zh}")
-    if seed.teaching_difficulty_text():
-        lines.append(f"[教学难点] {seed.teaching_difficulty_text()}")
-    if seed.key_art_concepts:
-        lines.append(f"[关键艺术概念] {'、'.join(seed.key_art_concepts)}")
-    criteria = seed.assessment_criteria_text() or []
-    if criteria:
-        lines.append("[评价标准]")
-        for c in criteria:
-            lines.append(f"- {c}")
-    lines.append(
-        "\n[本画作] 这是老师上传的学生 / 自有作品，**请只根据画面里你"
-        "实际看到的内容**来写故事；不要引用本课教材里任何一幅大师作品"
-        "的名字、画家、画面描述或教参解读。把它当作一幅"
-        f"主题贴合 “{seed.learning_task_zh}” 的全新作品来对待。"
-    )
-    return "\n".join(lines)
-
-
 def _build_story_lesson_context(req: StoryRequest) -> str:
     """
     Return a `[本课信息]` block to inject into STORY_SYSTEM.
@@ -659,28 +603,13 @@ def _build_story_lesson_context(req: StoryRequest) -> str:
     output field should be filled — the model is trusted to weave the
     pedagogy into the narrative naturally. The richer context is what
     moves the needle, not more rules.
-
-    2026-06-12 — defensive branch for the
-    `artwork_id is None and len(textbook_artworks) > 1` case. Before
-    this, `build_executor_b_context` would silently fall back to
-    `seed.default_executor_b_artwork_id`, so the prompt's [本画作]
-    block described the *default* artwork (e.g. 桃花源1 for U4-L4),
-    even when the teacher had uploaded an entirely different image.
-    The model trusted the text over the visual evidence and produced
-    a 桃花源 story on top of a 小真的长头发 photo. We now route the
-    no-artwork path through `_build_story_lesson_context_uploaded`
-    which omits artwork-specific metadata. See KB §33.
     """
     if not req.lesson_id:
         return ""
-    seed = lesson_manager.load(req.lesson_id)
-    if not req.artwork_id and len(seed.textbook_artworks) > 1:
-        return _build_story_lesson_context_uploaded(seed)
     try:
         ctx = lesson_manager.build_executor_b_context(req.lesson_id, req.artwork_id)
     except ValueError as exc:
         raise HTTPException(404, str(exc))
-
 
     lines = ["\n\n[本课信息 / Lesson context]"]
     lines.append(f"课程: 《{ctx['lesson_title_zh']}》")
