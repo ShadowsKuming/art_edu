@@ -3,12 +3,15 @@ import { computed, ref } from 'vue'
 import { useSlideStore } from '@/stores/slides'
 import { usePart3Store } from '@/stores/part3'
 import { useProjectsStore } from '@/stores/projects'
+import { useToastStore } from '@/stores/toast'
 import { getLesson } from '@/data/lessons'
 import SlideThumbnail from './SlideThumbnail.vue'
 import { useI18n } from 'vue-i18n'
 
 
 const { t, tm } = useI18n()
+const toastStore = useToastStore()
+
 
 const PART_IDS = [1, 2, 3, 4, 5, 6, 7]
 
@@ -148,8 +151,47 @@ function isDraggable(slideId: string): boolean {
 
 
 // ── Part 3 artwork actions ──────────────────────────────────────
+//
+// 2026-06-12 — Cross-artwork generation race fix (KB §33).
+//
+// All three "switch active Part-3 artwork" entry points (pick a
+// curated artwork, pick a previously-uploaded one, upload a new
+// one) MUST refuse the switch while ANY story / animation
+// generation is in flight on ANY artwork. Reason: §30's per-pair
+// `pair.storyData` field is the active-view mirror; if an SSE
+// completes after the teacher switched artworks, its `pair.storyData
+// = parsedJSON` line writes the story for the wrong artwork (and
+// the next autosave persists that into `artworkStates[wrongKey]`).
+//
+// §30 fixed the analogous race for re-clicking generate buttons via
+// the global `_genLock`, but the lock only disables BUTTONS — the
+// sidebar thumbnail click is a separate entry point that bypasses
+// it entirely. This guard is the first of three defensive layers
+// added in §33:
+//   1. (here) refuse the switch outright,
+//   2. (part3.ts) capture target artwork at generate-start; if it
+//      changed by SSE completion, route the result into
+//      `artworkStates[targetKey]` directly instead of polluting
+//      the current view's `pair.storyData`,
+//   3. (projects.ts migrateProjects) one-off heal scan for any
+//      project that already got poisoned by this race before the
+//      fix landed.
+//
+// If you ever add a NEW entry point that switches `pair.activeArtworkKey`
+// (e.g. a Part3Content thumbnail row, a keyboard shortcut, a
+// future "shuffle artworks" button), you MUST add the same
+// `isAnyGenerating` guard — otherwise the §33 race reopens.
+
+function ensurePart3NotBusy(): boolean {
+  if (part3Store.isAnyGenerating) {
+    toastStore.show(t('part3.busyArtworkSwitch'), 'warning')
+    return false
+  }
+  return true
+}
 
 function pickCuratedArtwork(artworkId: string, url: string) {
+  if (!ensurePart3NotBusy()) return
   // Ensure a Part-3 slide + pair exists
   const part3Slides = slideStore.slides.filter(s => s.partId === 3)
   if (part3Slides.length === 0) {
@@ -165,6 +207,7 @@ function pickCuratedArtwork(artworkId: string, url: string) {
 }
 
 function pickUploadedArtwork(id: string) {
+  if (!ensurePart3NotBusy()) return
   const art = part3Store.uploadedArtworks.find(a => a.id === id)
   if (!art) return
   part3Store.selectUploadedArtwork(id)
@@ -173,6 +216,11 @@ function pickUploadedArtwork(id: string) {
 }
 
 function uploadNewArtwork() {
+  // Block at the entry rather than after the file picker so the
+  // teacher doesn't go through the OS file picker only to have
+  // the upload silently no-op. The toast fires immediately on the
+  // "+" tile click.
+  if (!ensurePart3NotBusy()) return
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = 'image/*'
@@ -182,6 +230,9 @@ function uploadNewArtwork() {
     const file = input.files?.[0]
     input.remove()
     if (!file) return
+    // Re-check after the file picker resolves — a slow OS picker
+    // could let a generation start in the gap. Belt-and-braces.
+    if (!ensurePart3NotBusy()) return
     // Ensure a Part-3 slide + pair exists
     let part3SlideId = slideStore.slides.find(s => s.partId === 3)?.id ?? null
     if (!part3SlideId) {
@@ -200,6 +251,7 @@ function uploadNewArtwork() {
   })
   input.click()
 }
+
 </script>
 
 <template>

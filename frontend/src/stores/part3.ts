@@ -606,6 +606,21 @@ export const usePart3Store = defineStore('part3', () => {
     // re-entries. Silent return here — the calling component is
     // expected to have already shown the "请先等待…" toast.
     if (!_acquireGenLock('story', pair.id, pair.activeArtworkKey)) return
+
+    // 2026-06-12 — Capture the artwork this generation is *about*
+    // BEFORE we start the SSE. If the teacher slips past
+    // WorkspaceSidebar's `isAnyGenerating` guard (Layer 1 of §33)
+    // and switches `pair.activeArtworkKey` mid-stream, the SSE's
+    // closure still finishes running and would otherwise write
+    // 桃花源-story JSON into `pair.storyData` while the active view
+    // is《小真的长头发》— polluting both the on-screen view AND
+    // (via the next autosave) the persistent
+    // `artworkStates['<wrong-key>']` slot. Capturing the target
+    // up-front lets us redirect late results into the correct slot
+    // without ever touching the live `pair.storyData`. See KB §33.
+    const targetPairId = pair.id
+    const targetArtworkKey = pair.activeArtworkKey
+
     if (!await _ensureBase64(pair)) {
       _releaseGenLock()
       return
@@ -616,6 +631,13 @@ export const usePart3Store = defineStore('part3', () => {
 
 
     const lessonId = useProjectsStore().activeLessonId
+
+    // Helper closure: is the live view still showing the artwork
+    // this generation was started for? Used in 4 places below
+    // (stream-text paint, JSON commit, error surface, finally).
+    const stillActive = () =>
+      pair.id === targetPairId
+      && pair.activeArtworkKey === targetArtworkKey
 
     try {
       const res = await fetch(`${API_BASE}/api/story/stream`, {
@@ -636,7 +658,12 @@ export const usePart3Store = defineStore('part3', () => {
       }
 
       const fullText = await _readSSE(res, (accumulated) => {
-        pair.storyStreamText = accumulated
+        // Only paint live-stream text on the active view; otherwise
+        // the teacher would see 桃花源 chunks rendering over
+        // 《小真的长头发》during streaming.
+        if (stillActive()) {
+          pair.storyStreamText = accumulated
+        }
       })
 
       // Parse the complete JSON response
@@ -657,8 +684,9 @@ export const usePart3Store = defineStore('part3', () => {
       // truncated the JSON mid-string; backend errored before any
       // SSE chunks landed (empty fullText); or the model wrapped the
       // JSON in unexpected prose despite the "no preamble" rule.
+      let parsedStory: StoryData
       try {
-        pair.storyData = JSON.parse(raw)
+        parsedStory = JSON.parse(raw) as StoryData
       } catch (parseErr) {
         console.error('[generateStory] JSON.parse failed. Raw response:', raw)
         const preview = raw.slice(0, 120).replace(/\s+/g, ' ')
@@ -668,20 +696,71 @@ export const usePart3Store = defineStore('part3', () => {
         throw new Error(hint)
       }
 
-      if (pair.storyData?.part3) {
-        pair.generatedContinuations = { 0: pair.storyData.part3 }
+      // 2026-06-12 — Route the parsed story to the correct slot.
+      // If the active view is still showing the target artwork,
+      // commit to the flat mirror (current view picks it up
+      // reactively). If the teacher has since switched, write
+      // directly to the persisted `artworkStates[targetArtworkKey]`
+      // slot so the next visit reads the right story and the live
+      // view stays untouched.
+      if (stillActive()) {
+        pair.storyData = parsedStory
+        if (parsedStory.part3) {
+          pair.generatedContinuations = { 0: parsedStory.part3 }
+        }
+      } else if (targetArtworkKey) {
+        console.info(
+          `[part3] story for artwork ${targetArtworkKey} arrived late ` +
+          `(active is now ${pair.activeArtworkKey ?? '<none>'}); routing to slot.`,
+        )
+        const targetPair = pairs.value.find(p => p.id === targetPairId)
+        if (targetPair) {
+          const slot = targetPair.artworkStates[targetArtworkKey] ?? {
+            storyData: null,
+            animationVersions: [],
+            remainingAttempts: 3,
+            chosenVideoUrl: null,
+            selectedChoiceId: null,
+            generatedContinuations: {},
+            designChatMessages: [],
+            animationChatMessages: [],
+          }
+          slot.storyData = parsedStory
+          if (parsedStory.part3) {
+            slot.generatedContinuations = {
+              ...slot.generatedContinuations,
+              0: parsedStory.part3,
+            }
+          }
+          targetPair.artworkStates[targetArtworkKey] = slot
+        }
       }
     } catch (e: any) {
-      pair.storyError = e.message
+      // Only surface the error inside the LIVE view if it still
+      // owns the target artwork; otherwise the teacher would see a
+      // red error on an artwork she never tried to generate for.
+      if (stillActive()) {
+        pair.storyError = e.message
+      } else {
+        console.warn(
+          `[part3] late story error for artwork ${targetArtworkKey}: ${e?.message ?? e}`,
+        )
+      }
     } finally {
-      pair.storyLoading = false
-      pair.storyStreamText = ''
+      // Only touch the live transient flags if still on the target
+      // view — otherwise we'd flick the new artwork's storyLoading
+      // off when it never went on.
+      if (stillActive()) {
+        pair.storyLoading = false
+        pair.storyStreamText = ''
+      }
       // 2026-06-08 — Always release the global lock at the end of
       // generateStory, even on error / parse failure. The matching
       // acquire is at the top; one-acquire-one-release invariant.
       _releaseGenLock()
     }
   }
+
 
   async function generateContinuation(choiceId: number, language = 'en') {
 
@@ -697,6 +776,19 @@ export const usePart3Store = defineStore('part3', () => {
     const choice = pair.storyData.choices.find(c => c.id === choiceId)
     if (!choice) return
 
+    // 2026-06-12 — Same target-capture pattern as generateStory()
+    // (see KB §33). Continuation SSE runs ~5-15 s; if the teacher
+    // switches artwork mid-stream, the result must land in the
+    // ORIGINAL artwork's `generatedContinuations` slot, not in the
+    // newly-active artwork's view.
+    const targetPairId = pair.id
+    const targetArtworkKey = pair.activeArtworkKey
+    // Also capture the story snapshot we're branching off — when the
+    // late result arrives, we want to merge into the slot's existing
+    // continuations dict, not into `pair.generatedContinuations`
+    // (which by then belongs to a different artwork).
+    const targetPart1 = pair.storyData.part1
+
     pair.selectedChoiceId = choiceId
     if (!await _ensureBase64(pair)) return
     pair.continuationLoading = true
@@ -705,6 +797,10 @@ export const usePart3Store = defineStore('part3', () => {
 
     const lessonId = useProjectsStore().activeLessonId
 
+    const stillActive = () =>
+      pair.id === targetPairId
+      && pair.activeArtworkKey === targetArtworkKey
+
     try {
       const res = await fetch(`${API_BASE}/api/story/continue/stream`, {
         method: 'POST',
@@ -712,7 +808,7 @@ export const usePart3Store = defineStore('part3', () => {
         body: JSON.stringify({
           image_base64: pair.imageBase64,
           image_mime: pair.imageMime,
-          part1: pair.storyData.part1,
+          part1: targetPart1,
           choice_label: choice.label,
           choice_desc: choice.desc,
           language,
@@ -727,16 +823,52 @@ export const usePart3Store = defineStore('part3', () => {
       }
 
       const fullText = await _readSSE(res, (accumulated) => {
-        pair.continuationStreamText = accumulated
+        if (stillActive()) {
+          pair.continuationStreamText = accumulated
+        }
       })
-      pair.generatedContinuations = { ...pair.generatedContinuations, [choiceId]: fullText.trim() }
+      const continuation = fullText.trim()
+
+      // 2026-06-12 — Route the continuation to the correct slot.
+      if (stillActive()) {
+        pair.generatedContinuations = {
+          ...pair.generatedContinuations,
+          [choiceId]: continuation,
+        }
+      } else if (targetArtworkKey) {
+        console.info(
+          `[part3] continuation choice=${choiceId} for artwork ` +
+          `${targetArtworkKey} arrived late (active is now ` +
+          `${pair.activeArtworkKey ?? '<none>'}); routing to slot.`,
+        )
+        const targetPair = pairs.value.find(p => p.id === targetPairId)
+        if (targetPair) {
+          const slot = targetPair.artworkStates[targetArtworkKey]
+          if (slot) {
+            slot.generatedContinuations = {
+              ...slot.generatedContinuations,
+              [choiceId]: continuation,
+            }
+          }
+        }
+      }
     } catch (e: any) {
-      pair.continuationError = e.message
+      if (stillActive()) {
+        pair.continuationError = e.message
+      } else {
+        console.warn(
+          `[part3] late continuation error for artwork ` +
+          `${targetArtworkKey}: ${e?.message ?? e}`,
+        )
+      }
     } finally {
-      pair.continuationLoading = false
-      pair.continuationStreamText = ''
+      if (stillActive()) {
+        pair.continuationLoading = false
+        pair.continuationStreamText = ''
+      }
     }
   }
+
 
   async function generateAnimation(customPrompt = '') {
     const pair = activePair.value
@@ -752,6 +884,15 @@ export const usePart3Store = defineStore('part3', () => {
     // teacher from queueing a second video that would compete for
     // the same backend slot.
     if (!_acquireGenLock('animation', pair.id, pair.activeArtworkKey)) return
+
+    // 2026-06-12 — Capture target artwork at submit time so the
+    // _pollAnimation tick can route the eventual video URL into the
+    // right artwork's animationVersions slot even if the teacher
+    // somehow switches artwork mid-poll (Layer 1 normally blocks
+    // this, but the poll window is 30-60s — long enough to want
+    // defense in depth). See KB §33.
+    const targetArtworkKey = pair.activeArtworkKey
+
     if (!await _ensureBase64(pair)) {
       _releaseGenLock()
       return
@@ -783,7 +924,7 @@ export const usePart3Store = defineStore('part3', () => {
       const { task_id } = await res.json()
       const idx = pair.animationVersions.length
       pair.animationVersions.push({ taskId: task_id, videoUrl: null, status: 'pending' })
-      _pollAnimation(pair.id, task_id, idx)
+      _pollAnimation(pair.id, task_id, idx, targetArtworkKey)
     } catch (e: any) {
       pair.animationError = e.message
       pair.animationLoading = false
@@ -795,9 +936,45 @@ export const usePart3Store = defineStore('part3', () => {
     }
   }
 
-  async function _pollAnimation(pairId: string, taskId: string, index: number) {
+  /**
+   * Poll the animation task and write the result back into the
+   * correct artwork slot.
+   *
+   * 2026-06-12 — `targetArtworkKey` was added so that if the teacher
+   * switched artworks mid-poll (the Doubao video pipeline is 30-60 s,
+   * which is a wide window for slip-ups), the resulting video URL
+   * still lands in the originating artwork's `animationVersions[index]`
+   * slot — either via the live mirror (`pair.animationVersions`) when
+   * the active artwork hasn't changed, or via the persisted
+   * `pair.artworkStates[targetArtworkKey].animationVersions[index]`
+   * when it has.
+   */
+  async function _pollAnimation(
+    pairId: string,
+    taskId: string,
+    index: number,
+    targetArtworkKey: string | null,
+  ) {
     let attempts = 0
     const MAX = 80
+
+    /**
+     * Find the AnimationVersion entry to write into. If the teacher
+     * is still on the target artwork, the live `pair.animationVersions`
+     * array holds it. If she switched, the original array was moved
+     * by `_saveArtworkState()` into
+     * `pair.artworkStates[targetArtworkKey].animationVersions`.
+     * Returns null if the array (or the index) can't be found —
+     * possible if the teacher deleted an uploaded artwork mid-poll.
+     */
+    const findVersion = (pair: Part3Pair): AnimationVersion | null => {
+      if (pair.activeArtworkKey === targetArtworkKey) {
+        return pair.animationVersions[index] ?? null
+      }
+      if (!targetArtworkKey) return null
+      const slot = pair.artworkStates[targetArtworkKey]
+      return slot?.animationVersions[index] ?? null
+    }
 
     const tick = async () => {
       const pair = pairs.value.find(p => p.id === pairId)
@@ -807,9 +984,11 @@ export const usePart3Store = defineStore('part3', () => {
         _releaseGenLock()
         return
       }
+      const stillActive = pair.activeArtworkKey === targetArtworkKey
       if (attempts >= MAX) {
-        pair.animationVersions[index].status = 'failed'
-        pair.animationLoading = false
+        const v = findVersion(pair)
+        if (v) v.status = 'failed'
+        if (stillActive) pair.animationLoading = false
         // 2026-06-08 — Poll timeout is a terminal state; clear lock.
         _releaseGenLock()
         return
@@ -819,16 +998,36 @@ export const usePart3Store = defineStore('part3', () => {
         const res = await fetch(`${API_BASE}/api/animation/status/${taskId}`)
         const data = await res.json()
         if (data.status === 'succeeded' && data.video_url) {
-          pair.animationVersions[index].videoUrl = data.video_url
-          pair.animationVersions[index].status = 'done'
-          pair.animationLoading = false
+          const v = findVersion(pair)
+          if (v) {
+            v.videoUrl = data.video_url
+            v.status = 'done'
+          }
+          if (stillActive) {
+            pair.animationLoading = false
+          } else if (targetArtworkKey) {
+            console.info(
+              `[part3] animation for artwork ${targetArtworkKey} arrived ` +
+              `late (active is now ${pair.activeArtworkKey ?? '<none>'}); ` +
+              `routed to slot.`,
+            )
+          }
           // 2026-06-08 — Successful generation; release lock so the
           // teacher can start another story/animation immediately.
           _releaseGenLock()
         } else if (data.status === 'failed') {
-          pair.animationVersions[index].status = 'failed'
-          pair.animationError = data.error ?? 'Generation failed'
-          pair.animationLoading = false
+          const v = findVersion(pair)
+          if (v) v.status = 'failed'
+          if (stillActive) {
+            pair.animationError = data.error ?? 'Generation failed'
+            pair.animationLoading = false
+          } else {
+            console.warn(
+              `[part3] animation for artwork ${targetArtworkKey} failed ` +
+              `(active is now ${pair.activeArtworkKey ?? '<none>'}): ` +
+              `${data.error ?? 'Generation failed'}`,
+            )
+          }
           // 2026-06-08 — Backend declared failure; release lock so
           // the teacher isn't stuck behind a dead task.
           _releaseGenLock()
@@ -841,6 +1040,7 @@ export const usePart3Store = defineStore('part3', () => {
     }
     setTimeout(tick, 3000)
   }
+
 
 
   // ── Local fast-path classifiers ───────────────────────────────────

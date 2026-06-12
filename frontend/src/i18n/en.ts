@@ -371,7 +371,14 @@ export default {
     generateAnimation: 'Generate Animation',
     animation: 'Animation',
     processing: 'Processing…',
+    // 2026-06-12 — Toast when teacher tries to switch artwork while
+    // a story / animation is still being generated. See KNOWLEDGE_BANK
+    // §33: blocking the switch is the first of three defensive layers
+    // preventing late-arriving SSE results from landing in the wrong
+    // artwork slot.
+    busyArtworkSwitch: 'Please wait for the current generation to finish before switching artworks.',
     failed: 'Failed',
+
     animationN: 'Animation {n}',
     selectVersionHint: 'Select an animation version to continue',
     save: 'Save',

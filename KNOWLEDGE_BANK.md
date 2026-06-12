@@ -4849,3 +4849,326 @@ Identical to §29.3's:
   one of the existing call sites' specifics.
 
 
+## §33 — 2026-06-12 — Part-3 cross-artwork story/illustration mismatch (BLOOM-2026-A & D)
+
+### Symptom
+
+Pilot teachers `BLOOM-2026-A` and `BLOOM-2026-D` both reported,
+within the same week, that in《好长好长》(`g2v2-u4-l4`) the Part-3
+story preview was showing the wrong story for the chosen artwork:
+the《小真的长头发》(art03 — `G2V2-U4-L4-art03`) illustration was
+on screen, but the story text on the right was about 桃花源
+(`art01-taohuayuan1`'s narrative — 「我撑着小小的竹排顺着溪水往
+前走，转过两座蒙着雾气的青灰色山，忽然眼前铺开满满一片粉色桃花林…」).
+The bug survived page reload and tab restart, which made it look
+like the wrong story had been permanently stamped onto the
+《小真的长头发》artwork. Two unrelated teachers hitting the same
+issue ruled out "personal data weirdness" — this is a code race.
+
+### Root cause — `pair.storyData = parsedStory` racing with `_restoreArtworkState()`
+
+The Part-3 store keeps a SINGLE pair per Part-3 slide, with multiple
+artworks sharing that pair's `artworkStates: Record<artworkId, SavedArtworkState>`.
+The pair's flat fields (`storyData`, `imageDataUrl`, `animationVersions`,
+etc.) are an **active-view mirror** of whichever entry in
+`artworkStates` is currently selected. Switching artwork via
+`setArtworkFromUrl()` runs `_saveArtworkState()` (snapshot the
+current artwork's state back into its slot) followed by
+`_restoreArtworkState()` (re-project the new artwork's slot into the
+flat mirror).
+
+§30 added a global `_genLock` that prevents the teacher from clicking
+**a different generate BUTTON** while a story or animation is in
+flight. The lock works as advertised for that case.
+
+But the global lock **doesn't gate the artwork-switch path itself**.
+The path the lock missed:
+
+```
+T0  Teacher on art01 → clicks 「生成故事」
+    generateStory() acquires _genLock, captures `pair` = the
+    Part-3 pair, kicks off SSE for art01's image.
+T1  SSE is still streaming (5-15 s window).
+T2  Teacher clicks《小真的长头发》's thumbnail in WorkspaceSidebar.
+    pickCuratedArtwork() calls part3Store.setArtworkFromUrl(url, 'art03'):
+      - _saveArtworkState(pair):
+          pair.activeArtworkKey is still 'art01'
+          → artworkStates['art01'] = {storyData: null, ...}
+            (SSE hasn't returned yet, so pair.storyData is still null)
+      - pair.activeArtworkKey = 'art03'
+      - pair.imageDataUrl = changtoufa_url
+      - _restoreArtworkState(pair, 'art03') → no saved state →
+        pair.storyData = null
+T3  SSE returns. generateStory()'s closure runs:
+      pair.storyData = JSON.parse(rawText)   ← writes 桃花源 story
+    But pair.activeArtworkKey is now 'art03'.
+T4  Story preview reads pair.storyData → renders 桃花源 text against
+    the changtoufa illustration. THIS IS THE VISIBLE BUG.
+T5  ~1.5 s later autosave runs:
+      _saveArtworkState(pair) → artworkStates['art03'] =
+        {storyData: 桃花源 story, ...}
+    BUG IS NOW PERSISTED. Every reload re-projects 桃花源 story
+    onto changtoufa's view via the very mechanism that's supposed
+    to keep artworks isolated.
+```
+
+The same race pattern existed in `generateContinuation()` (Part-3
+SSE) and `generateAnimation()` + `_pollAnimation()` (Doubao video
+polling; 30-60 s window — even more time for the slip-up).
+
+Why §30 missed it: §30's `isAnyGenerating` computed only feeds the
+`busyByOther` disabled-state on the **generate buttons** in
+`Part3Content.vue`. The sidebar's `pickCuratedArtwork()` /
+`pickUploadedArtwork()` / `uploadNewArtwork()` never consulted it
+and freely mutated `pair.activeArtworkKey` mid-stream.
+
+### Fix — three defensive layers
+
+#### Layer 1 — UI guard: refuse the switch while a generation is in flight
+
+`frontend/src/components/workspace/WorkspaceSidebar.vue` now has an
+`ensurePart3NotBusy()` helper that's called at the top of all three
+artwork-switch entry points (`pickCuratedArtwork`,
+`pickUploadedArtwork`, `uploadNewArtwork`). When
+`part3Store.isAnyGenerating` is true, it surfaces a warning toast
+(new i18n key `part3.busyArtworkSwitch` → "请先等待当前生成完成
+再切换图片") and returns false, blocking the switch.
+
+The check runs:
+- Pre-file-picker (so the teacher doesn't go through the OS file
+  picker only for the upload to silently no-op).
+- And again on the file-picker `change` callback (defense in depth:
+  a slow OS picker could let a generation start in the gap).
+
+Adding a NEW entry point that mutates `pair.activeArtworkKey` (any
+future "shuffle artworks" affordance, keyboard shortcut, deeper-in
+Part-3 thumbnail row, etc.) **MUST** call `ensurePart3NotBusy()`.
+This is the most important invariant of the fix.
+
+#### Layer 2 — Target-capture: route late results to the correct slot
+
+Even with Layer 1 in place, the lock-disabled buttons in
+`Part3Content.vue` are still pre-existing UI, and we don't want to
+trust that every future entry point will remember to call the
+guard. So `generateStory()`, `generateContinuation()`,
+`generateAnimation()`, and `_pollAnimation()` in
+`frontend/src/stores/part3.ts` now capture
+`targetPairId = pair.id` and `targetArtworkKey = pair.activeArtworkKey`
+at function entry. On completion they check the equivalent
+`stillActive()` closure:
+
+```ts
+const stillActive = () =>
+  pair.id === targetPairId
+  && pair.activeArtworkKey === targetArtworkKey
+```
+
+If `stillActive()` is true at write-time, the result goes through
+the normal "write to the flat mirror" path and the reactive view
+picks it up. If `stillActive()` is false (i.e. the teacher switched
+in the meantime), the function:
+
+1. **Logs** an `[part3] … arrived late … routing to slot` info
+   line so the incident is visible in console.
+2. Writes the parsed story / continuation / animation result
+   **directly into the persisted
+   `pair.artworkStates[targetArtworkKey]` slot** instead of
+   touching the flat mirror.
+3. Does NOT set `pair.storyError` / `pair.continuationError` /
+   `pair.animationError` on the live view (it would mislead the
+   teacher into thinking her CURRENT artwork failed).
+4. Does NOT touch `pair.storyStreamText` / `pair.continuationStreamText`
+   during the SSE if the teacher has already switched — the stream
+   chunks would otherwise visibly paint onto the wrong illustration.
+
+`_pollAnimation()` was extended with a `targetArtworkKey` parameter
+plus a `findVersion(pair)` helper. The helper walks
+`pair.animationVersions[index]` when still on the original artwork
+or `pair.artworkStates[targetArtworkKey].animationVersions[index]`
+when the teacher switched — making the routing transparent to the
+poll loop.
+
+#### Layer 3 — One-off heal: clean up snapshots that were already poisoned
+
+For projects that already got the wrong story stamped into
+`artworkStates[wrongKey].storyData` BEFORE Layers 1 + 2 landed,
+`frontend/src/stores/projects.ts` now ships
+`healMismatchedPart3Stories()` integrated into the existing
+`migrateProjects()` flow. Two passes:
+
+**Pass 1 — lesson-specific keyword check** (currently only
+`g2v2-u4-l4`). The `ARTWORK_KEYWORD_RULES` table lists each artwork's
+own characteristic vocabulary and the sibling artworks' foreign
+vocabulary. For 《好长好长》:
+
+| artwork_id | foreign keywords (presence = corruption) |
+|---|---|
+| `G2V2-U4-L4-art01` | `小真`, `长头发`, `头发的` |
+| `G2V2-U4-L4-art02` | `小真`, `长头发`, `头发的` |
+| `G2V2-U4-L4-art03` | `桃花林`, `桃花源`, `渔人` |
+
+If any slot's `storyData.part1` contains a foreign keyword, the
+slot's `storyData`, `generatedContinuations`, `animationVersions`,
+`chosenVideoUrl`, `selectedChoiceId` are cleared. The teacher's
+`designChatMessages` and `animationChatMessages` are **preserved** —
+those are her typed instructions, not AI output, and aren't
+implicated in the bug.
+
+**Pass 2 — generic flat-mirror consistency** (all multi-artwork
+lessons including `g2v2-u4-l5` and `g2v2-u5-l1`, per the
+"conservative expansion" agreement with the user). If the persisted
+flat `pair.storyData` ≠ `pair.artworkStates[pair.activeArtworkKey].storyData`,
+the flat was written by a late-arriving SSE in the moments before
+the snapshot was taken. The heal clears the flat (the slot stays
+intact and remains authoritative; `_restoreArtworkState()` will
+re-project from it on the next visit). This is safe by construction:
+the flat is always derived from the slot on artwork switch, so
+nulling it just forces re-derivation.
+
+Both passes are **idempotent**. Running them on already-clean
+snapshots is a no-op. They run on every load (localStorage hydrate
++ post-login `loadFromAPI` hydrate) via `migrateProjects()`. After
+a healed snapshot round-trips through the server, future loads
+see clean data and the heal silently no-ops forever.
+
+Designed to live in the codebase for a few weeks past the
+race-fix, then can be removed once we're confident no stale
+snapshots are still re-surfacing via cross-device sync.
+
+### Effect for the affected teachers (a / b / d / f)
+
+Per user agreement, **c / e / g / h** are being deleted manually so
+they don't need this heal. For the rest:
+
+- On next login, `migrateProjects()` scans their《好长好长》project.
+- Any `artworkStates[k]` with mismatched keywords gets its storyData
+  / generatedContinuations cleared. The teacher's `生成故事`
+  button on those artwork(s) reverts to idle.
+- The teacher re-clicks `生成故事` → fresh Doubao SSE writes a
+  correct story for the active artwork. (Now safe — Layer 1
+  blocks the switch mid-stream.)
+- chat history / animation chat messages survive (those are
+  teacher-authored, not AI-generated).
+- Operator log lines appear in console:
+  `[projects] healing Part-3 story-vs-artwork mismatch for project … artwork … (found foreign keyword …)`
+
+The same login also triggers the existing §31 heal for
+BLOOM-2026-B's stuck-on-converting state — unrelated, but worth
+mentioning since the two heals share the `migrateProjects()` chain.
+
+### Files touched
+
+- `frontend/src/components/workspace/WorkspaceSidebar.vue` —
+  `useToastStore` import; `ensurePart3NotBusy()` helper; three
+  artwork-switch entry points gated on `isAnyGenerating`.
+- `frontend/src/stores/part3.ts` —
+  - `generateStory()`: target capture + `stillActive()` closure +
+    routing of late results into `artworkStates[targetArtworkKey]`;
+    stream-text painted only when still active.
+  - `generateContinuation()`: same target-capture pattern, also
+    captures `targetPart1` so the in-flight SSE branches off the
+    story snapshot it was actually asked about.
+  - `generateAnimation()`: `targetArtworkKey` captured and passed
+    into `_pollAnimation()`.
+  - `_pollAnimation()`: new `targetArtworkKey` parameter + private
+    `findVersion(pair)` helper that resolves the right
+    `AnimationVersion` regardless of whether the active artwork
+    is still on target.
+- `frontend/src/stores/projects.ts` —
+  - `ARTWORK_KEYWORD_RULES` table for `g2v2-u4-l4`.
+  - `_storyHasForeignKeyword()`, `_clearArtworkSlot()` helpers.
+  - `healMismatchedPart3Stories()` — two-pass heal.
+  - `migrateProjects()` now calls `healMismatchedPart3Stories()`
+    after `healStuckProject()` so both §31 and §33 heals run on
+    every hydrate.
+- `frontend/src/i18n/zh.ts` + `en.ts` —
+  `part3.busyArtworkSwitch` toast string.
+
+### Notes for future maintainers
+
+- **Any new entry point that switches `pair.activeArtworkKey`
+  MUST check `part3Store.isAnyGenerating` first** and surface
+  `part3.busyArtworkSwitch` if it's true. The race we just fixed
+  re-opens the moment a single entry point forgets this. Examples
+  of paths to watch for: a Part-3 thumbnail row inside
+  `Part3Content.vue`; a keyboard-shortcut artwork switcher; a
+  future "compare two artworks side by side" affordance.
+- **Layer 2 (target-capture routing) is also load-bearing.** It's
+  not just belt-and-braces — there's at least one edge case where
+  Layer 1 can't help: the teacher running a script in DevTools that
+  calls `part3Store.setArtworkFromUrl()` directly bypasses the
+  sidebar entirely. Layer 2 catches that path. Don't remove the
+  `stillActive()` checks just because Layer 1 covers the common
+  case.
+- **The heal preserves chat history on purpose.** The `_clearArtworkSlot()`
+  helper deliberately does NOT touch `designChatMessages` or
+  `animationChatMessages` because those are the teacher's typed
+  instructions. The bug is exclusively about wrong AI output; the
+  human input around it is still valid. If you ever extend the
+  heal to clear more fields, keep this rule.
+- **The keyword-rules table only has L4 right now.** Don't extend
+  it speculatively to L5 / U5 — without disjoint vocabulary
+  between artworks (《吸引人的标题》's three artworks share visual
+  concepts; same for U5-L1's two abstract pieces), a false positive
+  would clear legitimate stories. The flat-mirror consistency pass
+  (Pass 2) already catches the late-write race for those lessons.
+  If a future lesson lands with genuinely disjoint artwork vocab,
+  add a new entry to `ARTWORK_KEYWORD_RULES`.
+- **The flat-mirror consistency pass uses `JSON.stringify` for
+  deep equality.** That's deliberate — `storyData` is always a
+  flat `{part1, choices, part3, designRationale}` dict with no
+  circular refs / Date objects / functions, so `JSON.stringify`
+  diff is sufficient and dead-simple. Don't reach for `lodash`
+  here.
+- **The §30 lock + this §33 fix together provide complete coverage**
+  for the cross-artwork race. §30 prevents two simultaneous
+  generations from racing each other; §33 prevents an
+  artwork-switch from corrupting a single in-flight generation.
+  These are independent concerns and both layers must stay.
+- **Don't be tempted to "just delete the flat mirror" as a refactor**
+  to eliminate this whole class of bug. The flat mirror exists so
+  the existing reactive computeds (`storyData`, `imageDataUrl`,
+  `animationVersions`, ...) stay simple O(1) lookups and the per-
+  panel components don't need to know about `activeArtworkKey`.
+  Going slot-only would force every panel to thread the active key
+  through every accessor — a big refactor for marginal safety
+  beyond what the three layers already give us.
+
+### Cross-reference: §30 notes amendment
+
+`§30 — Part-3 global single-generation lock` (2026-06-08 → 06-09)
+should now read with one extra item in its **Notes for future
+maintainers**:
+
+> - **Any new entry point that switches active artwork MUST check
+>   `isAnyGenerating`.** §30's lock protects the generate BUTTONS
+>   but not artwork-switch paths. The 2026-06-12 §33 incident
+>   came from `WorkspaceSidebar.pickCuratedArtwork()` mutating
+>   `pair.activeArtworkKey` mid-stream because it didn't consult
+>   the lock. If you add a new artwork-switch surface (Part-3
+>   thumbnail row, keyboard shortcut, "compare two" mode, etc.)
+>   you MUST call the same `isAnyGenerating` check + toast +
+>   early-return pattern that `WorkspaceSidebar`'s
+>   `ensurePart3NotBusy()` uses. The §33 Layer-2 target-capture
+>   in `part3.ts` is defense-in-depth, NOT a substitute for the
+>   UI guard.
+
+### CORS observation (not in scope but worth recording)
+
+The same DevTools screenshot that surfaced this bug also showed
+`Access to fetch at 'https://artbloom-api.onrender.com/api/projects/proj-…'
+from origin 'https://artbloomedu.com' has been blocked by CORS
+policy` errors. That's the §28 incident class recurring — the
+`_DEFAULT_PRODUCTION_ORIGINS` floor in `backend/main.py` either
+isn't deployed or the Render `CORS_ALLOW_ORIGINS` env var is
+overriding it. The user explicitly chose option (a) "leave CORS
+for later, fix locally" for this PR, so the §33 heal runs against
+localStorage only — once the heal mutates state, autosave will
+**fail to PUT** the cleaned snapshot to Postgres. The teacher's
+session will work; the next session on a different device will
+re-hydrate the original poisoned snapshot from Postgres and run
+the heal again locally. Functionally fine (idempotent heal) but
+operationally noisy. Recommend a parallel ticket to redeploy the
+backend / clear the CORS env var so the heal can propagate to
+the canonical store.
+

@@ -363,7 +363,13 @@ export default {
     generateAnimation: '生成动画',
     animation: '动画',
     processing: '处理中…',
+    // 2026-06-12 — Toast when teacher tries to switch artwork while
+    // a story / animation is still being generated. See §33: blocking
+    // the switch is the first of three defensive layers preventing
+    // late-arriving SSE results from landing in the wrong artwork slot.
+    busyArtworkSwitch: '请先等待当前生成完成再切换图片',
     failed: '失败',
+
     animationN: '动画 {n}',
     selectVersionHint: '选择动画版本以继续',
     save: '保存',

@@ -67,7 +67,176 @@ function load<T>(key: string, fallback: T): T {
 // every copy. Per teacher agreement, she will re-upload manually.
 const STUCK_PROJECT_IDS = new Set<string>(['proj-1780920895755'])
 
+// 2026-06-12 — Part-3 cross-artwork story-mismatch heal (KB §33).
+//
+// Pilot incident: BLOOM-2026-A and -D reported that in《好长好长》
+// (g2v2-u4-l4), Part-3 showed 《小真的长头发》's illustration with
+// the《桃花源》story text on the right. Root cause: a `_genLock`-
+// missing-its-mid-stream-switch race — `pair.storyData =
+// parsedStory` ran after the teacher had already switched
+// `pair.activeArtworkKey` to a different artwork, polluting the
+// active view AND (via the next autosave) the persisted
+// `artworkStates[wrongKey].storyData` slot.
+//
+// Code-wise the race is now closed by:
+//   1. UI guard in WorkspaceSidebar (blocks the switch outright)
+//   2. target-capture in part3.ts generate*() (routes late results
+//      into the correct slot)
+//
+// For projects that already got poisoned BEFORE those landed, this
+// heal scans each Part-3 pair on hydration and clears anything we
+// can confidently identify as cross-artwork contamination. Two
+// passes:
+//
+//   • Lesson-specific keyword pass (currently only g2v2-u4-l4
+//     because it's the only one with disjoint vocab between
+//     artworks — 桃花 vs 小真/头发). If any `artworkStates[k]`'s
+//     story uses keywords that belong to a SIBLING artwork in the
+//     same lesson, that slot's story / continuations / animation
+//     versions are cleared so the teacher's "生成故事" button
+//     comes back to idle for a clean retry.
+//
+//   • Generic flat-mirror consistency pass (all multi-artwork
+//     lessons — g2v2-u4-l4, g2v2-u4-l5, g2v2-u5-l1). If the
+//     persisted FLAT `pair.storyData` doesn't equal the slot
+//     that `pair.activeArtworkKey` points at, the flat was
+//     written by a late-arriving SSE just before the snapshot
+//     was taken. We clear the flat (the slot is authoritative
+//     since `_restoreArtworkState()` always re-projects from the
+//     slot on the next visit). This is the "conservative
+//     extension" promised for L5 / U5 — it catches the same
+//     race without needing artwork-specific keywords, and is
+//     guaranteed safe because it only ever nulls a flat field
+//     that's about to be overwritten anyway.
+//
+// Both passes are idempotent: running them again on already-clean
+// snapshots is a no-op. Designed to live in the codebase a few
+// weeks past the underlying-race fix in case stale snapshots
+// re-surface from cross-device sync, then can be removed once
+// confidence is high.
+
+interface ArtworkKeywordRule {
+  /** This artwork's own characteristic keywords (informational,
+   *  not used for heal — kept for future "is this story actually
+   *  about this artwork?" diagnostics). */
+  ownKeywords: string[]
+  /** Keywords that belong to a SIBLING artwork in the same lesson.
+   *  If the story's part1 contains any of these, the slot was
+   *  poisoned by a cross-artwork SSE write and we clear it. */
+  foreignKeywords: string[]
+}
+
+const ARTWORK_KEYWORD_RULES: Record<string, Record<string, ArtworkKeywordRule>> = {
+  'g2v2-u4-l4': {
+    'G2V2-U4-L4-art01': {
+      ownKeywords: ['桃花', '桃花林', '桃花源', '溪水', '渔人'],
+      foreignKeywords: ['小真', '长头发', '头发的'],
+    },
+    'G2V2-U4-L4-art02': {
+      ownKeywords: ['桃花', '桃花林', '桃花源', '溪水', '渔人'],
+      foreignKeywords: ['小真', '长头发', '头发的'],
+    },
+    'G2V2-U4-L4-art03': {
+      ownKeywords: ['小真', '长头发', '头发'],
+      foreignKeywords: ['桃花林', '桃花源', '渔人'],
+    },
+  },
+}
+
+function _storyHasForeignKeyword(
+  storyData: Record<string, unknown> | null | undefined,
+  foreign: string[],
+): boolean {
+  if (!storyData) return false
+  const part1 = typeof storyData.part1 === 'string' ? storyData.part1 : ''
+  if (!part1) return false
+  return foreign.some(kw => part1.includes(kw))
+}
+
+function _clearArtworkSlot(slot: Record<string, unknown>) {
+  slot.storyData = null
+  slot.generatedContinuations = {}
+  slot.animationVersions = []
+  slot.chosenVideoUrl = null
+  slot.selectedChoiceId = null
+  // Keep designChatMessages + animationChatMessages — they're
+  // the teacher's typed instructions, not AI output, and don't
+  // contribute to the wrong-story bug. Clearing them would
+  // erase legitimate work.
+}
+
+function healMismatchedPart3Stories<T extends { snapshot: SlideSnapshot; meta?: ProjectMeta }>(p: T): T {
+  const lessonId = p.meta?.lessonId
+  const part3 = p.snapshot.part3Snapshot
+  if (!part3 || !Array.isArray(part3.pairs)) return p
+
+  const rules = lessonId ? ARTWORK_KEYWORD_RULES[lessonId] : undefined
+  let changed = false
+
+  for (const pair of part3.pairs as Array<Record<string, unknown>>) {
+    const artworkStates = pair.artworkStates as Record<string, Record<string, unknown>> | undefined
+    if (!artworkStates || typeof artworkStates !== 'object') continue
+
+    // Pass 1 — lesson-specific keyword check
+    if (rules) {
+      for (const [key, rule] of Object.entries(rules)) {
+        const slot = artworkStates[key]
+        if (!slot) continue
+        if (
+          _storyHasForeignKeyword(
+            slot.storyData as Record<string, unknown> | null | undefined,
+            rule.foreignKeywords,
+          )
+        ) {
+          console.info(
+            `[projects] healing Part-3 story-vs-artwork mismatch for ` +
+            `project ${(p as Record<string, unknown>).id} artwork ${key} ` +
+            `(found foreign keyword from sibling artwork — clearing slot ` +
+            `so the teacher can regenerate).`,
+          )
+          _clearArtworkSlot(slot)
+          changed = true
+        }
+      }
+    }
+
+    // Pass 2 — generic flat-mirror consistency. If the persisted
+    // flat `pair.storyData` doesn't match the slot the active
+    // artwork key points at, the flat was written by a late-
+    // arriving SSE just before the snapshot was taken. Clear the
+    // flat — `_restoreArtworkState()` will re-project from the
+    // slot on the next visit. Safe because the slot is the
+    // authoritative copy.
+    const activeKey = pair.activeArtworkKey as string | null | undefined
+    if (activeKey && artworkStates[activeKey]) {
+      const slot = artworkStates[activeKey]
+      const flatStory = pair.storyData
+      const slotStory = slot.storyData
+      // Deep-equal by JSON.stringify — both shapes are plain
+      // {part1, choices, part3, designRationale} dicts, no
+      // functions/Dates/circular refs.
+      if (JSON.stringify(flatStory) !== JSON.stringify(slotStory)) {
+        console.info(
+          `[projects] healing Part-3 flat-vs-slot mismatch for project ` +
+          `${(p as Record<string, unknown>).id} activeArtworkKey=${activeKey} ` +
+          `(flat storyData diverged from slot — clearing flat so the ` +
+          `next visit re-projects from the slot).`,
+        )
+        pair.storyData = null
+        pair.generatedContinuations = {}
+        pair.animationVersions = []
+        pair.chosenVideoUrl = null
+        pair.selectedChoiceId = null
+        changed = true
+      }
+    }
+  }
+
+  return changed ? { ...p, snapshot: { ...p.snapshot, part3Snapshot: part3 } } : p
+}
+
 function healStuckProject<T extends { id: string; snapshot: SlideSnapshot }>(p: T): T {
+
   if (!STUCK_PROJECT_IDS.has(p.id)) return p
   const snap = p.snapshot
   const part6: Record<string, unknown> | undefined = snap.part6Snapshot
@@ -129,9 +298,17 @@ function migrateProjects(projects: Project[]): Project[] {
         })),
       },
     }
-    return healStuckProject(migrated)
+    // 2026-06-11 — Part-6 stuck-on-converting heal (§31), scoped to
+    // a single project. Idempotent; no-op for everything else.
+    const afterPart6 = healStuckProject(migrated)
+    // 2026-06-12 — Part-3 cross-artwork story-mismatch heal (§33).
+    // Idempotent; no-op for projects whose lesson_id isn't in the
+    // keyword-rules table AND whose Part-3 snapshot is internally
+    // consistent. See comment block above `healMismatchedPart3Stories`.
+    return healMismatchedPart3Stories(afterPart6)
   })
 }
+
 
 export interface SlideSnapshot {
   slides: Slide[]
