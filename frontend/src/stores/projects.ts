@@ -105,10 +105,128 @@ function healStuckProject<T extends { id: string; snapshot: SlideSnapshot }>(p: 
   }
 }
 
+// ────────────────────────────────────────────────────────────────────
+// 2026-06-12 — One-off self-heal for the
+//   BLOOM-2026-A / BLOOM-2026-D 《好长好长》 (g2v2-u4-l4) Part-3
+//   "wrong story attached to wrong artwork" incident.
+//
+// What went wrong (see KB §33 for the full story):
+//   - Both teachers uploaded their own copy of 《小真的长头发》 to
+//     Part 3 via the "上传图片" button instead of picking the
+//     curated thumbnail from the sidebar.
+//   - The upload path sets `pair.selectedArtworkId = null`, so the
+//     `/api/story/stream` request body omits `artwork_id` entirely.
+//   - The backend's `build_executor_b_context()` (lesson_context.py)
+//     used to silently fall back to
+//     `seed.default_executor_b_artwork_id` — for U4-L4 that's
+//     `G2V2-U4-L4-art01` (桃花源1). The model received the
+//     teacher-uploaded image AND a prompt context describing 桃花源1,
+//     and trusted the text. Out came a 桃花源 story plastered on top
+//     of a 小真的长头发 picture.
+//
+// The backend root-cause fix shipped in the same PR
+// (`_build_story_lesson_context_uploaded`) prevents this for future
+// generations. But these two teachers already have wrong stories +
+// wrong animation versions saved to their snapshots; this heal wipes
+// just the Part-3 state on their U4-L4 project so they re-pick a
+// curated artwork (or re-upload) AND re-trigger generation — that
+// time the backend will do the right thing.
+//
+// Why all-or-nothing wipe (instead of surgically clearing only the
+// wrong artwork's slot): we cannot reliably tell from the snapshot
+// alone which `storyData` was generated against which `imageDataUrl`,
+// because they were stored independently. The conservative move is
+// to clear every Part-3 pair on this one project for these two
+// invite codes and let the teachers regenerate cleanly. Any "correct"
+// stories they happened to also have will be lost — small price for
+// guaranteed correctness, and we're talking about ≤ 3 minutes of
+// regeneration each.
+//
+// Activation is by INVITE CODE + LESSON ID, NOT project id, so we
+// don't have to ask the teachers for their project id. The invite
+// code lives in `localStorage['artbloom-username']` (the legacy key
+// is the canonical invite-code store, see `userStore.setInviteCode`).
+// We read it directly from localStorage to avoid a circular Pinia
+// store import — the user store hasn't necessarily booted yet when
+// `migrateProjects()` runs at projects-store-init time.
+const PART3_RESET_INVITE_CODES = new Set<string>([
+  'BLOOM-2026-A',
+  'BLOOM-2026-D',
+])
+const PART3_RESET_LESSON_ID = 'g2v2-u4-l4'
+
+function _readInviteCodeFromLocalStorage(): string {
+  try {
+    return (localStorage.getItem('artbloom-username') ?? '').trim().toUpperCase()
+  } catch {
+    return ''
+  }
+}
+
+function healPart3Mismatch(p: Project, inviteCode: string): Project {
+  if (!PART3_RESET_INVITE_CODES.has(inviteCode)) return p
+  if (p.meta?.lessonId !== PART3_RESET_LESSON_ID) return p
+  const part3 = p.snapshot?.part3Snapshot as Record<string, unknown> | undefined
+  if (!part3 || !Array.isArray(part3.pairs) || part3.pairs.length === 0) return p
+  // Already healed? `pairs[i].storyData === null` AND `pair.uploadedArtworks`
+  // empty AND `pair.selectedArtworkId === null` is the signature of a
+  // post-heal pair. If every pair already satisfies that, treat as no-op
+  // so we don't keep wiping each session after the teacher has cleanly
+  // re-generated.
+  const allClean = part3.pairs.every((pair: any) =>
+    !pair.storyData
+    && (!pair.uploadedArtworks || pair.uploadedArtworks.length === 0)
+    && !pair.selectedArtworkId
+    && (!pair.animationVersions || pair.animationVersions.length === 0)
+  )
+  if (allClean) return p
+  console.info(
+    `[projects] healing Part-3 story↔artwork mismatch on ${p.id} ` +
+    `for inviteCode=${inviteCode}; teachers will re-pick artwork and re-generate.`,
+  )
+  for (const pair of part3.pairs as any[]) {
+    // ── Wipe everything generation-related ──
+    pair.storyData = null
+    pair.storyError = null
+    pair.storyStreamText = ''
+    pair.storyLoading = false
+    pair.animationVersions = []
+    pair.animationError = null
+    pair.animationLoading = false
+    pair.remainingAttempts = 3
+    pair.chosenVideoUrl = null
+    pair.selectedChoiceId = null
+    pair.generatedContinuations = {}
+    pair.continuationStreamText = ''
+    pair.continuationLoading = false
+    pair.continuationError = null
+    pair.designChatMessages = []
+    pair.animationChatMessages = []
+    // ── Wipe artwork picks AND uploaded copies ──
+    // We deliberately clear `uploadedArtworks` too: leaving them in
+    // would let the teacher click an old thumbnail and hit the same
+    // null-`selectedArtworkId` upload path again before the backend
+    // hardening takes effect on her session. With them cleared, the
+    // only visible option in the sidebar is the curated set from the
+    // LKP, which forces `setArtworkFromUrl(url, 'G2V2-U4-L4-artNN')`
+    // and the correct `artwork_id` over the wire.
+    pair.artworkStates = {}
+    pair.activeArtworkKey = null
+    pair.selectedArtworkId = null
+    pair.selectedUploadedId = null
+    pair.uploadedArtworks = []
+    pair.imageDataUrl = null
+    pair.imageUrl = null
+    pair.imageBase64 = null
+  }
+  return p
+}
+
 function migrateProjects(projects: Project[]): Project[] {
   const OLD = 'http://localhost:8001/textbook-assets/'
   const NEW = '/textbook-assets/'
   const fix = (s: string) => s.startsWith(OLD) ? NEW + s.slice(OLD.length) : s
+  const inviteCode = _readInviteCodeFromLocalStorage()
   return projects.map(p => {
     const migrated: Project = {
       ...p,
@@ -129,9 +247,11 @@ function migrateProjects(projects: Project[]): Project[] {
         })),
       },
     }
-    return healStuckProject(migrated)
+    const healedStuck = healStuckProject(migrated)
+    return healPart3Mismatch(healedStuck, inviteCode)
   })
 }
+
 
 export interface SlideSnapshot {
   slides: Slide[]
