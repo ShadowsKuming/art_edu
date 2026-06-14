@@ -853,29 +853,51 @@ export const useProjectsStore = defineStore('projects', () => {
     )
   }
 
+  // 2026-06-14 (§35) — Fields that store RAW base64 (no `data:`
+  // prefix). The §28 slim pass only nulled strings that begin with
+  // `data:`, so these slipped through and were the residual bloat
+  // that overflowed quota "even after slimming" (BLOOM-2026-B). The
+  // server (Postgres) keeps the full-fidelity copy, and on the next
+  // visit Part-3 re-derives `imageBase64` from `imageDataUrl` /
+  // `imageUrl`, so nulling them in the localStorage cache is safe.
+  const HEAVY_RAW_BASE64_KEYS = new Set<string>([
+    'imageBase64',   // Part-3 per-artwork raw base64 (flat + every artworkStates slot)
+    'sketchBase64',  // Part-6 sketch upload
+  ])
+
   /**
-   * Recursively rebuild `value` with any string field longer than
-   * `dropThreshold` and starting with `data:` replaced by `null`.
-   * This targets the three known offenders (Part-6 generated PNGs,
-   * Part-7 student-work uploads, Part-3 video frames) without
-   * needing to enumerate every snapshot key — anything else of
-   * comparable size is almost certainly also a data URL we don't
-   * want in localStorage.
+   * Recursively rebuild `value` with heavy string fields replaced by
+   * `null` so the slim localStorage cache fits in quota. Two classes
+   * of offender are dropped when longer than `dropThreshold`:
+   *
+   *   1. Any string starting with `data:` — Part-4 teacher uploads,
+   *      Part-6 generated PNGs, Part-7 student-work uploads, Part-3
+   *      video frames (the original §28 behaviour).
+   *   2. Raw base64 (NO `data:` prefix) living under a known heavy
+   *      field name — Part-3 `imageBase64`, Part-6 `sketchBase64`.
+   *      §35: these are duplicated across the flat mirror AND every
+   *      `artworkStates[k]` slot, so they dominated the snapshot and
+   *      were never caught by the data:-only pass.
    *
    * 64 KB is a deliberately conservative threshold: typical legit
    * string fields in the snapshot (story text, chatbot history)
    * top out around 10-20 KB.
+   *
+   * `key` is the object property name the current `value` was reached
+   * through (undefined at the root and inside arrays), used only for
+   * the field-name match in case 2.
    */
-  function stripHeavyDataUrls(value: unknown, dropThreshold = 65_536): unknown {
+  function stripHeavyDataUrls(value: unknown, dropThreshold = 65_536, key?: string): unknown {
     if (typeof value === 'string') {
       if (value.length > dropThreshold && value.startsWith('data:')) return null
+      if (value.length > dropThreshold && key !== undefined && HEAVY_RAW_BASE64_KEYS.has(key)) return null
       return value
     }
     if (Array.isArray(value)) return value.map(v => stripHeavyDataUrls(v, dropThreshold))
     if (value && typeof value === 'object') {
       const out: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-        out[k] = stripHeavyDataUrls(v, dropThreshold)
+        out[k] = stripHeavyDataUrls(v, dropThreshold, k)
       }
       return out
     }

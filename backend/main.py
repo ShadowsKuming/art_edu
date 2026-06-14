@@ -18,8 +18,10 @@ configs to inject into each Executor call.  See
 ``backed-files/ArtBloom_New_API_Spec.md`` for the design rationale.
 """
 
+import asyncio
 import json
 import os
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +49,101 @@ except ImportError:  # pragma: no cover — defensive
     _BotoConfig = None
     _BotoClientError = Exception
     _BOTO3_AVAILABLE = False
+
+
+# ════════════════════════════════════════════════════════════════════════
+# 2026-06-14 (§35) — Durable storage for AI-GENERATED media (R2 public bucket)
+# ════════════════════════════════════════════════════════════════════════
+#
+# Why this exists. Doubao (Ark) returns generated images (Part-6 style
+# transfer) and videos (Part-3 animation) as **temporary signed URLs**
+# on `*.volces.com` that expire ~24 h after creation. We were storing
+# those ephemeral URLs verbatim in the project snapshot, so a teacher
+# who reopened a deck a day later saw broken images / unplayable video
+# (the "几天前的视频打不开" report, and a contributing factor to the
+# BLOOM-2026-B Part-6 / Part-4 incident).
+#
+# Fix: as soon as Ark hands us a result URL, download the bytes and
+# re-upload them to our OWN public R2 bucket, then hand the frontend
+# a permanent `https://pub-xxxx.r2.dev/...` URL instead.
+#
+# Defensive by design — every failure path falls back to the original
+# Ark URL so behaviour is never WORSE than before:
+#   • boto3 not installed                → return original
+#   • R2 env vars not configured         → return original
+#   • download or upload raises          → log + return original
+#
+# Env vars (all optional; configure in Render dashboard):
+#   R2_ENDPOINT_URL          https://<account-id>.r2.cloudflarestorage.com
+#   R2_ACCESS_KEY_ID         (shared with the user-state / story-audio token)
+#   R2_SECRET_ACCESS_KEY
+#   R2_GENERATED_BUCKET      e.g. artbloom-generated   (must be PUBLIC)
+#   R2_GENERATED_PUBLIC_URL  e.g. https://pub-xxxx.r2.dev  (no trailing slash)
+_r2_generated_client = None  # lazily-built, cached S3 client
+
+
+def _get_r2_generated_client():
+    """Return a cached boto3 S3 client for the public generated-media
+    bucket, or None when R2 isn't available/configured."""
+    global _r2_generated_client
+    if _r2_generated_client is not None:
+        return _r2_generated_client
+    if not _BOTO3_AVAILABLE:
+        return None
+    endpoint = os.getenv("R2_ENDPOINT_URL")
+    access_key = os.getenv("R2_ACCESS_KEY_ID")
+    secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
+    if not (endpoint and access_key and secret_key):
+        return None
+    _r2_generated_client = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        config=_BotoConfig(signature_version="s3v4"),
+        region_name="auto",
+    )
+    return _r2_generated_client
+
+
+async def _persist_generated_media(src_url: str, kind: str, ext: str, content_type: str) -> str:
+    """Download an ephemeral Ark media URL and re-upload it to our
+    public R2 bucket, returning a permanent URL. Falls back to
+    `src_url` unchanged on ANY problem so callers can use the result
+    unconditionally.
+
+    `kind`  — short prefix for the object key, e.g. "part6" or "anim".
+    `ext`   — file extension WITHOUT the dot, e.g. "png" / "mp4".
+    """
+    bucket = os.getenv("R2_GENERATED_BUCKET")
+    public_base = os.getenv("R2_GENERATED_PUBLIC_URL")
+    client = _get_r2_generated_client()
+    if not (src_url and bucket and public_base and client):
+        return src_url
+    try:
+        # Download with a tight timeout so this never dominates the
+        # request budget (Cloudflare cuts the origin response at ~100 s).
+        async with httpx.AsyncClient(timeout=30.0) as dl:
+            r = await dl.get(src_url)
+        if r.status_code != 200 or not r.content:
+            print(f"[r2] skip persist {kind}: download status {r.status_code}", flush=True)
+            return src_url
+        key = f"generated/{kind}/{uuid.uuid4().hex}.{ext}"
+        # boto3 is blocking; run it off the event loop.
+        await asyncio.to_thread(
+            client.put_object,
+            Bucket=bucket,
+            Key=key,
+            Body=r.content,
+            ContentType=content_type,
+        )
+        durable = f"{public_base.rstrip('/')}/{key}"
+        print(f"[r2] persisted {kind} → {durable} ({len(r.content)} bytes)", flush=True)
+        return durable
+    except Exception as exc:  # noqa: BLE001 — never break the caller
+        print(f"[r2] persist {kind} failed ({exc!r}); using ephemeral URL", flush=True)
+        return src_url
+
 
 from lesson_context import lesson_manager
 from auth import create_token, get_current_user_id
@@ -881,7 +978,13 @@ async def get_animation_status(task_id: str):
 
     if status == "succeeded":
         try:
-            result["video_url"] = data["content"]["video_url"]
+            video_url = data["content"]["video_url"]
+            # §35 — re-host on our public R2 bucket so the deck still
+            # plays days later (Ark video URLs expire ~24 h). Falls
+            # back to the original URL on any failure.
+            result["video_url"] = await _persist_generated_media(
+                video_url, "anim", "mp4", "video/mp4"
+            )
         except (KeyError, TypeError):
             result["error"] = "Unexpected response format from video API"
     elif status == "failed":
@@ -1953,9 +2056,34 @@ async def style_transfer(req: StyleTransferRequest):
         print(f"[part6] seed for style {req.style_label!r}: {seed}", flush=True)
 
 
-    async with _ark_client(120.0) as client:
-        resp = await client.post(
-            f"{ARK_BASE}/images/generations", json=payload, headers=_ark_headers()
+    # 2026-06-14 (§35) — Timeout budget vs. Cloudflare's ~100 s edge cap.
+    #
+    # BLOOM-2026-B's "风格转换卡在『转换中…』+ Failed to fetch" was the
+    # Part-6 sibling of the §31 stuck-state bug: the previous 120 s
+    # Ark client outlived Cloudflare's fixed ~100 s origin-response
+    # limit, so the edge tore down the connection mid-flight. The
+    # browser saw `TypeError: Failed to fetch`, `convert()` never hit
+    # its success OR error branch, and `view` stayed `'converting'`
+    # forever (re-persisted into the snapshot → permanent overlay).
+    #
+    # Fix: cap the Ark image call at 80 s, leaving ~15-20 s headroom
+    # under Cloudflare for the optional R2 re-host below. If Doubao is
+    # genuinely that slow we surface a clean 504 the frontend can show
+    # as a retryable error — never a silent hang.
+    try:
+        async with _ark_client(80.0) as client:
+            resp = await client.post(
+                f"{ARK_BASE}/images/generations", json=payload, headers=_ark_headers()
+            )
+    except httpx.TimeoutException:
+        print(
+            f"[part6] transfer timeout after 80s for lesson={req.lesson_id} "
+            f"style={req.style_label!r}",
+            flush=True,
+        )
+        raise HTTPException(
+            504,
+            "风格转换超时，请稍后重试（如果是第一次使用，服务可能需要预热约 1 分钟）。",
         )
 
     if resp.status_code != 200:
@@ -1967,6 +2095,11 @@ async def style_transfer(req: StyleTransferRequest):
     except (KeyError, IndexError, TypeError):
         raise HTTPException(500, f"Unexpected image response format: {str(data)[:300]}")
 
+    # §35 — re-host the ephemeral Doubao URL on our public R2 bucket so
+    # the result survives past Ark's ~24 h expiry (a contributing cause
+    # of the BLOOM-2026-B "几天后图片打不开" report). Falls back to the
+    # original URL when R2 isn't configured or the copy fails.
+    image_url = await _persist_generated_media(image_url, "part6", "png", "image/png")
     return {"image_url": image_url}
 
 
