@@ -40,5 +40,7 @@
     font-style: normal;
     font-weight: 400 700;
     font-display: swap;
-    src: url('./fonts/寒蝉宽黑体(Chill K Sans).otf') format('opentype');
+    /* Subset to ONLY the hero wordmark glyphs (艺芽): 9.9 MB OTF → ~1 KB WOFF2.
+       Regenerate with `bash scripts/subset-fonts.sh` if the wordmark changes. */
+    src: url('./fonts/chill-k-sans-subset.woff2') format('woff2');
 }

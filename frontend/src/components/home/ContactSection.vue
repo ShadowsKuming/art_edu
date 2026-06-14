@@ -21,8 +21,11 @@ const { t } = useI18n()
         <img
           :src="bannerUrl"
           :alt="t('home.contact.bannerAlt')"
+          loading="lazy"
+          decoding="async"
           class="contact__banner"
         />
+
       </div>
 
       <!-- Two-column body: support + contact info on left, form on right -->

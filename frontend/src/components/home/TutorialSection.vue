@@ -41,6 +41,9 @@ const steps = computed(() => {
         <img
           :src="bannerUrl"
           :alt="t('home.tutorial.bannerAlt')"
+          loading="lazy"
+          decoding="async"
+
           class="tutorial__banner"
         />
       </div>

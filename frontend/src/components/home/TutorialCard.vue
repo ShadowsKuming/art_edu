@@ -16,7 +16,8 @@ defineProps<{
 <template>
   <article class="tutorial-card" :data-step="step">
     <div class="tutorial-card__media">
-      <img :src="image" :alt="imageAlt" class="tutorial-card__img" />
+      <img :src="image" :alt="imageAlt" class="tutorial-card__img" loading="lazy" decoding="async" />
+
       <!-- Numbered chip overlapping the seam between image and body.
            Only place we genuinely need absolute positioning. -->
       <span class="tutorial-card__chip" aria-hidden="true">{{ step }}</span>

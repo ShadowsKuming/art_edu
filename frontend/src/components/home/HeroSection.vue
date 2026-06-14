@@ -19,8 +19,11 @@ const isZh = computed(() => locale.value === 'zh')
           <img
             :src="heroMain"
             :alt="t('home.hero.mainImageAlt')"
+            fetchpriority="high"
+            decoding="async"
             class="hero__art"
           />
+
           <h1 class="hero__title" :class="{ 'hero__title--zh': isZh }">
             <span class="hero__title-line">{{ t('home.hero.titleArt') }}</span>
             <span class="hero__title-line hero__title-line--light">
