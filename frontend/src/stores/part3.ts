@@ -1339,29 +1339,57 @@ export const usePart3Store = defineStore('part3', () => {
   function getSnapshot() {
     return {
       activePairId: activePairId.value,
-      pairs: pairs.value.map(p => ({
-        id: p.id,
-        imageDataUrl: p.imageDataUrl,
-        imageUrl: p.imageUrl,
-        imageBase64: p.imageBase64,
-        imageMime: p.imageMime,
-        selectedArtworkId: p.selectedArtworkId,
-        uploadedArtworks: p.uploadedArtworks,
-        selectedUploadedId: p.selectedUploadedId,
-        artworkStates: p.artworkStates,
-        activeArtworkKey: p.activeArtworkKey,
-        storyData: p.storyData,
-        animationVersions: p.animationVersions,
-        remainingAttempts: p.remainingAttempts,
-        chosenVideoUrl: p.chosenVideoUrl,
-        selectedChoiceId: p.selectedChoiceId,
-        generatedContinuations: p.generatedContinuations,
-        designChatMessages: p.designChatMessages,
-        // 2026-06-08 — Persist the per-artwork Animation Panel chat
-        // across reload/sync, otherwise the conversation evaporates
-        // every time the teacher reopens the project.
-        animationChatMessages: p.animationChatMessages,
-      })),
+      pairs: pairs.value.map(p => {
+        // 2026-06-15 (§38) — Keep the active artwork's slot in sync with
+        // the flat mirror BEFORE persisting. The flat fields (storyData /
+        // animationVersions / chosenVideoUrl / generatedContinuations /
+        // selectedChoiceId / chat) are updated on every generation, but
+        // `artworkStates[activeArtworkKey]` is otherwise ONLY refreshed
+        // on an artwork SWITCH (`_saveArtworkState`). Without this sync a
+        // story/video generated on the active artwork lives only in the
+        // flat until the next switch, so the persisted snapshot is
+        // internally inconsistent (flat ≠ slot for the active artwork).
+        // That inconsistency used to trip the projects-store consistency
+        // heal into discarding freshly-generated stories/videos on
+        // reload. Mirroring the flat into the slot here (exactly like
+        // `_saveArtworkState`) makes every snapshot self-consistent.
+        const artworkStates: Record<string, SavedArtworkState> = { ...p.artworkStates }
+        if (p.activeArtworkKey) {
+          artworkStates[p.activeArtworkKey] = {
+            storyData: p.storyData,
+            animationVersions: JSON.parse(JSON.stringify(p.animationVersions)),
+            remainingAttempts: p.remainingAttempts,
+            chosenVideoUrl: p.chosenVideoUrl,
+            selectedChoiceId: p.selectedChoiceId,
+            generatedContinuations: { ...p.generatedContinuations },
+            designChatMessages: p.designChatMessages.map(m => ({ ...m })),
+            animationChatMessages: p.animationChatMessages.map(m => ({ ...m })),
+          }
+        }
+        return {
+          id: p.id,
+          imageDataUrl: p.imageDataUrl,
+          imageUrl: p.imageUrl,
+          imageBase64: p.imageBase64,
+          imageMime: p.imageMime,
+          selectedArtworkId: p.selectedArtworkId,
+          uploadedArtworks: p.uploadedArtworks,
+          selectedUploadedId: p.selectedUploadedId,
+          artworkStates,
+          activeArtworkKey: p.activeArtworkKey,
+          storyData: p.storyData,
+          animationVersions: p.animationVersions,
+          remainingAttempts: p.remainingAttempts,
+          chosenVideoUrl: p.chosenVideoUrl,
+          selectedChoiceId: p.selectedChoiceId,
+          generatedContinuations: p.generatedContinuations,
+          designChatMessages: p.designChatMessages,
+          // 2026-06-08 — Persist the per-artwork Animation Panel chat
+          // across reload/sync, otherwise the conversation evaporates
+          // every time the teacher reopens the project.
+          animationChatMessages: p.animationChatMessages,
+        }
+      }),
     }
   }
 

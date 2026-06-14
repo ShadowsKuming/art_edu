@@ -5500,6 +5500,85 @@ R2，返回永久 URL），Render 也配了 `R2_GENERATED_PUBLIC_URL` 等变量�
   时极易漂移；**以 requirements.txt 为唯一真源**，environment.yml 仅作本地
   便利并注明这一点。
 
+## §38 — 2026-06-15 — Part-3 story/video「重新登录后消失」根因：两个 hydrate 期 heal 在删数据（BLOOM-2026-A）
+
+### 报告现象
+BLOOM-2026-A 老师在《吸引人的标题》(g2v2-u4-l5) Part-3 生成了动画
+（且这次动画**成功转存到了公共 R2**，是 §37 修复后全库第一个
+`pub-…r2.dev` 永久视频）。但她**重新登录后故事和视频都不见了**，
+她判断「数据应该还在数据库 / R2 里」。控制台只有 §35 的
+`[projects] localStorage over quota — persisted slim cache` 一行
+（红鲱鱼，与丢失无关）。
+
+### 直接查库确认（只读）
+用生产 `DATABASE_URL`（psql 不可用，改用 `psycopg2` 临时脚本，
+跑完即删）核对 `projects.snapshot`：
+
+- proj-1780492840531（BLOOM-2026-A / g2v2-u4-l5）**完好**：
+  art01/02/03 三个 artwork 故事都在；art01、art02 各有 1 个
+  **R2 永久视频**；`flat.storyData === slot[art01].storyData`
+  （深度相等）。**DB 是健康的，数据从未真正丢失。**
+- 全库 18 个 project 里，**只有这一个**用上了 R2 永久 URL，其余
+  仍是 24h 过期的 `*.volces.com` 临时链接（§35/§37 修复后才转存）。
+- 另一个 project（proj-1780492839443 / l4）出现
+  `slot[art01].storyData=null` 但 `flat.storyData` 有内容且 active
+  ——这是 Pass-2 会误删 flat 故事的**潜在受害者证据**。
+
+### 根因（两条都是 hydrate 期 heal 在「删客户端数据」）
+
+**A. §34 一次性动画清除 heal 从未被删除 → 每次登录都删她的 R2 视频。**
+`projects.ts` 里 `healPart3AnimationsForLesson` 硬编码
+`BLOOM-2026-A` + `g2v2-u4-l5`，在 `migrateProjects()` 里**每次
+hydrate**（boot + 登录后 `loadFromAPI`）都把 `animationVersions`
+/ `chosenVideoUrl` 清空。它本是 §34 改 brief 后的一次性清理，
+KB 也写了「老师重新生成后下轮 PR sweep 删掉」——但一直没删，于是
+她**新生成、已转存 R2 的视频每次登录都被重新抹掉**。DB 仍是好的
+（清除只发生在内存；PUT 回写又恰因 CORS/§33 未生效，所以 DB 没被
+污染——这反而救了数据）。
+
+**B. §33 Pass-2「flat≠slot 就清空 flat」是破坏式的 → 误删故事。**
+Part-3 有「扁平镜像」(`pair.storyData/animationVersions/...`，当前
+artwork 的活动视图，`loadSnapshot()` 直接渲染它) 和「每 artwork 槽」
+(`artworkStates[key]`，**只在切换 artwork 时**由 `_saveArtworkState`
+同步)。在当前 artwork 上**生成**故事/视频只更新扁平镜像，槽是旧的。
+Pass-2 原假设「槽永远权威」，于是 flat≠slot 时把 flat 清成 null
+——把「刚生成、还没切走」的故事/视频删掉（proj-1780492839443 即此情形）。
+
+### 修复（3 处，全在 `frontend/src/stores/`，零后端/DB 改动）
+
+1. **删除 §34 `healPart3AnimationsForLesson`** 及其在 `migrateProjects`
+   的调用（projects.ts）。连同 `TARGET_INVITE/LESSON_*`、
+   `_readInviteCodeFromLS`、`_clearAnimationFieldsOnly` 一并移除。
+   → 客户端不再每次登录抹她的视频；下次登录直接加载健康的 DB 快照。
+2. **Pass-2 改为非破坏式「reconcile」**（projects.ts
+   `healMismatchedPart3Stories`）：flat≠slot 时不再清空，而是
+   **保留有内容的一侧**——flat 有故事→把 flat 写进 slot（flat 赢，
+   因为它就是 `loadSnapshot` 渲染的活动视图）；flat 空而 slot 有→
+   从 slot 恢复 flat。既杜绝丢数据，也顺手自愈 null 槽。
+   Pass-1（L4 关键词跨 artwork 污染检测）保持不变。
+3. **根因：`part3.ts getSnapshot()` 持久化前先同步 flat→slot**
+   （和 `_saveArtworkState` 一样镜像当前 artwork）。从此每份快照
+   内部自洽（active artwork 的 flat===slot），Pass-2 再也不会被
+   触发去误判。
+
+### 验证
+- `npm run build`（vue-tsc + vite）通过，~1.0s，0 TS error。
+- BLOOM-2026-A 下次登录：§34 heal 不再运行 → 健康 DB 快照原样加载
+  → art01《年》故事 + R2 视频应正常显示。
+
+### 待人工确认 / 后续
+- **CORS（§28/§33 复发）**：她控制台没有成功的 `loadFromAPI` 迹象，
+  若线上 API 仍拒绝 `artbloomedu.com`，即便本修复落地，前端也拉不到
+  健康的 DB 行（会停在过期 localStorage 缓存）。需确认 Render 的
+  `CORS_ALLOW_ORIGINS` / 重新部署后端。
+- 全库仅 1 个 R2 视频说明 §35/§37 的转存是新近才真正生效；旧
+  `*.volces.com` 视频 24h 后仍会失效，属预期（无法追溯转存）。
+- 经验：**「一次性 per-user heal」务必带自毁/到期条件**，否则会从
+  「救数据」退化成「每次 hydrate 删数据」。**hydrate 期的 migrate/heal
+  绝不能做破坏性删除而无法区分「脏数据」与「刚生成还没回写的新数据」**
+  ——默认保留、向「有内容的一侧」收敛。
+
+
 
 
 
