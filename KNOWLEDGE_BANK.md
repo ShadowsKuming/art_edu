@@ -5399,4 +5399,107 @@ R2_GENERATED_PUBLIC_URL=https://pub-zzzzzz.r2.dev
 - 第三方返回的媒体 URL 默认当作 **临时** 处理；凡是要进快照/长期
   保存的，一律先转存到我方持久存储，存永久 URL，不存第三方临时链接。
 
+## §36 — 2026-06-14/15 — 首页加载极慢（~50s）根因修复：9.9MB 中文字体 + 46MB 未压缩 PNG
+
+### 现象
+首页/落地页首屏长达 ~50s 才出图。Network 面板显示首屏拉取数十 MB
+静态资源，连接被打满，字体与大图长期 pending。
+
+### 根因（两个独立的体积炸弹）
+1. **字体**：`寒蝉宽黑体(Chill K Sans).otf` 单文件 **9.9 MB**，仅用于
+   `HeroSection.vue` 的中文 wordmark「艺芽」两个字，却整份字体被打进
+   bundle 并阻塞首屏。
+2. **图片**：`src/assets/images/` 下 PNG 共 **~46 MB**（hero-main 3MB、
+   多个 banner/textbook 封面各 1–2MB），Vite 几乎原样 ship，首屏一次性
+   拉取约 20MB。
+
+### 修复
+1. **字体子集化 → 内联**（`scripts/subset-fonts.sh`，pyftsubset）
+   - 仅保留「艺芽」用到的字形：9.9 MB OTF → **1.1 KB WOFF2**。
+   - `fonts.css` 的 `@font-face` 改指向 `fonts/chill-k-sans-subset.woff2`。
+   - 因 <4KB，Vite 自动 **base64 内联进 CSS**（零额外请求）。
+   - 原 OTF 留在 source 供改字时重新子集化；已确认 **dist 内 0 个 .otf**。
+   - 字形变更后须重跑：`bash scripts/subset-fonts.sh`。
+2. **图片就地压缩**（`scripts/optimize-images.js`，sharp；`npm run optimize-images`）
+   - 保持 PNG 格式、**不动任何 import 路径**（方案 A，零代码改动风险）。
+   - 调色板量化 + 最高 zlib + 超 1920px 降采样；仅当更小才覆盖。
+   - 结果：`src/assets/images` **47 MB → 12 MB（-75%）**；逐文件 -62~79%。
+   - `sharp` 已显式加入 devDependencies（^0.34.5）以保证可复现。
+3. **首屏以下懒加载 + 首图提速**
+   - `TutorialCard` / `TutorialSection` / `ContactSection` 的下方图片加
+     `loading="lazy" decoding="async"`。
+   - `HeroSection` 首图加 `fetchpriority="high" decoding="async"`。
+4. **验证**：`npm run build` 通过；CSS 37KB，字体已确认内联为 woff2 data URI。
+
+### 仍待办（follow-up，本轮未动）
+- `frontend/public/textbook-assets/` 约 **99 MB**（design PNG 最大 3.4MB +
+  mp3），是 `public/` 静态资源，**仅在课程 workspace 内按需加载**，不影响
+  首页首屏。后续可对其单独压缩/转 WebP/迁 R2，注意美术保真度需求。
+
+### 经验
+- 单个超大资源（字体/图）即可拖垮首屏：定位时先按 **文件体积** 排查，
+  而非数量。
+- 「只用几个字」的 CJK 字体务必 **子集化**；子集后小到能被打包器内联，
+  连请求都省了。
+- 就地压缩 + 不改 import 路径是**最低风险**的图片优化路径；用 npm script
+  固化，避免下次新增大图又回退。
+
+## §37 — 2026-06-15 — §35 的 R2 转存「从未生效」根因：boto3 没进 requirements
+
+### 现象
+§35 写好了 `_persist_generated_media()`（把 Doubao 临时图/视频转存到公共
+R2，返回永久 URL），Render 也配了 `R2_GENERATED_PUBLIC_URL` 等变量，但
+「24h 后破图/视频打不开」依旧 —— 转存代码像没跑一样。
+
+### 根因
+`main.py` 顶部是 `try: import boto3 ... except ImportError: _BOTO3_AVAILABLE
+= False`（设计成「没装 boto3 也能启动」）。而 **`backend/requirements.txt`
+里根本没有 boto3**（KB §23 曾加过 `boto3==1.35.74`，中途丢了），
+`environment.yml` 也没有。Render 用 `pip install -r requirements.txt` 构建
+→ 线上 `_BOTO3_AVAILABLE=False` → `_get_r2_generated_client()` 返回 `None`
+→ `_persist_generated_media()` 每次都回退原始 Ark 临时 URL。**整套转存一行
+没执行过**，所有 R2 功能（含 §23 user-state、story-audio）同样静默失效。
+
+### 修复（仅声明依赖 + IaC 留痕，零业务逻辑改动）
+1. `backend/requirements.txt` 加 `boto3==1.35.74`（botocore 随之带入）。
+   —— 这一行才是让 §35 真正生效的关键。
+2. `backend/environment.yml` pip 段加 `boto3==1.35.74`（conda 便利环境对齐；
+
+   该文件已与 requirements 漂移，注释提示本地优先用 requirements.txt）。
+3. `render.yaml` 补 5 个 R2 占位变量（全 `sync: false`）：`R2_ENDPOINT_URL` /
+   `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_GENERATED_BUCKET` /
+   `R2_GENERATED_PUBLIC_URL`，避免下次重建 Blueprint 漏配。
+
+### 单桶（图+视频同桶）确认
+代码本就是 **单桶**：图和视频都用同一个 `R2_GENERATED_BUCKET` /
+`R2_GENERATED_PUBLIC_URL`，只靠 key 前缀区分 —— 图 `generated/part6/*.png`、
+视频 `generated/anim/*.mp4`。仓库无任何 `R2_GENERATED_VIDEO_*` 残留引用。
+**桶叫什么名字代码完全不在乎**（本次实际桶名 `artbloom-generated-video`），
+只要 `R2_GENERATED_BUCKET` 填这个名字即可。
+
+### Render 侧仍需人工确认（代码搞不定）
+- `R2_GENERATED_BUCKET=artbloom-generated-video`，且该桶 **Public access 开
+  r2.dev**；
+- `R2_GENERATED_PUBLIC_URL`=该桶 pub-xxxx.r2.dev（无结尾斜杠）；
+- `R2_ENDPOINT_URL` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` 已设，且
+  **API token scope 覆盖此桶**。
+
+### 部署后验证
+跑一次 Part-6 转换 / Part-3 动画，Render 日志应出现
+`[r2] persisted part6 → https://pub-xxxx.r2.dev/generated/part6/....png`
+或 `[r2] persisted anim → .../generated/anim/....mp4`；返回前端的
+`image_url`/`video_url` 应是 `pub-xxxx.r2.dev` 而非 `*.volces.com`。
+若见 `[r2] persist ... failed (...)` → 多半 token scope 没覆盖该桶或桶名拼错。
+
+### 经验
+- **「可选依赖 + try/except import」是把双刃剑**：能让服务在缺秘钥时仍启动，
+  但也会让「忘了装依赖」变成静默失效——功能不报错、只是永远走兜底分支。
+  这类可选依赖务必在 requirements 里显式声明，并在日志里能看出它是否激活
+  （本例 `[r2] persisted` / `[r2] persist ... failed` 就是激活探针）。
+- 依赖清单有两份（requirements.txt 用于 Render、environment.yml 用于 conda）
+  时极易漂移；**以 requirements.txt 为唯一真源**，environment.yml 仅作本地
+  便利并注明这一点。
+
+
+
 

@@ -39,6 +39,21 @@ services:
         sync: false
       - key: ARK_IMAGE_MODEL
         sync: false
+      # §35 — Durable storage for AI-generated media (single PUBLIC R2 bucket
+      # receives BOTH Part-6 images and Part-3 videos; key prefixes keep them
+      # apart: generated/part6/*.png and generated/anim/*.mp4). Set all five in
+      # the Render dashboard. When unset, main.py silently falls back to the
+      # ephemeral Ark URLs (behaviour identical to pre-§35).
+      - key: R2_ENDPOINT_URL
+        sync: false         # https://<account-id>.r2.cloudflarestorage.com
+      - key: R2_ACCESS_KEY_ID
+        sync: false         # R2 API token (must be scoped to the bucket below)
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_GENERATED_BUCKET
+        sync: false         # e.g. artbloom-generated-video  (must be PUBLIC)
+      - key: R2_GENERATED_PUBLIC_URL
+        sync: false         # e.g. https://pub-xxxx.r2.dev  (no trailing slash)
 
 databases:
   - name: artbloom-db
