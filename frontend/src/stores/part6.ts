@@ -405,10 +405,26 @@ export const usePart6Store = defineStore('part6', () => {
     const edited = (style.promptZhEdited ?? '').trim()
     const promptToSend = edited || style.promptZh || style.prompt
 
+    // 2026-06-14 (§35) — Hard client-side timeout via AbortController.
+    //
+    // BLOOM-2026-B reported the 风格转换 overlay stuck on "转换中…"
+    // with `TypeError: Failed to fetch` in the console. Root cause was
+    // the backend's 120 s Ark client outliving Cloudflare's ~100 s
+    // edge cap: the edge tore down the connection, but the browser's
+    // own `fetch` can stay pending for *minutes* on a half-open socket
+    // before it finally rejects — so even though the catch below resets
+    // `view` to 'steps', the teacher saw a frozen overlay the whole
+    // time. We now bound the wait at 90 s (just above the backend's
+    // new 80 s budget + its clean 504) so a stall ALWAYS surfaces a
+    // retryable error quickly instead of an indefinite spinner.
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 90_000)
+
     try {
       const res = await fetch(`${API_BASE}/api/part6/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           image_base64: sketchBase64.value,
           image_mime: sketchMime.value,
@@ -439,10 +455,20 @@ export const usePart6Store = defineStore('part6', () => {
       }
       view.value = 'result'
     } catch (e: any) {
-      conversionError.value = e.message
+      // AbortError → our 90 s ceiling fired (or the user navigated
+      // away). Surface a friendly, retryable message rather than the
+      // opaque "The operation was aborted" / "Failed to fetch".
+      conversionError.value =
+        e?.name === 'AbortError'
+          ? '风格转换超时，请稍后重试（首次使用时服务可能需要预热约 1 分钟）。'
+          : e?.message ?? '风格转换失败，请重试。'
+      // Always leave 'converting' so the overlay can never get stuck.
       view.value = 'steps'
+    } finally {
+      window.clearTimeout(timeoutId)
     }
   }
+
 
   /**
    * 2026-05-29 — Helper for Part6AssistancePanel.vue: write the

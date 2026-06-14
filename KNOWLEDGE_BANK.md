@@ -5316,3 +5316,87 @@ Scope guard 用 `localStorage.getItem('artbloom-username')` 而不是
 可在「BLOOM-2026-A 老师完成重新生成动画」之后的下一轮 PR sweep 中
 删掉这 ~70 行（保留 KB 这一段历史记录）。
 
+## §35 — 2026-06-14 — Part-6 风格转换「卡在转换中」+ 生成媒体 24h 过期（BLOOM-2026-B《好长好长》全局修复）
+
+### 报告现象
+BLOOM-2026-B 老师在《好长好长》Project 反馈两件事（见随附截图）：
+1. **Part 6 风格创作**点「为我推荐方案 → 确认 → 转换」后，中间编辑区
+   一直卡在「转换中…」转圈，控制台报
+   `[projects] saveCurrentProject API failed TypeError: Failed to fetch`
+   以及 `images/generations` 相关请求挂起。
+2. **Part 4 课堂实践**里老师自己之前添加的图片，隔了几天再打开就
+   不显示（破图）。
+
+§31 已经对这个 Project 做过一次「一次性自愈」（清掉卡死的
+`view: 'converting'` 快照 + 恢复 Part-4 丢图）。§35 是补上 **全局根因
+修复**，让同样的问题不会再在任何 Project / 任何老师身上复发。
+
+### 根因（两条独立的链，恰好同时砸在同一个 Project 上）
+
+**A. Part-6 转换永久卡死 = 120s 后端超时 撞上 Cloudflare ~100s 边缘上限**
+- `backend/main.py` 的 `/api/part6/transfer` 用 `_ark_client(120.0)`。
+- 我们的 API 走 Cloudflare，源响应硬上限约 100s。Doubao Seedream
+  在 2048×2048 + 冷启动时常逼近 80-100s，于是 Cloudflare 在边缘
+  把连接断掉。
+- 浏览器侧 `fetch` 此时不会立刻 reject——半开 TCP 连接可以挂起
+  **好几分钟**才最终抛 `TypeError: Failed to fetch`。在那之前
+  `part6.ts` 的 `convert()` 既不进 success 也不进 catch，`view`
+  永久停在 `'converting'`，而这个状态又会被 autosave 写进快照，于是
+  「转换中」遮罩在重开后依旧存在（这正是 §31 要手动清的状态）。
+- 这和 §31 描述的 Part-3「生成中…」卡死是同源问题。
+
+**B. Part-4/Part-6 图片几天后破图 = Ark 临时 URL 24h 过期被存进快照**
+- Doubao 返回的图片/视频是 `*.volces.com` 上的临时签名 URL，约 24h
+  过期。我们把它**原样**塞进 project snapshot。
+- 隔天老师重开，URL 已失效 → 破图 / 视频打不开。Part-4 老师自加图
+  若来源是生成结果，同样中招。`localStorage over quota`（§28）会进一步
+  让 slim cache 丢内容，加剧观感。
+
+### 修复（全局，4 处）
+
+1. **后端超时收口（`/api/part6/transfer`）**
+   - `_ark_client(120.0)` → `_ark_client(80.0)`，留 ~15-20s 给下方
+     R2 转存，整体仍稳在 Cloudflare 100s 以内。
+   - 捕获 `httpx.TimeoutException` → 返回 **504 + 中文友好提示**
+     （含「首次使用服务可能需要预热约 1 分钟」），杜绝静默挂死。
+
+2. **前端硬超时（`frontend/src/stores/part6.ts` `convert()`）**
+   - 新增 `AbortController`，90s（略高于后端 80s + 504）强制中止。
+   - `catch` 区分 `AbortError` 给可重试中文提示；`finally` 清 timer；
+     无论如何都把 `view` 退回 `'steps'`，遮罩永远不会再卡死。
+
+3. **生成媒体转存公共 R2（根治 24h 过期，§Fix1b/3）**
+   - `backend/main.py` 新增 `_persist_generated_media()` +
+     `_get_r2_generated_client()`：拿到 Ark 临时 URL 后下载字节，
+     转存到我方 **公共** R2 桶，返回永久 `pub-xxxx.r2.dev` URL。
+   - 接入 `/api/part6/transfer`（图 `generated/part6/*.png`）与
+     `/api/animation/status`（视频 `generated/anim/*.mp4`）。
+   - **完全防御式**：boto3 缺失 / R2 未配置 / 下载或上传任一失败，
+     一律回退原始 Ark URL——绝不让现有行为变差。下载用 30s 子超时，
+     `put_object` 经 `asyncio.to_thread` 跑（boto3 是阻塞的）。
+   - 新增 `import asyncio` / `import uuid`。
+
+4. **localStorage slim cache（§Fix1a，已于本轮先行）**
+   - `projects.ts` 的 `stripHeavyDataUrls` 现在也剥离裸 base64 字段
+     （`imageBase64` / `sketchBase64`），缓解 `over quota` 导致的
+     快照丢内容。API（DB）始终是 source of truth。
+
+### 部署须知（务必）
+要让转存真正生效，需在 Render 配置（并把桶设为 Public）：
+```
+R2_GENERATED_BUCKET=artbloom-generated
+R2_GENERATED_PUBLIC_URL=https://pub-zzzzzz.r2.dev
+# 复用既有：R2_ENDPOINT_URL / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY
+# （API token 需 scope 到该新桶）
+```
+未配置时后端静默回退临时 URL（行为同修复前，不会更糟）。详见
+`backend/.env.example` 的「§35 DURABLE AI-generated media」段。
+
+### 经验
+- 任何「同步等待外部生成」的端点，后端超时必须 **严格小于** 边缘
+  （Cloudflare ~100s）上限，且前端必须有独立的 `AbortController`
+  兜底——否则浏览器半开连接会把 UI 卡到「看起来死了」。
+- 第三方返回的媒体 URL 默认当作 **临时** 处理；凡是要进快照/长期
+  保存的，一律先转存到我方持久存储，存永久 URL，不存第三方临时链接。
+
+
