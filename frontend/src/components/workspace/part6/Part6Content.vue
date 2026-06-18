@@ -31,8 +31,12 @@ const canConvert = computed(() =>
   // (teacher can confirm styles first), but Convert obviously still
   // needs an image — gate the button here so it stays disabled with
   // a tooltip until Step 1 is complete.
-  !!store.sketchBase64
+  !!store.sketchBase64 &&
+  // 2026-06-18: …and the teacher must have confirmed the orientation.
+  // Style transfer can only ever run on an approved orientation.
+  store.sketchConfirmed
 )
+
 
 const allUsed = computed(() =>
   store.styles.length > 0 &&
@@ -62,9 +66,22 @@ function openFilePicker() {
   input.click()
 }
 
+// 2026-06-18 — Orientation controls for the uploaded sketch. The
+// teacher rotates the photo upright, then clicks Confirm; only then
+// does `canConvert` unlock (see the computed above). `rotateSketch`
+// re-encodes the pixels in the store so the corrected orientation is
+// what Doubao Seedream actually receives.
+function rotateSketch(deg: number) {
+  store.rotateSketch(deg)
+}
+function confirmSketch() {
+  store.confirmSketch()
+}
+
 // 2026-05-28: `saveAndNext()` retired together with the footer
 // "保存" / "下一部分" buttons. Teachers navigate via the sidebar.
 // `slideStore.navigateToNextPart()` was also removed.
+
 
 // ── Result image lightbox ──────────────────────────────────────
 //
@@ -355,9 +372,66 @@ function clearAnnotations() {
             </button>
           </template>
         </div>
+
+        <!-- 2026-06-18 — Orientation controls + confirmation gate.
+             Phone photos of sketches are frequently sideways; the
+             teacher rotates the image upright and clicks Confirm
+             before the Convert button (Step 2) unlocks. Rotating
+             re-arms the gate, so generation always runs on an
+             orientation the teacher approved. -->
+        <div v-if="store.sketchDataUrl" class="p6-orient">
+          <div class="p6-orient-controls">
+            <button
+              type="button"
+              class="p6-orient-btn"
+              :title="t('part6.rotateLeft')"
+              :aria-label="t('part6.rotateLeft')"
+              @click="rotateSketch(-90)"
+            >
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                <path d="M5 8V5a1 1 0 011-1h7a1 1 0 011 1v10a1 1 0 01-1 1H6a1 1 0 01-1-1v-1"
+                      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M5 8L2.5 10.5M5 8l2.5 2.5"
+                      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>{{ t('part6.rotateLeft') }}</span>
+            </button>
+            <button
+              type="button"
+              class="p6-orient-btn"
+              :title="t('part6.rotateRight')"
+              :aria-label="t('part6.rotateRight')"
+              @click="rotateSketch(90)"
+            >
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                <path d="M15 8V5a1 1 0 00-1-1H7a1 1 0 00-1 1v10a1 1 0 001 1h7a1 1 0 001-1v-1"
+                      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M15 8l2.5 2.5M15 8l-2.5 2.5"
+                      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>{{ t('part6.rotateRight') }}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            class="p6-confirm-btn"
+            :class="{ 'p6-confirm-btn--done': store.sketchConfirmed }"
+            :disabled="store.sketchConfirmed"
+            @click="confirmSketch"
+          >
+            <span v-if="store.sketchConfirmed">✓ {{ t('part6.imageConfirmed') }}</span>
+            <span v-else>{{ t('part6.confirmImage') }}</span>
+          </button>
+
+          <p v-if="!store.sketchConfirmed" class="p6-orient-hint">
+            {{ t('part6.rotateHint') }}
+          </p>
+        </div>
       </div>
 
       <!-- Step 2: Pig style selectors.
+
            2026-05 v2: gate flipped from `styles.length` →
            `confirmedMessageId !== null`. The 3 pigs only appear once
            the teacher has actually CONFIRMED a set in the chat panel
@@ -778,7 +852,66 @@ function clearAnnotations() {
 }
 .p6-reupload-btn:hover { background: rgba(0,0,0,0.65); }
 
+/* ── Orientation controls + confirmation gate (2026-06-18) ── */
+.p6-orient {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.p6-orient-controls {
+  display: inline-flex;
+  gap: 10px;
+}
+.p6-orient-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px 0 12px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.p6-orient-btn:hover { background: #e5e7eb; border-color: #9ca3af; }
+.p6-orient-btn svg { flex-shrink: 0; }
+
+.p6-confirm-btn {
+  height: 38px;
+  padding: 0 26px;
+  background: #7FEC8F;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #111827;
+  cursor: pointer;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.12);
+  transition: transform 0.15s;
+}
+.p6-confirm-btn:not(:disabled):hover { transform: translateY(-1px) scale(1.02); }
+.p6-confirm-btn--done {
+  background: #d1fae5;
+  color: #14532d;
+  box-shadow: none;
+  cursor: default;
+}
+.p6-orient-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+  line-height: 1.4;
+}
+
 /* ── Styles loading / hint ───────────────────────────────── */
+
 .p6-styles-loading {
   display: flex;
   align-items: center;

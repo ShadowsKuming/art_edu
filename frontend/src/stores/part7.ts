@@ -66,12 +66,58 @@ async function _downsampleIfLarge(dataUrl: string): Promise<string> {
     }
 }
 
+/**
+ * 2026-06-18 — Canvas-based image rotation helper (mirrors the Part-6
+ * copy in stores/part6.ts).
+ *
+ * Phone photos of student work are frequently sideways; the Doubao
+ * vision commenter then critiques a rotated image. Re-encoding the
+ * pixels here means `imageBase64` (and therefore the /api/part7/comment
+ * request body) carries the corrected orientation with no extra
+ * plumbing downstream. `deg` is normalised to 0/90/180/270.
+ */
+async function rotateImageDataUrl(dataUrl: string, deg: number): Promise<string> {
+    const norm = ((deg % 360) + 360) % 360
+    if (norm === 0) return dataUrl
+    try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const el = new Image()
+            el.onload = () => resolve(el)
+            el.onerror = () => reject(new Error('image decode failed'))
+            el.src = dataUrl
+        })
+        const w = img.naturalWidth
+        const h = img.naturalHeight
+        const canvas = document.createElement('canvas')
+        const swap = norm === 90 || norm === 270
+        canvas.width = swap ? h : w
+        canvas.height = swap ? w : h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return dataUrl
+        ctx.translate(canvas.width / 2, canvas.height / 2)
+        ctx.rotate((norm * Math.PI) / 180)
+        ctx.drawImage(img, -w / 2, -h / 2)
+        // Student photos are JPEGs; keep them JPEG @0.9 to bound size.
+        return canvas.toDataURL('image/jpeg', 0.9)
+    } catch {
+        return dataUrl
+    }
+}
+
 export interface StudentWork {
 
     id: string
     imageDataUrl: string
     imageBase64: string
     imageMime: string
+    /**
+     * 2026-06-18 — Orientation-confirmation gate. A freshly-uploaded
+     * work is `false`; the teacher rotates it upright and clicks
+     * Confirm, which flips this to `true`. `generateComment` refuses
+     * to run until then, so the AI only ever critiques an orientation
+     * the teacher approved.
+     */
+    confirmed: boolean
     studentNote: string
     feedbackText: string
     feedbackWordCount: number
@@ -80,6 +126,7 @@ export interface StudentWork {
     generatingFeedback: boolean
     feedbackError: string | null
 }
+
 
 export interface Part7Pair {
     id: string // = slide id
@@ -103,7 +150,11 @@ function makeWork(dataUrl: string): StudentWork {
         imageDataUrl: dataUrl,
         imageBase64: b64,
         imageMime: meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg',
+        // 2026-06-18 — fresh uploads start unconfirmed; the teacher
+        // rotates upright + confirms before the critique can run.
+        confirmed: false,
         studentNote: '',
+
         feedbackText: '',
         feedbackWordCount: 0,
         feedbackDimensions: [],
@@ -364,17 +415,53 @@ export const usePart7Store = defineStore('part7', () => {
         if (work) work.studentNote = note
     }
 
+    /**
+     * 2026-06-18 — Rotate a student work ±90°, re-encoding the pixels
+     * (so the corrected orientation is what /api/part7/comment sees)
+     * and re-arming the confirmation gate. The teacher must Confirm
+     * again after the last rotation before the critique can run.
+     */
+    async function rotateStudentWork(idx: number, deg: number) {
+        const pair = activePair.value
+        if (!pair) return
+        const work = pair.works[idx]
+        if (!work) return
+        const rotated = await rotateImageDataUrl(work.imageDataUrl, deg)
+        const [meta, b64] = rotated.split(',')
+        work.imageDataUrl = rotated
+        work.imageBase64 = b64
+        work.imageMime = meta.match(/:(.*?);/)?.[1] ?? work.imageMime
+        work.confirmed = false
+    }
+
+    /**
+     * 2026-06-18 — Lock in the current orientation for a student work.
+     * Until this is called the Generate button stays disabled.
+     */
+    function confirmStudentWork(idx: number) {
+        const pair = activePair.value
+        if (!pair) return
+        const work = pair.works[idx]
+        if (work) work.confirmed = true
+    }
+
     async function generateComment(idx: number, language: 'en' | 'zh' = 'zh') {
         const pair = activePair.value
         if (!pair) return
         const work = pair.works[idx]
         if (!work) return
 
+        // 2026-06-18 — Orientation gate: never critique an unconfirmed
+        // (possibly sideways) upload. The button is disabled in this
+        // state too, but guard here as a belt-and-braces backstop.
+        if (!work.confirmed) return
+
         const lessonId = useProjectsStore().activeLessonId
         if (!lessonId) {
             work.feedbackError = 'No lesson_id on active project — Part 7 commenter requires an LKP-anchored project.'
             return
         }
+
 
         work.generatingFeedback = true
         work.feedbackError = null
@@ -429,12 +516,18 @@ export const usePart7Store = defineStore('part7', () => {
             activeWorkIdx: p.activeWorkIdx ?? 0,
             works: (p.works ?? []).map((w: any) => ({
                 ...w,
+                // 2026-06-18 — Back-compat: works saved before the
+                // rotation gate existed have no `confirmed` flag.
+                // Treat them as already-confirmed so resuming an old
+                // project doesn't block the critique button.
+                confirmed: w.confirmed ?? true,
                 generatingFeedback: false,
                 feedbackError: null,
             })),
         }))
         activePairId.value = snap.activePairId ?? null
     }
+
 
     /**
      * 2026-05-29 — Wipe Part-7 state back to factory defaults so the
@@ -458,7 +551,10 @@ export const usePart7Store = defineStore('part7', () => {
         removeStudentWork,
         selectStudentWork,
         setStudentNote,
+        rotateStudentWork,
+        confirmStudentWork,
         generateComment,
+
         getSnapshot,
         loadSnapshot,
         reset,

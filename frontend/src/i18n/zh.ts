@@ -584,7 +584,17 @@ export default {
     feedbackHeading: 'AI 评价',
     wordCount: '{n} 字',
     dimensionsCovered: '已覆盖维度：',
+    // 2026-06-18 — 方向确认 + 全屏查看
+    rotateLeft: '向左旋转',
+    rotateRight: '向右旋转',
+    confirmImage: '确认方向',
+    imageConfirmed: '方向已确认',
+    rotateHint: '请先把照片转正，确认方向后再生成评价。',
+    confirmFirst: '请先确认图片方向。',
+    viewFullscreen: '点击全屏查看',
+    closeFullscreen: '关闭（Esc）',
   },
+
   part6: {
     step1Label: '第一步：上传草稿或未完成的作品',
 
@@ -599,7 +609,14 @@ export default {
     // 2026-05 新增：当老师已在右侧聊天中确认了一套风格、但还没在 Step 1
     // 上传学生作品时，3 只小猪上方提示需要先完成上传。
     uploadFirst: '请先在上方上传学生作品后再开始转换。',
+    // 2026-06-18 — 方向确认（第一步）
+    rotateLeft: '向左旋转',
+    rotateRight: '向右旋转',
+    confirmImage: '确认方向',
+    imageConfirmed: '方向已确认',
+    rotateHint: '请先把草稿转正，确认方向后再开始转换。',
     // 2026-05 v2 — 老师预览 / 课堂模式 segmented toggle 与配套 toast。
+
     previewModeLabel: '老师预览',
     classroomModeLabel: '课堂模式',
     modeToggleAria: '选择老师预览或课堂模式',

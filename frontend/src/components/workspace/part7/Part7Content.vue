@@ -288,6 +288,47 @@ async function generate() {
     if (!pair) return
     await store.generateComment(pair.activeWorkIdx, locale.value as 'en' | 'zh')
 }
+
+// ── Orientation controls + confirmation gate (2026-06-18) ──────────
+//
+// Phone photos of student work are frequently sideways. After upload
+// the teacher rotates the active work upright and clicks Confirm; the
+// Generate button stays disabled until `activeWork.confirmed` is true,
+// so the AI critique only ever runs on an orientation the teacher
+// approved. `rotateStudentWork` re-encodes the pixels in the store.
+function rotateActiveWork(deg: number) {
+    const pair = store.activePair
+    if (!pair) return
+    store.rotateStudentWork(pair.activeWorkIdx, deg)
+}
+function confirmActiveWork() {
+    const pair = store.activePair
+    if (!pair) return
+    store.confirmStudentWork(pair.activeWorkIdx)
+}
+
+// ── Fullscreen viewer (2026-06-18) ─────────────────────────────────
+//
+// Pilot request: teachers want to enlarge a student-work photo to
+// projector size so the whole class can see it. Click the preview
+// image to open a full-screen lightbox; Esc / click-backdrop / ×
+// closes it. Mounted via Teleport so it sits outside the column's
+// scroll container.
+const lightboxUrl = ref<string | null>(null)
+function openLightbox(url: string) {
+    lightboxUrl.value = url
+}
+function closeLightbox() {
+    lightboxUrl.value = null
+}
+function onLightboxKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && lightboxUrl.value !== null) {
+        e.stopPropagation()
+        closeLightbox()
+    }
+}
+onMounted(() => document.addEventListener('keydown', onLightboxKey, true))
+onBeforeUnmount(() => document.removeEventListener('keydown', onLightboxKey, true))
 </script>
 
 <template>
@@ -354,8 +395,67 @@ async function generate() {
                 <div v-if="!store.activeWork" class="p7-placeholder" />
 
                 <template v-else>
+                    <!-- 2026-06-18 — Click the preview to open the
+                         student work fullscreen for the whole class. -->
                     <div class="p7-work-preview">
-                        <img :src="store.activeWork.imageDataUrl" alt="" />
+                        <img
+                            :src="store.activeWork.imageDataUrl"
+                            class="p7-work-preview-img"
+                            :title="t('part7.viewFullscreen')"
+                            alt=""
+                            @click="openLightbox(store.activeWork.imageDataUrl)"
+                        />
+                    </div>
+
+                    <!-- 2026-06-18 — Orientation controls + confirmation
+                         gate. Phone photos are frequently sideways; the
+                         teacher rotates the work upright and clicks
+                         Confirm before the critique can be generated.
+                         Rotating re-arms the gate. -->
+                    <div class="p7-orient">
+                        <div class="p7-orient-controls">
+                            <button
+                                type="button"
+                                class="p7-orient-btn"
+                                :title="t('part7.rotateLeft')"
+                                :aria-label="t('part7.rotateLeft')"
+                                @click="rotateActiveWork(-90)"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                                    <path d="M5 8V5a1 1 0 011-1h7a1 1 0 011 1v10a1 1 0 01-1 1H6a1 1 0 01-1-1v-1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M5 8L2.5 10.5M5 8l2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>{{ t('part7.rotateLeft') }}</span>
+                            </button>
+                            <button
+                                type="button"
+                                class="p7-orient-btn"
+                                :title="t('part7.rotateRight')"
+                                :aria-label="t('part7.rotateRight')"
+                                @click="rotateActiveWork(90)"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                                    <path d="M15 8V5a1 1 0 00-1-1H7a1 1 0 00-1 1v10a1 1 0 001 1h7a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M15 8l2.5 2.5M15 8l-2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>{{ t('part7.rotateRight') }}</span>
+                            </button>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="p7-confirm-btn"
+                            :class="{ 'p7-confirm-btn--done': store.activeWork.confirmed }"
+                            :disabled="store.activeWork.confirmed"
+                            @click="confirmActiveWork"
+                        >
+                            <span v-if="store.activeWork.confirmed">✓ {{ t('part7.imageConfirmed') }}</span>
+                            <span v-else>{{ t('part7.confirmImage') }}</span>
+                        </button>
+
+                        <p v-if="!store.activeWork.confirmed" class="p7-orient-hint">
+                            {{ t('part7.rotateHint') }}
+                        </p>
                     </div>
 
                     <!-- 2026-05: 学生备注 (studentNote) input box was
@@ -373,7 +473,8 @@ async function generate() {
                         <button
                             class="p7-btn p7-btn--primary"
                             type="button"
-                            :disabled="store.activeWork.generatingFeedback"
+                            :disabled="store.activeWork.generatingFeedback || !store.activeWork.confirmed"
+                            :title="!store.activeWork.confirmed ? t('part7.confirmFirst') : ''"
                             @click="generate"
                         >
                             <span v-if="store.activeWork.generatingFeedback">{{ t('part7.generating') }}</span>
@@ -590,6 +691,32 @@ async function generate() {
                 </template>
             </section>
         </template>
+
+        <!-- 2026-06-18 — Fullscreen viewer for a student work. Mounted
+             via Teleport so it isn't clipped by the column's scroll
+             container. Click backdrop / × / press Esc to close. -->
+        <Teleport to="body">
+            <div
+                v-if="lightboxUrl"
+                class="p7-lightbox"
+                role="dialog"
+                aria-modal="true"
+                @click.self="closeLightbox"
+            >
+                <img :src="lightboxUrl" class="p7-lightbox-img" alt="" />
+                <button
+                    class="p7-lightbox-close"
+                    type="button"
+                    :title="t('part7.closeFullscreen')"
+                    :aria-label="t('part7.closeFullscreen')"
+                    @click="closeLightbox"
+                >
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+        </Teleport>
     </section>
 </template>
 
@@ -708,6 +835,71 @@ async function generate() {
     width: 100%; height: auto; display: block;
     max-height: 360px; object-fit: contain;
     background: #f9fafb;
+}
+/* 2026-06-18 — Clickable preview → fullscreen. Zoom-in cursor +
+   subtle hover signals the affordance without a separate button. */
+.p7-work-preview-img {
+    cursor: zoom-in;
+    transition: opacity 0.15s;
+}
+.p7-work-preview-img:hover { opacity: 0.92; }
+
+/* 2026-06-18 — Orientation controls + confirmation gate */
+.p7-orient {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: 720px;
+}
+.p7-orient-controls {
+    display: inline-flex;
+    gap: 10px;
+}
+.p7-orient-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 14px 0 12px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.p7-orient-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+.p7-orient-btn svg { flex-shrink: 0; }
+
+.p7-confirm-btn {
+    height: 38px;
+    padding: 0 26px;
+    background: #7FEC8F;
+    border: none;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    cursor: pointer;
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.12);
+    transition: transform 0.15s;
+}
+.p7-confirm-btn:not(:disabled):hover { transform: translateY(-1px) scale(1.02); }
+.p7-confirm-btn--done {
+    background: #d1fae5;
+    color: #14532d;
+    box-shadow: none;
+    cursor: default;
+}
+.p7-orient-hint {
+    margin: 0;
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.4;
 }
 
 .p7-note {
@@ -1021,3 +1213,52 @@ async function generate() {
 .p7-tts-label { line-height: 1; }
 </style>
 
+<!-- 2026-06-18 — Lightbox styles are NOT scoped: the element is
+     Teleported to <body>, outside this component's DOM subtree, so
+     scoped attribute selectors wouldn't match. Class names are
+     `p7-lightbox-` prefixed to avoid global collisions. -->
+<style>
+.p7-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    cursor: zoom-out;
+    animation: p7LightboxFadeIn 0.18s ease;
+}
+@keyframes p7LightboxFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+.p7-lightbox-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 12px 64px rgba(0, 0, 0, 0.6);
+    cursor: default;
+}
+.p7-lightbox-close {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.p7-lightbox-close:hover {
+    background: rgba(239, 68, 68, 0.55);
+}
+</style>

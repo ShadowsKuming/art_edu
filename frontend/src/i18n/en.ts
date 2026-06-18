@@ -598,7 +598,17 @@ export default {
     feedbackHeading: 'AI Feedback',
     wordCount: '{n} words',
     dimensionsCovered: 'Covered:',
+    // 2026-06-18 — orientation gate + fullscreen viewer
+    rotateLeft: 'Rotate left',
+    rotateRight: 'Rotate right',
+    confirmImage: 'Confirm orientation',
+    imageConfirmed: 'Orientation confirmed',
+    rotateHint: 'Rotate the photo upright, then confirm before generating feedback.',
+    confirmFirst: 'Confirm the image orientation first.',
+    viewFullscreen: 'Click to view fullscreen',
+    closeFullscreen: 'Close (Esc)',
   },
+
   part6: {
     step1Label: 'Step 1: Upload a sketch or unfinished work',
 
@@ -613,7 +623,14 @@ export default {
     // 2026-05: shown when the teacher has confirmed a style triple
     // via the chat panel but has not yet uploaded a sketch in Step 1.
     uploadFirst: 'Upload a student work above before starting the conversion.',
+    // 2026-06-18 — orientation gate (Step 1)
+    rotateLeft: 'Rotate left',
+    rotateRight: 'Rotate right',
+    confirmImage: 'Confirm orientation',
+    imageConfirmed: 'Orientation confirmed',
+    rotateHint: 'Rotate the sketch upright, then confirm before converting.',
     // 2026-05 v2 — Teacher preview vs Classroom mode toggle + toast.
+
     previewModeLabel: 'Teacher Preview',
     classroomModeLabel: 'Classroom Mode',
     modeToggleAria: 'Choose teacher preview or classroom mode',

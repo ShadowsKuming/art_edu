@@ -89,11 +89,76 @@ export interface ChatMessage {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
+/**
+ * 2026-06-18 — Canvas-based image rotation helper (shared mental model
+ * with the Part-7 copy).
+ *
+ * Teachers upload phone photos of student sketches that are frequently
+ * sideways / upside-down (the camera's EXIF orientation is stripped the
+ * moment we read the file as a data URL). Doubao Seedream then style-
+ * transfers a rotated sketch, producing a rotated result the teacher
+ * has to mentally un-rotate in front of the class.
+ *
+ * Rather than store a display-only CSS `rotation` and special-case every
+ * downstream consumer (`sketchBase64`, the transfer request body, the
+ * snapshot), we re-encode the pixels: rotate by ±90° on an off-screen
+ * canvas and hand back a fresh data URL. Every later reader then sees
+ * the already-corrected image with zero extra plumbing.
+ *
+ * `deg` is normalised to one of 0/90/180/270; we only ever call it with
+ * ±90 from the UI, but the modulo keeps it safe.
+ */
+async function rotateImageDataUrl(dataUrl: string, deg: number): Promise<string> {
+  const norm = ((deg % 360) + 360) % 360
+  if (norm === 0) return dataUrl
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('image decode failed'))
+      el.src = dataUrl
+    })
+    const w = img.naturalWidth
+    const h = img.naturalHeight
+    const canvas = document.createElement('canvas')
+    // 90 / 270 swap the canvas dimensions; 180 keeps them.
+    const swap = norm === 90 || norm === 270
+    canvas.width = swap ? h : w
+    canvas.height = swap ? w : h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return dataUrl
+    ctx.translate(canvas.width / 2, canvas.height / 2)
+    ctx.rotate((norm * Math.PI) / 180)
+    ctx.drawImage(img, -w / 2, -h / 2)
+    // Keep PNG for sketches to preserve crisp pencil lines / transparency.
+    const mime = dataUrl.slice(5, dataUrl.indexOf(';')) || 'image/png'
+    return canvas.toDataURL(mime === 'image/jpeg' ? 'image/jpeg' : 'image/png')
+  } catch {
+    // Defensive: on any decode/canvas failure return the original so the
+    // teacher can still proceed (just without the rotation applied).
+    return dataUrl
+  }
+}
+
+
 export const usePart6Store = defineStore('part6', () => {
   // ── Sketch (Step 1) ────────────────────────────────────────────
   const sketchDataUrl = ref<string | null>(null)
   const sketchBase64 = ref<string | null>(null)
   const sketchMime = ref('image/jpeg')
+
+  /**
+   * 2026-06-18 — Orientation-confirmation gate.
+   *
+   * Teachers upload phone photos that are often sideways. After upload
+   * the sketch enters an *unconfirmed* state: the teacher can rotate it
+   * to the correct orientation (`rotateSketch`) and must click Confirm
+   * (`confirmSketch`) before the Convert button unlocks. This guarantees
+   * Doubao Seedream only ever style-transfers a correctly-oriented
+   * sketch — see the `rotateImageDataUrl` helper above.
+   */
+  const sketchConfirmed = ref(false)
+
 
   // ── Styles (Step 2) ────────────────────────────────────────────
   // `styles` is now the *confirmed* style set — Part6Content.vue
@@ -172,6 +237,10 @@ export const usePart6Store = defineStore('part6', () => {
     const [meta, b64] = dataUrl.split(',')
     sketchBase64.value = b64
     sketchMime.value = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+    // 2026-06-18 — Every fresh upload must be re-confirmed: the new
+    // photo may be sideways. The teacher rotates + confirms before
+    // Convert unlocks.
+    sketchConfirmed.value = false
     // Re-uploading the sketch only resets transfer-specific state.
     // The confirmed style set + chat history survive so the teacher
     // can iterate on multiple sketches against the same styles.
@@ -183,6 +252,35 @@ export const usePart6Store = defineStore('part6', () => {
     // (pre-redesign) behaviour and would wipe the chat the user
     // just had with 艺芽.
   }
+
+  /**
+   * 2026-06-18 — Rotate the uploaded sketch by ±90° (re-encoding the
+   * pixels via the canvas helper) so the corrected orientation flows
+   * straight through to `sketchBase64` / the transfer request. Any
+   * rotation re-arms the confirmation gate — the teacher must Confirm
+   * again after the last rotation so we never style-transfer a frame
+   * mid-adjustment.
+   */
+  async function rotateSketch(deg: number) {
+    if (!sketchDataUrl.value) return
+    const rotated = await rotateImageDataUrl(sketchDataUrl.value, deg)
+    sketchDataUrl.value = rotated
+    const [meta, b64] = rotated.split(',')
+    sketchBase64.value = b64
+    sketchMime.value = meta.match(/:(.*?);/)?.[1] ?? sketchMime.value
+    sketchConfirmed.value = false
+  }
+
+  /**
+   * 2026-06-18 — Lock in the current orientation. Until this is called
+   * `canConvert` (in Part6Content.vue) stays false, so generation can
+   * only ever start on a teacher-approved orientation.
+   */
+  function confirmSketch() {
+    if (!sketchDataUrl.value) return
+    sketchConfirmed.value = true
+  }
+
 
   /**
    * Send a turn to /api/part6/chat. `intent` is set only when the
@@ -519,7 +617,9 @@ export const usePart6Store = defineStore('part6', () => {
       sketchDataUrl: sketchDataUrl.value,
       sketchBase64: sketchBase64.value,
       sketchMime: sketchMime.value,
+      sketchConfirmed: sketchConfirmed.value,
       styles: styles.value,
+
       lessonSummary: lessonSummary.value,
       selectedStyleIdx: selectedStyleIdx.value,
       usedStyleIndices: usedStyleIndices.value,
@@ -534,7 +634,13 @@ export const usePart6Store = defineStore('part6', () => {
     sketchDataUrl.value = snap.sketchDataUrl ?? null
     sketchBase64.value = snap.sketchBase64 ?? null
     sketchMime.value = snap.sketchMime ?? 'image/jpeg'
+    // 2026-06-18 — Back-compat: snapshots saved before the rotation
+    // gate existed have no `sketchConfirmed`. Treat any pre-existing
+    // sketch as already-confirmed so resuming an old project doesn't
+    // block the teacher from converting.
+    sketchConfirmed.value = snap.sketchConfirmed ?? !!snap.sketchDataUrl
     styles.value = snap.styles ?? []
+
     lessonSummary.value = snap.lessonSummary ?? ''
     selectedStyleIdx.value = snap.selectedStyleIdx ?? null
     usedStyleIndices.value = snap.usedStyleIndices ?? []
@@ -592,7 +698,9 @@ export const usePart6Store = defineStore('part6', () => {
   return {
     // sketch
     sketchDataUrl, sketchBase64, sketchMime,
+    sketchConfirmed, rotateSketch, confirmSketch,
     // styles
+
     styles, lessonSummary, selectedStyleIdx, usedStyleIndices,
     generatingStyles, stylesError,
     // chat
